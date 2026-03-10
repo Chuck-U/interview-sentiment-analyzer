@@ -1,0 +1,16 @@
+{
+  "name": "interview-sentiment-analyzer",
+  "version": "1.0.0",
+  "description": "assist in giving candidates feedback on their interview performance",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "interview",
+    "typescript",
+    "javascript"
+  ],
+  "author": "Chuck Peters",
+  "license": "MIT"
+}
