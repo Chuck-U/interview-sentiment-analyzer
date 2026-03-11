@@ -2,7 +2,7 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "lib": [
-      "ES2022"
+      "ESNext"
     ],
     "module": "CommonJS",
     "moduleResolution": "Node",
@@ -15,8 +15,15 @@
   },
   "include": [
     "electron/**/*",
+    "src/backend/**/*",
     "src/shared/**/*",
     "src/workers/**/*",
     "src/pipelines/**/*"
+  ],
+  "exclude": [
+    "dist",
+    "dist-electron",
+    "release",
+    "node_modules"
   ]
 }

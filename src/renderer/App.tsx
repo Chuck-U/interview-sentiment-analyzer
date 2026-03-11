@@ -7,10 +7,16 @@ const phaseOneChecklist = [
   "Tailwind CSS v4 foundation",
   "ESLint and Prettier baseline",
   "shadcn/ui initialization target",
+  "Phase 2/3 session lifecycle bridge scaffold",
 ];
 
 export default function App() {
   const platformLabel = useMemo(() => window.electronApp.platform, []);
+  const sessionLifecycleStatus = useMemo(
+    () =>
+      window.electronApp.sessionLifecycle ? "wired" : "missing",
+    [],
+  );
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -58,8 +64,17 @@ export default function App() {
                 Next milestone
               </span>
               <span className="text-sm text-muted-foreground">
-                Add shared DTOs, DDD backend skeletons, and session lifecycle
-                boundaries in Phase 2.
+                Replace the in-memory session lifecycle scaffold with SQLite
+                repositories, filesystem-backed chunk registration, and recovery
+                flows.
+              </span>
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-sm font-medium text-muted-foreground">
+                Session lifecycle bridge
+              </span>
+              <span className="text-sm font-semibold capitalize">
+                {sessionLifecycleStatus}
               </span>
             </div>
           </aside>

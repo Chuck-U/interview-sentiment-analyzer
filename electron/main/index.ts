@@ -1,6 +1,9 @@
 import path from "node:path";
 
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, ipcMain } from "electron";
+
+import { createSessionLifecycleBackend } from "../../src/backend";
+import { registerSessionLifecycleIpc } from "../../src/backend/infrastructure/ipc/register-session-lifecycle-ipc";
 
 const devServerUrl = process.env.VITE_DEV_SERVER_URL;
 
@@ -29,6 +32,10 @@ function createMainWindow() {
 }
 
 app.whenReady().then(() => {
+  registerSessionLifecycleIpc(
+    ipcMain,
+    createSessionLifecycleBackend(app),
+  );
   createMainWindow();
 
   app.on("activate", () => {

@@ -1,11 +1,14 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
+    "target": "ESNext",
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
     "strict": true,
+    "allowJs": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "baseUrl": ".",
@@ -17,5 +20,11 @@
         "src/shared/*"
       ]
     }
-  }
+  },
+  "exclude": [
+    "dist",
+    "dist-electron",
+    "release",
+    "node_modules"
+  ]
 }
