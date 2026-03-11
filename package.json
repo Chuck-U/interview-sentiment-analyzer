@@ -4,7 +4,7 @@
   "description": "assist in giving candidates feedback on their interview performance",
   "private": true,
   "packageManager": "pnpm@10.12.4",
-  "main": "dist-electron/main/index.js",
+  "main": "dist-electron/electron/main/index.js",
   "scripts": {
     "dev": "concurrently -k \"pnpm:dev:renderer\" \"pnpm:dev:electron\"",
     "dev:renderer": "vite",

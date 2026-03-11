@@ -24,7 +24,7 @@ function createMainWindow() {
     return mainWindow;
   }
 
-  void mainWindow.loadFile(path.join(__dirname, "../../dist/index.html"));
+  void mainWindow.loadFile(path.join(__dirname, "../../../dist/index.html"));
   return mainWindow;
 }
 
