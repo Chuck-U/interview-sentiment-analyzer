@@ -4,7 +4,40 @@ Recommendation
 
 Use `Electron + React + TypeScript + electron-builder` rather than Next.js for v1. The app is desktop-native first, and the hardest problems are overlay windows, capture permissions, local media handling, and secure background processing rather than web routing or SSR.
 
-Current repo is effectively a blank slate, with only [/home/chuck/interview-sentiment-analyzer/package.json](/home/chuck/interview-sentiment-analyzer/package.json) in place.
+Current Status
+
+The repository is no longer a blank slate. Current stage status:
+
+1. Phase 1: Desktop foundation - done
+2. Phase 2: Architectural skeleton - partially done
+3. Phase 3: Persistence and session lifecycle - partially done
+4. Phase 4: Local signal extraction - not started
+5. Phase 5: Hosted analysis and coaching - not started
+6. Phase 6: Capture and overlay spikes - not started
+
+Evidence for completed Phase 1 work:
+
+- [`/home/chuck/interview-sentiment-analyzer/package.json`](/home/chuck/interview-sentiment-analyzer/package.json) contains the Electron, Vite, TypeScript, lint, format, and `electron-builder` scripts and config.
+- [`/home/chuck/interview-sentiment-analyzer/electron/main/index.ts`](/home/chuck/interview-sentiment-analyzer/electron/main/index.ts) and [`/home/chuck/interview-sentiment-analyzer/electron/preload/index.ts`](/home/chuck/interview-sentiment-analyzer/electron/preload/index.ts) provide the desktop shell entrypoints.
+- [`/home/chuck/interview-sentiment-analyzer/src/renderer/main.tsx`](/home/chuck/interview-sentiment-analyzer/src/renderer/main.tsx), [`/home/chuck/interview-sentiment-analyzer/src/renderer/App.tsx`](/home/chuck/interview-sentiment-analyzer/src/renderer/App.tsx), and [`/home/chuck/interview-sentiment-analyzer/src/renderer/styles.css`](/home/chuck/interview-sentiment-analyzer/src/renderer/styles.css) provide the React renderer and Tailwind v4 styling base.
+- [`/home/chuck/interview-sentiment-analyzer/components.json`](/home/chuck/interview-sentiment-analyzer/components.json), [`/home/chuck/interview-sentiment-analyzer/src/components/ui/button.tsx`](/home/chuck/interview-sentiment-analyzer/src/components/ui/button.tsx), and [`/home/chuck/interview-sentiment-analyzer/src/lib/utils.ts`](/home/chuck/interview-sentiment-analyzer/src/lib/utils.ts) show that `shadcn/ui` is initialized.
+
+Evidence for in-progress Phase 2 and 3 work:
+
+- [`/home/chuck/interview-sentiment-analyzer/src/shared/session-lifecycle.ts`](/home/chuck/interview-sentiment-analyzer/src/shared/session-lifecycle.ts) defines shared DTOs, status enums, and request validation for `startSession`, `registerMediaChunk`, and `finalizeSession`.
+- [`/home/chuck/interview-sentiment-analyzer/src/backend/domain/session/session.ts`](/home/chuck/interview-sentiment-analyzer/src/backend/domain/session/session.ts) and [`/home/chuck/interview-sentiment-analyzer/src/backend/domain/capture/media-chunk.ts`](/home/chuck/interview-sentiment-analyzer/src/backend/domain/capture/media-chunk.ts) establish initial domain entities.
+- [`/home/chuck/interview-sentiment-analyzer/src/backend/application/ports/session-lifecycle.ts`](/home/chuck/interview-sentiment-analyzer/src/backend/application/ports/session-lifecycle.ts) defines repository and infrastructure ports.
+- [`/home/chuck/interview-sentiment-analyzer/src/backend/application/use-cases/start-session.ts`](/home/chuck/interview-sentiment-analyzer/src/backend/application/use-cases/start-session.ts), [`/home/chuck/interview-sentiment-analyzer/src/backend/application/use-cases/register-media-chunk.ts`](/home/chuck/interview-sentiment-analyzer/src/backend/application/use-cases/register-media-chunk.ts), and [`/home/chuck/interview-sentiment-analyzer/src/backend/application/use-cases/finalize-session.ts`](/home/chuck/interview-sentiment-analyzer/src/backend/application/use-cases/finalize-session.ts) provide the first session lifecycle use cases.
+- [`/home/chuck/interview-sentiment-analyzer/src/backend/interfaces/controllers/session-lifecycle-controller.ts`](/home/chuck/interview-sentiment-analyzer/src/backend/interfaces/controllers/session-lifecycle-controller.ts), [`/home/chuck/interview-sentiment-analyzer/src/backend/infrastructure/ipc/register-session-lifecycle-ipc.ts`](/home/chuck/interview-sentiment-analyzer/src/backend/infrastructure/ipc/register-session-lifecycle-ipc.ts), and [`/home/chuck/interview-sentiment-analyzer/src/backend/index.ts`](/home/chuck/interview-sentiment-analyzer/src/backend/index.ts) show the controller and IPC composition path is scaffolded.
+- [`/home/chuck/interview-sentiment-analyzer/src/backend/infrastructure/storage/session-storage-layout.ts`](/home/chuck/interview-sentiment-analyzer/src/backend/infrastructure/storage/session-storage-layout.ts) and [`/home/chuck/interview-sentiment-analyzer/src/backend/infrastructure/persistence/in-memory-session-lifecycle.ts`](/home/chuck/interview-sentiment-analyzer/src/backend/infrastructure/persistence/in-memory-session-lifecycle.ts) provide temporary storage and persistence scaffolding.
+
+Remaining gaps before Phase 2 and 3 are considered complete:
+
+- preload is not yet exposing the session lifecycle bridge to the renderer
+- Electron main is not yet wiring the backend controller into runtime IPC registration
+- persistence is still in-memory rather than SQLite-backed
+- app restart recovery, repository mapping, and validation coverage are not implemented
+- `analysis`, `coaching`, and `user-profile` modules are not yet meaningfully built out
 
 Closest Existing Tools
 
@@ -159,8 +192,9 @@ session: interview metadata, start/end times, platform, job context, capture cap
 
 
 
-user_profile: optional coaching preferences, communication style settings, neurodiversity-aware support toggles, retention rules.
+user_profile: optional coaching preferences, communication style settings, neurodiversity-aware support toggles, retention rules, userid, validation token.
 
+model_api_key: id, user_id (ref on user_profile), api_key, provider, model
 
 
 media_chunk: references to local audio/video/screenshot artifacts, timestamps, source type, checksum, upload/analyze status.

@@ -9,6 +9,45 @@ This document expands the implementation work for:
 
 It is derived from `electron-interview-coach.plan.md` and intentionally does not re-cover Phase 1 or later capture and analysis phases.
 
+## Current Status
+
+Current implementation status for the work described in this document:
+
+1. Phase 2: partially done
+2. Phase 3: partially done
+
+Completed or scaffolded work already present in the repository:
+
+- shared session lifecycle DTOs, status enums, and request validation in [`/home/chuck/interview-sentiment-analyzer/src/shared/session-lifecycle.ts`](/home/chuck/interview-sentiment-analyzer/src/shared/session-lifecycle.ts)
+- domain entities for `session` and `capture` in [`/home/chuck/interview-sentiment-analyzer/src/backend/domain/session/session.ts`](/home/chuck/interview-sentiment-analyzer/src/backend/domain/session/session.ts) and [`/home/chuck/interview-sentiment-analyzer/src/backend/domain/capture/media-chunk.ts`](/home/chuck/interview-sentiment-analyzer/src/backend/domain/capture/media-chunk.ts)
+- repository and infrastructure ports in [`/home/chuck/interview-sentiment-analyzer/src/backend/application/ports/session-lifecycle.ts`](/home/chuck/interview-sentiment-analyzer/src/backend/application/ports/session-lifecycle.ts)
+- use-case scaffolding for `startSession`, `registerMediaChunk`, and `finalizeSession` in:
+  - [`/home/chuck/interview-sentiment-analyzer/src/backend/application/use-cases/start-session.ts`](/home/chuck/interview-sentiment-analyzer/src/backend/application/use-cases/start-session.ts)
+  - [`/home/chuck/interview-sentiment-analyzer/src/backend/application/use-cases/register-media-chunk.ts`](/home/chuck/interview-sentiment-analyzer/src/backend/application/use-cases/register-media-chunk.ts)
+  - [`/home/chuck/interview-sentiment-analyzer/src/backend/application/use-cases/finalize-session.ts`](/home/chuck/interview-sentiment-analyzer/src/backend/application/use-cases/finalize-session.ts)
+- thin controller and IPC registration scaffolding in:
+  - [`/home/chuck/interview-sentiment-analyzer/src/backend/interfaces/controllers/session-lifecycle-controller.ts`](/home/chuck/interview-sentiment-analyzer/src/backend/interfaces/controllers/session-lifecycle-controller.ts)
+  - [`/home/chuck/interview-sentiment-analyzer/src/backend/infrastructure/ipc/session-lifecycle-channels.ts`](/home/chuck/interview-sentiment-analyzer/src/backend/infrastructure/ipc/session-lifecycle-channels.ts)
+  - [`/home/chuck/interview-sentiment-analyzer/src/backend/infrastructure/ipc/register-session-lifecycle-ipc.ts`](/home/chuck/interview-sentiment-analyzer/src/backend/infrastructure/ipc/register-session-lifecycle-ipc.ts)
+  - [`/home/chuck/interview-sentiment-analyzer/src/backend/index.ts`](/home/chuck/interview-sentiment-analyzer/src/backend/index.ts)
+- deterministic storage layout resolution in [`/home/chuck/interview-sentiment-analyzer/src/backend/infrastructure/storage/session-storage-layout.ts`](/home/chuck/interview-sentiment-analyzer/src/backend/infrastructure/storage/session-storage-layout.ts)
+- temporary in-memory persistence in [`/home/chuck/interview-sentiment-analyzer/src/backend/infrastructure/persistence/in-memory-session-lifecycle.ts`](/home/chuck/interview-sentiment-analyzer/src/backend/infrastructure/persistence/in-memory-session-lifecycle.ts)
+
+Remaining work before Phase 2 is complete:
+
+- expose the session lifecycle bridge from preload to the renderer
+- register lifecycle IPC handlers from Electron main at runtime
+- complete or stub the remaining module boundaries for `analysis`, `coaching`, and `user-profile`
+- add provider interfaces for later downstream analysis integration
+
+Remaining work before Phase 3 is complete:
+
+- replace in-memory persistence with SQLite-backed repositories and mappers
+- ensure backend runtime wiring includes the current backend code path
+- implement durable metadata storage and repository mapping validation
+- implement recovery queries and startup recovery coordination
+- add validation coverage for repository behavior, lifecycle transitions, and failure paths
+
 ## Source Constraints To Preserve
 
 - Keep the request flow: `renderer -> preload bridge -> controller -> use-case/service -> repository/provider -> response`.

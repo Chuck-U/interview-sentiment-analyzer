@@ -10,12 +10,14 @@ import type {
   Clock,
   FileSystemAccess,
   IdGenerator,
+  SessionLifecycleEventPublisher,
   SessionRepository,
   SessionStorageLayoutResolver,
 } from "../ports/session-lifecycle";
 
 export type StartSessionDependencies = {
   readonly clock: Clock;
+  readonly eventPublisher?: SessionLifecycleEventPublisher;
   readonly fileSystem: FileSystemAccess;
   readonly idGenerator: IdGenerator;
   readonly sessionRepository: SessionRepository;
@@ -35,6 +37,7 @@ export function createStartSessionUseCase(
         );
 
       if (existingSession) {
+        dependencies.eventPublisher?.publishSessionChanged(existingSession);
         return {
           session: toSessionSnapshot(existingSession),
         };
@@ -47,6 +50,7 @@ export function createStartSessionUseCase(
     );
 
     if (existingSession) {
+      dependencies.eventPublisher?.publishSessionChanged(existingSession);
       return {
         session: toSessionSnapshot(existingSession),
       };
@@ -58,6 +62,18 @@ export function createStartSessionUseCase(
 
     await dependencies.fileSystem.ensureDirectory(storageLayout.sessionRoot);
     await dependencies.fileSystem.ensureDirectory(storageLayout.chunksRoot);
+    await dependencies.fileSystem.ensureDirectory(
+      `${storageLayout.chunksRoot}/audio`,
+    );
+    await dependencies.fileSystem.ensureDirectory(
+      `${storageLayout.chunksRoot}/system-audio`,
+    );
+    await dependencies.fileSystem.ensureDirectory(
+      `${storageLayout.chunksRoot}/screen-video`,
+    );
+    await dependencies.fileSystem.ensureDirectory(
+      `${storageLayout.chunksRoot}/screenshots`,
+    );
     await dependencies.fileSystem.ensureDirectory(storageLayout.transcriptsRoot);
     await dependencies.fileSystem.ensureDirectory(storageLayout.summariesRoot);
     await dependencies.fileSystem.ensureDirectory(storageLayout.tempRoot);
@@ -72,6 +88,7 @@ export function createStartSessionUseCase(
     });
 
     await dependencies.sessionRepository.save(session);
+    dependencies.eventPublisher?.publishSessionChanged(session);
 
     return {
       session: toSessionSnapshot(session),

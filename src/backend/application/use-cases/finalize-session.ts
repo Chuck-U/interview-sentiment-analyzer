@@ -10,11 +10,13 @@ import {
 } from "../../domain/session/session";
 import type {
   Clock,
+  SessionLifecycleEventPublisher,
   SessionRepository,
 } from "../ports/session-lifecycle";
 
 export type FinalizeSessionDependencies = {
   readonly clock: Clock;
+  readonly eventPublisher?: SessionLifecycleEventPublisher;
   readonly sessionRepository: SessionRepository;
 };
 
@@ -33,6 +35,7 @@ export function createFinalizeSessionUseCase(
     }
 
     if (session.status === "completed") {
+      dependencies.eventPublisher?.publishSessionFinalized(session);
       return {
         session: toSessionSnapshot(session),
       };
@@ -48,10 +51,12 @@ export function createFinalizeSessionUseCase(
     const finalizingSession = beginSessionFinalization(session, finalizedAt);
 
     await dependencies.sessionRepository.save(finalizingSession);
+    dependencies.eventPublisher?.publishSessionChanged(finalizingSession);
 
     const completedSession = completeSession(finalizingSession, finalizedAt);
 
     await dependencies.sessionRepository.save(completedSession);
+    dependencies.eventPublisher?.publishSessionFinalized(completedSession);
 
     return {
       session: toSessionSnapshot(completedSession),

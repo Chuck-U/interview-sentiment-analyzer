@@ -1,4 +1,5 @@
 import type { MediaChunkRepository, SessionRepository } from "../../application/ports/session-lifecycle";
+import type { MediaChunkStatus, SessionStatus } from "../../../shared";
 import type { MediaChunkEntity } from "../../domain/capture/media-chunk";
 import type { SessionEntity } from "../../domain/session/session";
 
@@ -15,6 +16,14 @@ export class InMemorySessionRepository implements SessionRepository {
     idempotencyKey: string,
   ): Promise<SessionEntity | null> {
     return this.sessionsByIdempotencyKey.get(idempotencyKey) ?? null;
+  }
+
+  async listByStatuses(
+    statuses: readonly SessionStatus[],
+  ): Promise<readonly SessionEntity[]> {
+    return [...this.sessions.values()].filter((session) =>
+      statuses.includes(session.status),
+    );
   }
 
   async save(session: SessionEntity): Promise<void> {
@@ -42,6 +51,14 @@ export class InMemoryMediaChunkRepository implements MediaChunkRepository {
   ): Promise<readonly MediaChunkEntity[]> {
     return [...this.chunks.values()].filter(
       (chunk) => chunk.sessionId === sessionId,
+    );
+  }
+
+  async listByStatuses(
+    statuses: readonly MediaChunkStatus[],
+  ): Promise<readonly MediaChunkEntity[]> {
+    return [...this.chunks.values()].filter((chunk) =>
+      statuses.includes(chunk.status),
     );
   }
 }

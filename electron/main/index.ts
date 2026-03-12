@@ -4,8 +4,15 @@ import { app, BrowserWindow, ipcMain } from "electron";
 
 import { createSessionLifecycleBackend } from "../../src/backend";
 import { registerSessionLifecycleIpc } from "../../src/backend/infrastructure/ipc/register-session-lifecycle-ipc";
+import { SESSION_LIFECYCLE_EVENT_CHANNELS } from "../../src/backend/infrastructure/ipc/session-lifecycle-channels";
 
 const devServerUrl = process.env.VITE_DEV_SERVER_URL;
+
+function publishToAllWindows(channel: string, payload: unknown): void {
+  for (const window of BrowserWindow.getAllWindows()) {
+    window.webContents.send(channel, payload);
+  }
+}
 
 function createMainWindow() {
   const mainWindow = new BrowserWindow({
@@ -31,12 +38,28 @@ function createMainWindow() {
   return mainWindow;
 }
 
-app.whenReady().then(() => {
-  registerSessionLifecycleIpc(
-    ipcMain,
-    createSessionLifecycleBackend(app),
-  );
+app.whenReady().then(async () => {
+  const sessionLifecycleBackend = createSessionLifecycleBackend(app, {
+    onChunkRegistered(chunk) {
+      publishToAllWindows(SESSION_LIFECYCLE_EVENT_CHANNELS.chunkRegistered, chunk);
+    },
+    onRecoveryIssue(issue) {
+      publishToAllWindows(SESSION_LIFECYCLE_EVENT_CHANNELS.recoveryIssue, issue);
+    },
+    onSessionChanged(session) {
+      publishToAllWindows(SESSION_LIFECYCLE_EVENT_CHANNELS.sessionChanged, session);
+    },
+    onSessionFinalized(session) {
+      publishToAllWindows(
+        SESSION_LIFECYCLE_EVENT_CHANNELS.sessionFinalized,
+        session,
+      );
+    },
+  });
+
+  registerSessionLifecycleIpc(ipcMain, sessionLifecycleBackend.controller);
   createMainWindow();
+  await sessionLifecycleBackend.recover();
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {

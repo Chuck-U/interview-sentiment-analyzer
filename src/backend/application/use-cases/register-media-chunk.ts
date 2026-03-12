@@ -8,19 +8,29 @@ import {
 } from "../../domain/capture/media-chunk";
 import type {
   Clock,
+  FileMetadata,
   FileSystemAccess,
   MediaChunkRepository,
+  SessionLifecycleEventPublisher,
   SessionRepository,
   SessionStorageLayoutResolver,
 } from "../ports/session-lifecycle";
 
 export type RegisterMediaChunkDependencies = {
   readonly clock: Clock;
+  readonly eventPublisher?: SessionLifecycleEventPublisher;
   readonly fileSystem: FileSystemAccess;
   readonly mediaChunkRepository: MediaChunkRepository;
   readonly sessionRepository: SessionRepository;
   readonly storageLayoutResolver: SessionStorageLayoutResolver;
 };
+
+function pickCreatedAt(
+  metadata: FileMetadata,
+  fallbackTimestamp: string,
+): string {
+  return metadata.createdAt || fallbackTimestamp;
+}
 
 export function createRegisterMediaChunkUseCase(
   dependencies: RegisterMediaChunkDependencies,
@@ -54,10 +64,15 @@ export function createRegisterMediaChunkUseCase(
       };
     }
 
+    const normalizedRelativePath =
+      dependencies.storageLayoutResolver.normalizeRelativeArtifactPath(
+        request.source,
+        request.relativePath,
+      );
     const absoluteArtifactPath =
       dependencies.storageLayoutResolver.resolveAbsoluteArtifactPath(
         request.sessionId,
-        request.relativePath,
+        normalizedRelativePath,
       );
     const fileExists =
       await dependencies.fileSystem.pathExists(absoluteArtifactPath);
@@ -68,18 +83,25 @@ export function createRegisterMediaChunkUseCase(
       );
     }
 
-    const createdAt = dependencies.clock.now().toISOString();
+    const metadata = await dependencies.fileSystem.readFileMetadata(
+      absoluteArtifactPath,
+    );
+    const createdAt = pickCreatedAt(
+      metadata,
+      dependencies.clock.now().toISOString(),
+    );
     const chunk = createMediaChunkEntity({
       id: request.chunkId,
       sessionId: request.sessionId,
       source: request.source,
-      relativePath: request.relativePath,
+      relativePath: normalizedRelativePath,
       recordedAt: request.recordedAt,
-      byteSize: request.byteSize,
+      byteSize: metadata.byteSize,
       createdAt,
     });
 
     await dependencies.mediaChunkRepository.save(chunk);
+    dependencies.eventPublisher?.publishChunkRegistered(chunk);
 
     return {
       chunk: toMediaChunkSnapshot(chunk),
