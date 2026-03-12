@@ -1,13 +1,28 @@
-export type AnalyzeChunkInput = {
-  readonly chunkId: string;
-  readonly sessionId: string;
+import type {
+  PipelineArtifactRef,
+  PipelineEventEnvelope,
+  PipelineEventType,
+  PipelineStageName,
+} from "../../../shared";
+
+export type PipelineStageExecutionRequest<
+  TStageName extends PipelineStageName = PipelineStageName,
+> = {
+  readonly runId: string;
+  readonly stageName: TStageName;
+  readonly event: PipelineEventEnvelope<TStageName>;
+  readonly inputArtifacts: readonly PipelineArtifactRef[];
 };
 
-export type FinalizeAnalysisInput = {
-  readonly sessionId: string;
+export type PipelineStageExecutionResult<
+  TEventType extends PipelineEventType = PipelineEventType,
+> = {
+  readonly outputArtifacts: readonly PipelineArtifactRef[];
+  readonly emittedEvents: readonly PipelineEventEnvelope<TEventType>[];
 };
 
 export type AnalysisProvider = {
-  analyzeChunk(input: AnalyzeChunkInput): Promise<void>;
-  finalizeSession(input: FinalizeAnalysisInput): Promise<void>;
+  executeStage<TStageName extends PipelineStageName>(
+    request: PipelineStageExecutionRequest<TStageName>,
+  ): Promise<PipelineStageExecutionResult>;
 };
