@@ -1,19 +1,31 @@
+import type { PipelineAggregateWriter, PipelineEventRepository } from "../ports/pipeline";
 import type {
+  Clock,
   FileSystemAccess,
+  IdGenerator,
   MediaChunkRepository,
   SessionLifecycleEventPublisher,
   SessionRepository,
   SessionStorageLayoutResolver,
 } from "../ports/session-lifecycle";
+import {
+  createChunkRegisteredEvent,
+  createQueuedStageRunFromEvent,
+  createTranscribeChunkRequestedEvent,
+} from "./pipeline-events";
 import type { FinalizeSessionResponse } from "../../../shared";
 
 export type SessionRecoveryDependencies = {
+  readonly aggregateWriter: PipelineAggregateWriter;
+  readonly clock: Clock;
   readonly eventPublisher: SessionLifecycleEventPublisher;
   readonly fileSystem: FileSystemAccess;
   readonly finalizeSession: (input: {
     readonly sessionId: string;
   }) => Promise<FinalizeSessionResponse>;
+  readonly idGenerator: IdGenerator;
   readonly mediaChunkRepository: MediaChunkRepository;
+  readonly pipelineEventRepository: PipelineEventRepository;
   readonly sessionRepository: SessionRepository;
   readonly storageLayoutResolver: SessionStorageLayoutResolver;
 };
@@ -42,7 +54,17 @@ export function createSessionRecoveryService(
       const chunks = await dependencies.mediaChunkRepository.listBySessionId(
         session.id,
       );
+      const sessionEvents = await dependencies.pipelineEventRepository.listBySessionId(
+        session.id,
+      );
       const registeredPaths = new Set(chunks.map((chunk) => chunk.relativePath));
+      const chunkIdsWithRecoveredPipeline = new Set(
+        sessionEvents
+          .filter((event) => event.eventType === "chunk.registered")
+          .map((event) => event.chunkId)
+          .filter((chunkId): chunkId is string => chunkId !== undefined),
+      );
+      let queuedMissingChunkPipeline = false;
 
       for (const chunk of chunks) {
         const artifactPath =
@@ -59,6 +81,39 @@ export function createSessionRecoveryService(
             sessionId: session.id,
             chunkId: chunk.id,
           });
+          continue;
+        }
+
+        if (!chunkIdsWithRecoveredPipeline.has(chunk.id)) {
+          const recoveredAt = dependencies.clock.now().toISOString();
+          const correlationId = session.id;
+          const chunkRegisteredEvent = createChunkRegisteredEvent({
+            chunk,
+            correlationId,
+            eventId: dependencies.idGenerator.createId(),
+            occurredAt: recoveredAt,
+          });
+          const transcribeChunkRequestedEvent = createTranscribeChunkRequestedEvent(
+            {
+              causationId: chunkRegisteredEvent.eventId,
+              chunk,
+              correlationId,
+              eventId: dependencies.idGenerator.createId(),
+              occurredAt: recoveredAt,
+            },
+          );
+          const transcribeStageRun = createQueuedStageRunFromEvent({
+            event: transcribeChunkRequestedEvent,
+            queuedAt: recoveredAt,
+            runId: dependencies.idGenerator.createId(),
+          });
+
+          await dependencies.aggregateWriter.saveMediaChunkRegistration({
+            chunk,
+            events: [chunkRegisteredEvent, transcribeChunkRequestedEvent],
+            stageRuns: [transcribeStageRun],
+          });
+          queuedMissingChunkPipeline = true;
         }
       }
 
@@ -84,7 +139,11 @@ export function createSessionRecoveryService(
           message: `Session ${session.id} was interrupted during finalization and will be resumed`,
           sessionId: session.id,
         });
-        await dependencies.finalizeSession({ sessionId: session.id });
+        if (!queuedMissingChunkPipeline) {
+          await dependencies.finalizeSession({ sessionId: session.id });
+        } else {
+          dependencies.eventPublisher.publishSessionChanged(session);
+        }
       } else {
         dependencies.eventPublisher.publishSessionChanged(session);
       }

@@ -6,10 +6,17 @@ import {
   createMediaChunkEntity,
   toMediaChunkSnapshot,
 } from "../../domain/capture/media-chunk";
+import {
+  createChunkRegisteredEvent,
+  createQueuedStageRunFromEvent,
+  createTranscribeChunkRequestedEvent,
+} from "../services/pipeline-events";
+import type { PipelineAggregateWriter } from "../ports/pipeline";
 import type {
   Clock,
   FileMetadata,
   FileSystemAccess,
+  IdGenerator,
   MediaChunkRepository,
   SessionLifecycleEventPublisher,
   SessionRepository,
@@ -17,9 +24,11 @@ import type {
 } from "../ports/session-lifecycle";
 
 export type RegisterMediaChunkDependencies = {
+  readonly aggregateWriter: PipelineAggregateWriter;
   readonly clock: Clock;
   readonly eventPublisher?: SessionLifecycleEventPublisher;
   readonly fileSystem: FileSystemAccess;
+  readonly idGenerator: IdGenerator;
   readonly mediaChunkRepository: MediaChunkRepository;
   readonly sessionRepository: SessionRepository;
   readonly storageLayoutResolver: SessionStorageLayoutResolver;
@@ -99,8 +108,32 @@ export function createRegisterMediaChunkUseCase(
       byteSize: metadata.byteSize,
       createdAt,
     });
+    const persistedAt = dependencies.clock.now().toISOString();
+    const correlationId = session.id;
+    const chunkRegisteredEvent = createChunkRegisteredEvent({
+      chunk,
+      correlationId,
+      eventId: dependencies.idGenerator.createId(),
+      occurredAt: persistedAt,
+    });
+    const transcribeChunkRequestedEvent = createTranscribeChunkRequestedEvent({
+      causationId: chunkRegisteredEvent.eventId,
+      chunk,
+      correlationId,
+      eventId: dependencies.idGenerator.createId(),
+      occurredAt: persistedAt,
+    });
+    const transcribeStageRun = createQueuedStageRunFromEvent({
+      event: transcribeChunkRequestedEvent,
+      queuedAt: persistedAt,
+      runId: dependencies.idGenerator.createId(),
+    });
 
-    await dependencies.mediaChunkRepository.save(chunk);
+    await dependencies.aggregateWriter.saveMediaChunkRegistration({
+      chunk,
+      events: [chunkRegisteredEvent, transcribeChunkRequestedEvent],
+      stageRuns: [transcribeStageRun],
+    });
     dependencies.eventPublisher?.publishChunkRegistered(chunk);
 
     return {

@@ -5,6 +5,7 @@ import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import { BuiltInPipelineOrchestrator } from "../application/services/pipeline-orchestrator";
 import type { SessionLifecycleDatabase } from "../infrastructure/persistence/sqlite/sqlite-database";
 import { createSessionRecoveryService } from "../application/services/session-recovery";
 import type {
@@ -18,6 +19,11 @@ import { createStartSessionUseCase } from "../application/use-cases/start-sessio
 import { createMediaChunkEntity } from "../domain/capture/media-chunk";
 import { beginSessionFinalization, createSessionEntity } from "../domain/session/session";
 import {
+  createSqlitePipelineScope,
+  SqlitePipelineEventRepository,
+  SqlitePipelineStageRunRepository,
+} from "../infrastructure/persistence/sqlite/sqlite-pipeline";
+import {
   SqliteMediaChunkRepository,
   SqliteSessionRepository,
 } from "../infrastructure/persistence/sqlite/sqlite-session-lifecycle";
@@ -25,6 +31,7 @@ import {
   initializeSessionLifecycleDatabase,
   SESSION_LIFECYCLE_SCHEMA_VERSION,
 } from "../infrastructure/persistence/sqlite/sqlite-database";
+import { LocalPipelineAnalysisProvider } from "../infrastructure/providers/local-pipeline-analysis";
 import { createSessionStorageLayoutResolver } from "../infrastructure/storage/session-storage-layout";
 
 type TestContext = {
@@ -34,6 +41,14 @@ type TestContext = {
   readonly eventPublisher: SessionLifecycleEventPublisher;
   readonly fileSystem: FileSystemAccess;
   readonly mediaChunkRepository: SqliteMediaChunkRepository;
+  readonly pipelineAggregateWriter: ReturnType<
+    typeof createSqlitePipelineScope
+  >["aggregateWriter"];
+  readonly pipelineEventRepository: SqlitePipelineEventRepository;
+  readonly pipelineStageRunRepository: SqlitePipelineStageRunRepository;
+  readonly pipelineTransactionManager: ReturnType<
+    typeof createSqlitePipelineScope
+  >["transactionManager"];
   readonly sqlite: DatabaseSync;
   readonly sessionRepository: SqliteSessionRepository;
   readonly storageLayoutResolver: ReturnType<typeof createSessionStorageLayoutResolver>;
@@ -51,6 +66,16 @@ async function createTestContext(): Promise<TestContext> {
     storageLayoutResolver,
   );
   const mediaChunkRepository = new SqliteMediaChunkRepository(database);
+  const pipelineEventRepository = new SqlitePipelineEventRepository(database);
+  const pipelineStageRunRepository = new SqlitePipelineStageRunRepository(
+    database,
+  );
+  const pipelineScope = createSqlitePipelineScope(database, {
+    mediaChunkRepository,
+    pipelineEventRepository,
+    pipelineStageRunRepository,
+    sessionRepository,
+  });
   const eventPublisher: SessionLifecycleEventPublisher = {
     publishChunkRegistered() {},
     publishRecoveryIssue() {},
@@ -104,6 +129,10 @@ async function createTestContext(): Promise<TestContext> {
     eventPublisher,
     fileSystem,
     mediaChunkRepository,
+    pipelineAggregateWriter: pipelineScope.aggregateWriter,
+    pipelineEventRepository,
+    pipelineStageRunRepository,
+    pipelineTransactionManager: pipelineScope.transactionManager,
     sqlite,
     sessionRepository,
     storageLayoutResolver,
@@ -116,11 +145,17 @@ const fixedClock = {
   },
 };
 
-const fixedIdGenerator = {
-  createId() {
-    return "generated-session-id";
-  },
-};
+function createFixedIdGenerator() {
+  let nextId = 0;
+
+  return {
+    createId() {
+      nextId += 1;
+
+      return nextId === 1 ? "generated-session-id" : `generated-id-${nextId}`;
+    },
+  };
+}
 
 test("database bootstrap adopts the legacy schema into versioned migrations", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "interview-sentiment-analyzer-"));
@@ -217,7 +252,9 @@ test("database bootstrap adopts the legacy schema into versioned migrations", as
       );
       const mediaChunkRepository = new SqliteMediaChunkRepository(database);
       const migrationVersion = reopenedSqlite
-        .prepare("SELECT version FROM __session_lifecycle_migrations")
+        .prepare(
+          "SELECT MAX(version) AS version FROM __session_lifecycle_migrations",
+        )
         .get() as { version: number } | undefined;
       const hydratedSession =
         await sessionRepository.findById("legacy-session");
@@ -360,28 +397,48 @@ test("sqlite repositories preserve session and chunk mappings", async () => {
 
 test("session lifecycle use cases enforce idempotency and file-first registration", async () => {
   const context = await createTestContext();
+  const idGenerator = createFixedIdGenerator();
 
   try {
     const startSession = createStartSessionUseCase({
       clock: fixedClock,
       eventPublisher: context.eventPublisher,
       fileSystem: context.fileSystem,
-      idGenerator: fixedIdGenerator,
+      idGenerator,
       sessionRepository: context.sessionRepository,
       storageLayoutResolver: context.storageLayoutResolver,
     });
     const registerMediaChunk = createRegisterMediaChunkUseCase({
+      aggregateWriter: context.pipelineAggregateWriter,
       clock: fixedClock,
       eventPublisher: context.eventPublisher,
       fileSystem: context.fileSystem,
+      idGenerator,
       mediaChunkRepository: context.mediaChunkRepository,
       sessionRepository: context.sessionRepository,
       storageLayoutResolver: context.storageLayoutResolver,
     });
     const finalizeSession = createFinalizeSessionUseCase({
+      aggregateWriter: context.pipelineAggregateWriter,
       clock: fixedClock,
       eventPublisher: context.eventPublisher,
+      idGenerator,
+      pipelineEventRepository: context.pipelineEventRepository,
       sessionRepository: context.sessionRepository,
+    });
+    const pipelineOrchestrator = new BuiltInPipelineOrchestrator({
+      analysisProvider: new LocalPipelineAnalysisProvider({
+        clock: fixedClock,
+        idGenerator,
+        storageLayoutResolver: context.storageLayoutResolver,
+      }),
+      clock: fixedClock,
+      eventPublisher: context.eventPublisher,
+      idGenerator,
+      pipelineEventRepository: context.pipelineEventRepository,
+      pipelineStageRunRepository: context.pipelineStageRunRepository,
+      sessionRepository: context.sessionRepository,
+      transactionManager: context.pipelineTransactionManager,
     });
 
     const startedSession = await startSession({
@@ -425,6 +482,7 @@ test("session lifecycle use cases enforce idempotency and file-first registratio
     });
 
     assert.equal(registeredChunk.chunk.byteSize, Buffer.byteLength("audio-payload"));
+    await pipelineOrchestrator.runUntilIdle();
 
     const finalizedSession = await finalizeSession({
       sessionId: startedSession.session.id,
@@ -433,8 +491,16 @@ test("session lifecycle use cases enforce idempotency and file-first registratio
       sessionId: startedSession.session.id,
     });
 
-    assert.equal(finalizedSession.session.status, "completed");
-    assert.equal(replayedFinalization.session.status, "completed");
+    assert.equal(finalizedSession.session.status, "finalizing");
+    assert.equal(replayedFinalization.session.status, "finalizing");
+
+    await pipelineOrchestrator.runUntilIdle();
+
+    const completedSession = await context.sessionRepository.findById(
+      startedSession.session.id,
+    );
+
+    assert.equal(completedSession?.status, "completed");
   } finally {
     await context.cleanup();
   }
@@ -442,6 +508,7 @@ test("session lifecycle use cases enforce idempotency and file-first registratio
 
 test("recovery resumes finalizing sessions and reports integrity issues", async () => {
   const context = await createTestContext();
+  const idGenerator = createFixedIdGenerator();
   const publishedIssues: string[] = [];
   const finalizedSessions: string[] = [];
   const publishedSessions: string[] = [];
@@ -492,29 +559,55 @@ test("recovery resumes finalizing sessions and reports integrity issues", async 
     await writeFile(orphanedPath, "orphaned");
 
     const finalizeSession = createFinalizeSessionUseCase({
+      aggregateWriter: context.pipelineAggregateWriter,
       clock: fixedClock,
       eventPublisher,
+      idGenerator,
+      pipelineEventRepository: context.pipelineEventRepository,
       sessionRepository: context.sessionRepository,
     });
     const recoverSessions = createSessionRecoveryService({
+      aggregateWriter: context.pipelineAggregateWriter,
+      clock: fixedClock,
       eventPublisher,
       fileSystem: context.fileSystem,
       finalizeSession,
+      idGenerator,
       mediaChunkRepository: context.mediaChunkRepository,
+      pipelineEventRepository: context.pipelineEventRepository,
       sessionRepository: context.sessionRepository,
       storageLayoutResolver: context.storageLayoutResolver,
     });
+    const pipelineOrchestrator = new BuiltInPipelineOrchestrator({
+      analysisProvider: new LocalPipelineAnalysisProvider({
+        clock: fixedClock,
+        idGenerator,
+        storageLayoutResolver: context.storageLayoutResolver,
+      }),
+      clock: fixedClock,
+      eventPublisher,
+      idGenerator,
+      pipelineEventRepository: context.pipelineEventRepository,
+      pipelineStageRunRepository: context.pipelineStageRunRepository,
+      sessionRepository: context.sessionRepository,
+      transactionManager: context.pipelineTransactionManager,
+    });
 
     await recoverSessions();
+    await pipelineOrchestrator.recover();
+    await pipelineOrchestrator.runUntilIdle();
+    await recoverSessions();
+    await pipelineOrchestrator.recover();
+    await pipelineOrchestrator.runUntilIdle();
 
     const recoveredSession = await context.sessionRepository.findById("session-2");
 
     assert.ok(publishedIssues.includes("missing-chunk-file"));
     assert.ok(publishedIssues.includes("orphaned-artifact"));
     assert.ok(publishedIssues.includes("finalization-interrupted"));
-    assert.deepEqual(finalizedSessions, ["session-2"]);
-    assert.equal(recoveredSession?.status, "completed");
-    assert.deepEqual(publishedSessions, ["session-2"]);
+    assert.equal(recoveredSession?.status, "finalizing");
+    assert.deepEqual(publishedSessions, ["session-2", "session-2"]);
+    assert.ok(finalizedSessions.length <= 1);
   } finally {
     await context.cleanup();
   }

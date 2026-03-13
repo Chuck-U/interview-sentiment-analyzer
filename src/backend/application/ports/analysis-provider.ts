@@ -2,11 +2,11 @@ import type {
   PipelineArtifactRef,
   PipelineEventEnvelope,
   PipelineEventType,
-  PipelineStageName,
+  PipelineExecutableStageName,
 } from "../../../shared";
 
 export type PipelineStageExecutionRequest<
-  TStageName extends PipelineStageName = PipelineStageName,
+  TStageName extends PipelineExecutableStageName = PipelineExecutableStageName,
 > = {
   readonly runId: string;
   readonly stageName: TStageName;
@@ -22,7 +22,7 @@ export type PipelineStageExecutionResult<
 };
 
 export type AnalysisProvider = {
-  executeStage<TStageName extends PipelineStageName>(
-    request: PipelineStageExecutionRequest<TStageName>,
+  executeStage(
+    request: PipelineStageExecutionRequest<PipelineExecutableStageName>,
   ): Promise<PipelineStageExecutionResult>;
 };

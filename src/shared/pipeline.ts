@@ -27,6 +27,20 @@ export const PIPELINE_STAGE_NAMES = [
 ] as const;
 
 export const PIPELINE_EVENT_TYPES = PIPELINE_STAGE_NAMES;
+export const PIPELINE_EXECUTABLE_STAGE_NAMES = [
+  "transcribe_chunk.requested",
+  "derive_signals.requested",
+  "analyze_chunk.requested",
+  "condense_context.requested",
+  "session.finalization.requested",
+] as const;
+export const PIPELINE_STAGE_RUN_STATUSES = [
+  "queued",
+  "running",
+  "completed",
+  "failed",
+  "dead-letter",
+] as const;
 
 export const PIPELINE_ARTIFACT_KINDS = [
   "media-chunk",
@@ -40,10 +54,15 @@ export const PIPELINE_ARTIFACT_KINDS = [
 
 export type PipelineStageName = (typeof PIPELINE_STAGE_NAMES)[number];
 export type PipelineEventType = (typeof PIPELINE_EVENT_TYPES)[number];
+export type PipelineExecutableStageName =
+  (typeof PIPELINE_EXECUTABLE_STAGE_NAMES)[number];
 export type PipelineArtifactKind = (typeof PIPELINE_ARTIFACT_KINDS)[number];
+export type PipelineStageRunStatus =
+  (typeof PIPELINE_STAGE_RUN_STATUSES)[number];
 
 const pipelineStageNameSchema = z.enum(PIPELINE_STAGE_NAMES);
 const pipelineEventTypeSchema = z.enum(PIPELINE_EVENT_TYPES);
+const pipelineExecutableStageNameSchema = z.enum(PIPELINE_EXECUTABLE_STAGE_NAMES);
 const pipelineArtifactKindSchema = z.enum(PIPELINE_ARTIFACT_KINDS);
 const mediaChunkSourceSchema = z.enum(MEDIA_CHUNK_SOURCES);
 
@@ -351,6 +370,57 @@ export type PipelineEventEnvelope<
   readonly payloadSchemaVersion: number;
 };
 
+const pipelineStageRunStatusSchema = z.enum(PIPELINE_STAGE_RUN_STATUSES);
+const pipelineStageRunSchema = z.object({
+  runId: nonEmptyTrimmedStringSchema(
+    "pipeline stage runs require a non-empty runId",
+  ),
+  eventId: nonEmptyTrimmedStringSchema(
+    "pipeline stage runs require a non-empty eventId",
+  ),
+  sessionId: nonEmptyTrimmedStringSchema(
+    "pipeline stage runs require a non-empty sessionId",
+  ),
+  chunkId: optionalTrimmedStringSchema(
+    "pipeline stage runs require a non-empty chunkId when provided",
+  ),
+  stageName: pipelineExecutableStageNameSchema,
+  status: pipelineStageRunStatusSchema,
+  attempt: z
+    .number()
+    .int("pipeline stage runs require an integer attempt")
+    .nonnegative("pipeline stage runs require a non-negative attempt"),
+  leasedUntil: optionalTrimmedStringSchema(
+    "pipeline stage runs require a non-empty leasedUntil when provided",
+  ),
+  inputArtifacts: pipelineArtifactArraySchema,
+  outputArtifacts: pipelineArtifactArraySchema,
+  errorCode: optionalTrimmedStringSchema(
+    "pipeline stage runs require a non-empty errorCode when provided",
+  ),
+  errorMessage: optionalTrimmedStringSchema(
+    "pipeline stage runs require a non-empty errorMessage when provided",
+  ),
+  queuedAt: nonEmptyTrimmedStringSchema(
+    "pipeline stage runs require a non-empty queuedAt timestamp",
+  ),
+  startedAt: optionalTrimmedStringSchema(
+    "pipeline stage runs require a non-empty startedAt when provided",
+  ),
+  completedAt: optionalTrimmedStringSchema(
+    "pipeline stage runs require a non-empty completedAt when provided",
+  ),
+  updatedAt: nonEmptyTrimmedStringSchema(
+    "pipeline stage runs require a non-empty updatedAt timestamp",
+  ),
+});
+
+export type PipelineStageRunRecord<
+  TStageName extends PipelineExecutableStageName = PipelineExecutableStageName,
+> = Omit<z.infer<typeof pipelineStageRunSchema>, "stageName"> & {
+  readonly stageName: TStageName;
+};
+
 export type PipelineArtifactHandoffRule = {
   readonly requiresChunkId: boolean;
   readonly requiredInputKinds: readonly PipelineArtifactKind[];
@@ -597,6 +667,26 @@ export function normalizePipelineArtifacts(
     artifacts,
     "pipeline artifacts",
   );
+}
+
+export function isPipelineExecutableStageName(
+  stageName: PipelineStageName,
+): stageName is PipelineExecutableStageName {
+  return PIPELINE_EXECUTABLE_STAGE_NAMES.includes(
+    stageName as PipelineExecutableStageName,
+  );
+}
+
+export function normalizePipelineStageRun<
+  TStageName extends PipelineExecutableStageName,
+>(
+  stageRun: PipelineStageRunRecord<TStageName>,
+): PipelineStageRunRecord<TStageName> {
+  return parseWithSchema(
+    pipelineStageRunSchema,
+    stageRun,
+    "pipeline stage run",
+  ) as PipelineStageRunRecord<TStageName>;
 }
 
 export function createPipelineEventEnvelope<

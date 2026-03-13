@@ -6,6 +6,8 @@ import { DatabaseSync } from "node:sqlite";
 
 import type { App } from "electron";
 
+import { LangChainPipelineOrchestrator } from "./application/services/langchain-pipeline-orchestrator";
+import { BuiltInPipelineOrchestrator } from "./application/services/pipeline-orchestrator";
 import type {
   Clock,
   FileSystemAccess,
@@ -20,10 +22,16 @@ import { toMediaChunkSnapshot } from "./domain/capture/media-chunk";
 import { toSessionSnapshot } from "./domain/session/session";
 import { createSessionLifecycleController } from "./interfaces/controllers/session-lifecycle-controller";
 import {
+  createSqlitePipelineScope,
+  SqlitePipelineEventRepository,
+  SqlitePipelineStageRunRepository,
+} from "./infrastructure/persistence/sqlite/sqlite-pipeline";
+import {
   SqliteMediaChunkRepository,
   SqliteSessionRepository,
 } from "./infrastructure/persistence/sqlite/sqlite-session-lifecycle";
 import { initializeSessionLifecycleDatabase } from "./infrastructure/persistence/sqlite/sqlite-database";
+import { LocalPipelineAnalysisProvider } from "./infrastructure/providers/local-pipeline-analysis";
 import { createSessionStorageLayoutResolver } from "./infrastructure/storage/session-storage-layout";
 import type {
   MediaChunkSnapshot,
@@ -112,6 +120,10 @@ export type SessionLifecycleBackend = {
   recover(): Promise<void>;
 };
 
+export type SessionLifecycleBackendOptions = {
+  readonly orchestrationMode?: "built-in" | "langchain";
+};
+
 function createEventPublisher(
   events: SessionLifecycleBackendEvents,
 ): SessionLifecycleEventPublisher {
@@ -134,6 +146,7 @@ function createEventPublisher(
 export function createSessionLifecycleBackend(
   app: Pick<App, "getPath">,
   events: SessionLifecycleBackendEvents = {},
+  options: SessionLifecycleBackendOptions = {},
 ): SessionLifecycleBackend {
   const appDataRoot = path.join(
     app.getPath("appData"),
@@ -154,41 +167,109 @@ export function createSessionLifecycleBackend(
     storageLayoutResolver,
   );
   const mediaChunkRepository = new SqliteMediaChunkRepository(database);
-  const finalizeSession = createFinalizeSessionUseCase({
-    clock,
-    eventPublisher,
+  const pipelineEventRepository = new SqlitePipelineEventRepository(database);
+  const pipelineStageRunRepository = new SqlitePipelineStageRunRepository(
+    database,
+  );
+  const pipelineScope = createSqlitePipelineScope(database, {
+    mediaChunkRepository,
+    pipelineEventRepository,
+    pipelineStageRunRepository,
     sessionRepository,
   });
+  const analysisProvider = new LocalPipelineAnalysisProvider({
+    clock,
+    idGenerator,
+    storageLayoutResolver,
+  });
+  const pipelineOrchestrator =
+    options.orchestrationMode === "langchain"
+      ? new LangChainPipelineOrchestrator({
+          analysisProvider,
+          clock,
+          eventPublisher,
+          idGenerator,
+          pipelineEventRepository,
+          pipelineStageRunRepository,
+          sessionRepository,
+          transactionManager: pipelineScope.transactionManager,
+        })
+      : new BuiltInPipelineOrchestrator({
+          analysisProvider,
+          clock,
+          eventPublisher,
+          idGenerator,
+          pipelineEventRepository,
+          pipelineStageRunRepository,
+          sessionRepository,
+          transactionManager: pipelineScope.transactionManager,
+        });
+  const finalizeSession = createFinalizeSessionUseCase({
+    aggregateWriter: pipelineScope.aggregateWriter,
+    clock,
+    eventPublisher,
+    idGenerator,
+    pipelineEventRepository,
+    sessionRepository,
+  });
+  const startSession = createStartSessionUseCase({
+    clock,
+    eventPublisher,
+    fileSystem,
+    idGenerator,
+    sessionRepository,
+    storageLayoutResolver,
+  });
+  const registerMediaChunk = createRegisterMediaChunkUseCase({
+    aggregateWriter: pipelineScope.aggregateWriter,
+    clock,
+    eventPublisher,
+    fileSystem,
+    idGenerator,
+    mediaChunkRepository,
+    sessionRepository,
+    storageLayoutResolver,
+  });
+  function triggerPipelineRun(): void {
+    void pipelineOrchestrator.runUntilIdle().catch((error: unknown) => {
+      console.error("Pipeline orchestrator failed", error);
+    });
+  }
   const controller = createSessionLifecycleController({
-    startSession: createStartSessionUseCase({
-      clock,
-      eventPublisher,
-      fileSystem,
-      idGenerator,
-      sessionRepository,
-      storageLayoutResolver,
-    }),
-    registerMediaChunk: createRegisterMediaChunkUseCase({
-      clock,
-      eventPublisher,
-      fileSystem,
-      mediaChunkRepository,
-      sessionRepository,
-      storageLayoutResolver,
-    }),
-    finalizeSession,
+    startSession,
+    async registerMediaChunk(input) {
+      const response = await registerMediaChunk(input);
+      triggerPipelineRun();
+      return response;
+    },
+    async finalizeSession(input) {
+      const response = await finalizeSession(input);
+      triggerPipelineRun();
+      return response;
+    },
   });
   const recover = createSessionRecoveryService({
+    aggregateWriter: pipelineScope.aggregateWriter,
+    clock,
     eventPublisher,
     fileSystem,
     finalizeSession,
+    idGenerator,
     mediaChunkRepository,
+    pipelineEventRepository,
     sessionRepository,
     storageLayoutResolver,
   });
 
   return {
     controller,
-    recover,
+    async recover() {
+      await recover();
+      await pipelineOrchestrator.recover();
+      await pipelineOrchestrator.runUntilIdle();
+      await recover();
+      await pipelineOrchestrator.recover();
+      await pipelineOrchestrator.runUntilIdle();
+    },
   };
 }

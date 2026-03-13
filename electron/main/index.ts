@@ -7,6 +7,10 @@ import { registerSessionLifecycleIpc } from "../../src/backend/infrastructure/ip
 import { SESSION_LIFECYCLE_EVENT_CHANNELS } from "../../src/backend/infrastructure/ipc/session-lifecycle-channels";
 
 const devServerUrl = process.env.VITE_DEV_SERVER_URL;
+const pipelineOrchestrationMode =
+  process.env.PIPELINE_ORCHESTRATOR === "langchain"
+    ? "langchain"
+    : "built-in";
 
 function publishToAllWindows(channel: string, payload: unknown): void {
   for (const window of BrowserWindow.getAllWindows()) {
@@ -55,6 +59,8 @@ app.whenReady().then(async () => {
         session,
       );
     },
+  }, {
+    orchestrationMode: pipelineOrchestrationMode,
   });
 
   registerSessionLifecycleIpc(ipcMain, sessionLifecycleBackend.controller);

@@ -6,6 +6,7 @@ import { drizzle } from "drizzle-orm/sqlite-proxy";
 import * as schema from "./schema";
 
 const SESSION_LIFECYCLE_MIGRATIONS_TABLE = "__session_lifecycle_migrations";
+const LEGACY_SESSION_LIFECYCLE_SCHEMA_VERSION = 1;
 
 type SessionLifecycleMigration = {
   readonly version: number;
@@ -13,7 +14,7 @@ type SessionLifecycleMigration = {
   readonly statements: readonly string[];
 };
 
-export const SESSION_LIFECYCLE_SCHEMA_VERSION = 1;
+export const SESSION_LIFECYCLE_SCHEMA_VERSION = 2;
 
 export const SESSION_LIFECYCLE_DURABILITY_HARDENING = {
   corruptionHandling:
@@ -60,6 +61,61 @@ const sessionLifecycleMigrations: readonly SessionLifecycleMigration[] = [
       "CREATE UNIQUE INDEX IF NOT EXISTS idx_session_idempotency_key ON session(idempotency_key)",
       "CREATE INDEX IF NOT EXISTS idx_media_chunk_session_id ON media_chunk(session_id)",
       "CREATE INDEX IF NOT EXISTS idx_media_chunk_status ON media_chunk(status)",
+    ],
+  },
+  {
+    version: 2,
+    description: "create durable pipeline tables",
+    statements: [
+      `
+        CREATE TABLE IF NOT EXISTS pipeline_event (
+          event_id TEXT PRIMARY KEY,
+          event_type TEXT NOT NULL,
+          schema_version INTEGER NOT NULL,
+          session_id TEXT NOT NULL,
+          chunk_id TEXT,
+          stage_name TEXT,
+          causation_id TEXT,
+          correlation_id TEXT NOT NULL,
+          occurred_at TEXT NOT NULL,
+          payload_json TEXT NOT NULL,
+          payload_schema_version INTEGER NOT NULL,
+          FOREIGN KEY(session_id) REFERENCES session(id) ON DELETE CASCADE,
+          FOREIGN KEY(chunk_id) REFERENCES media_chunk(id) ON DELETE CASCADE
+        )
+      `,
+      `
+        CREATE TABLE IF NOT EXISTS pipeline_stage_run (
+          run_id TEXT PRIMARY KEY,
+          event_id TEXT NOT NULL UNIQUE,
+          session_id TEXT NOT NULL,
+          chunk_id TEXT,
+          stage_name TEXT NOT NULL,
+          status TEXT NOT NULL,
+          attempt INTEGER NOT NULL,
+          leased_until TEXT,
+          input_artifacts_json TEXT NOT NULL,
+          output_artifacts_json TEXT NOT NULL,
+          error_code TEXT,
+          error_message TEXT,
+          queued_at TEXT NOT NULL,
+          started_at TEXT,
+          completed_at TEXT,
+          updated_at TEXT NOT NULL,
+          FOREIGN KEY(event_id) REFERENCES pipeline_event(event_id) ON DELETE CASCADE,
+          FOREIGN KEY(session_id) REFERENCES session(id) ON DELETE CASCADE,
+          FOREIGN KEY(chunk_id) REFERENCES media_chunk(id) ON DELETE CASCADE
+        )
+      `,
+      "CREATE INDEX IF NOT EXISTS idx_pipeline_event_session_id ON pipeline_event(session_id)",
+      "CREATE INDEX IF NOT EXISTS idx_pipeline_event_chunk_id ON pipeline_event(chunk_id)",
+      "CREATE INDEX IF NOT EXISTS idx_pipeline_event_type ON pipeline_event(event_type)",
+      "CREATE INDEX IF NOT EXISTS idx_pipeline_event_occurred_at ON pipeline_event(occurred_at)",
+      "CREATE INDEX IF NOT EXISTS idx_pipeline_stage_run_status ON pipeline_stage_run(status)",
+      "CREATE INDEX IF NOT EXISTS idx_pipeline_stage_run_stage_name ON pipeline_stage_run(stage_name)",
+      "CREATE INDEX IF NOT EXISTS idx_pipeline_stage_run_session_id ON pipeline_stage_run(session_id)",
+      "CREATE INDEX IF NOT EXISTS idx_pipeline_stage_run_chunk_id ON pipeline_stage_run(chunk_id)",
+      "CREATE INDEX IF NOT EXISTS idx_pipeline_stage_run_lease ON pipeline_stage_run(leased_until)",
     ],
   },
 ] as const;
@@ -142,7 +198,7 @@ function adoptLegacySchemaIfNeeded(database: DatabaseSync): void {
       `,
     )
     .run(
-      SESSION_LIFECYCLE_SCHEMA_VERSION,
+      LEGACY_SESSION_LIFECYCLE_SCHEMA_VERSION,
       "adopt legacy session lifecycle schema",
       now,
     );
