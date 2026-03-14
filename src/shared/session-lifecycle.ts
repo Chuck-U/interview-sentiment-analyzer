@@ -100,9 +100,7 @@ export type SessionLifecycleRecoveryIssue = {
 export type Unsubscribe = () => void;
 
 export type SessionLifecycleBridge = {
-  startSession(
-    request: StartSessionRequest,
-  ): Promise<StartSessionResponse>;
+  startSession(request: StartSessionRequest): Promise<StartSessionResponse>;
   registerMediaChunk(
     request: RegisterMediaChunkRequest,
   ): Promise<RegisterMediaChunkResponse>;
@@ -112,24 +110,12 @@ export type SessionLifecycleBridge = {
 };
 
 export type SessionLifecycleEventsBridge = {
-  onSessionChanged(
-    listener: (session: SessionSnapshot) => void,
-  ): Unsubscribe;
-  onChunkRegistered(
-    listener: (chunk: MediaChunkSnapshot) => void,
-  ): Unsubscribe;
-  onSessionFinalized(
-    listener: (session: SessionSnapshot) => void,
-  ): Unsubscribe;
+  onSessionChanged(listener: (session: SessionSnapshot) => void): Unsubscribe;
+  onChunkRegistered(listener: (chunk: MediaChunkSnapshot) => void): Unsubscribe;
+  onSessionFinalized(listener: (session: SessionSnapshot) => void): Unsubscribe;
   onRecoveryIssue(
     listener: (issue: SessionLifecycleRecoveryIssue) => void,
   ): Unsubscribe;
-};
-
-export type ElectronAppBridge = {
-  readonly platform: NodeJS.Platform;
-  readonly sessionLifecycle: SessionLifecycleBridge;
-  readonly sessionLifecycleEvents: SessionLifecycleEventsBridge;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -174,7 +160,9 @@ export function parseStartSessionRequest(input: unknown): StartSessionRequest {
   }
 
   if (!captureSources.every(isMediaChunkSource)) {
-    throw new Error("startSession captureSources contains an unsupported source");
+    throw new Error(
+      "startSession captureSources contains an unsupported source",
+    );
   }
 
   return {
