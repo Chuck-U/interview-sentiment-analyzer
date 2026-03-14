@@ -2,10 +2,20 @@ import type { IpcRendererEvent } from "electron";
 import { contextBridge, ipcRenderer } from "electron";
 
 import {
-  type ElectronAppBridge,
   type SessionLifecycleBridge,
   type SessionLifecycleEventsBridge,
 } from "../../src/shared/session-lifecycle";
+import type { AppControlsBridge } from "../../src/shared/app-controls";
+import { APP_CONTROL_CHANNELS } from "../../src/shared/app-controls";
+import type { ElectronAppBridge } from "../../src/shared/electron-app";
+import type {
+  WindowBoundsSnapshot,
+  WindowControlsBridge,
+} from "../../src/shared/window-controls";
+import {
+  WINDOW_CONTROL_CHANNELS,
+  WINDOW_CONTROL_EVENT_CHANNELS,
+} from "../../src/shared/window-controls";
 import {
   SESSION_LIFECYCLE_CHANNELS,
   SESSION_LIFECYCLE_EVENT_CHANNELS,
@@ -71,10 +81,38 @@ const sessionLifecycleEventsBridge: SessionLifecycleEventsBridge = {
   },
 };
 
+const appControlsBridge: AppControlsBridge = {
+  closeApplication() {
+    return ipcRenderer.invoke(APP_CONTROL_CHANNELS.closeApplication);
+  },
+};
+
+const windowControlsBridge: WindowControlsBridge = {
+  moveWindowBy(request) {
+    ipcRenderer.send(WINDOW_CONTROL_CHANNELS.moveWindowBy, request);
+  },
+  resizeWindowBy(request) {
+    ipcRenderer.send(WINDOW_CONTROL_CHANNELS.resizeWindowBy, request);
+  },
+  getWindowBounds() {
+    return ipcRenderer.invoke(
+      WINDOW_CONTROL_CHANNELS.getWindowBounds,
+    ) as Promise<WindowBoundsSnapshot>;
+  },
+  onWindowBoundsChanged(listener) {
+    return subscribeToChannel(
+      WINDOW_CONTROL_EVENT_CHANNELS.boundsChanged,
+      listener,
+    );
+  },
+};
+
 const electronAppBridge: ElectronAppBridge = {
   platform: process.platform,
   sessionLifecycle: sessionLifecycleBridge,
   sessionLifecycleEvents: sessionLifecycleEventsBridge,
+  appControls: appControlsBridge,
+  windowControls: windowControlsBridge,
 };
 
 contextBridge.exposeInMainWorld("electronApp", electronAppBridge);

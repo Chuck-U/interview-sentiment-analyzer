@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { ElectronAppBridge } from "../shared/session-lifecycle";
+import type { ElectronAppBridge } from "../shared/electron-app";
 
 declare global {
   interface Window {
