@@ -18,17 +18,13 @@ import type {
   MediaChunkSource,
   SessionSnapshot,
 } from "@/shared/session-lifecycle";
+import type { WindowBoundsSnapshot } from "@/shared/window-controls";
 
 const DEFAULT_CAPTURE_SOURCES: readonly MediaChunkSource[] = [
   "microphone",
   "screen-video",
   "screenshot",
 ];
-const DEFAULT_MENU_SIZE = {
-  width: 512,
-  height: 308,
-};
-const MENU_MARGIN = 24;
 const CAPTURE_SOURCE_LABELS: Record<MediaChunkSource, string> = {
   microphone: "Microphone",
   "screen-video": "Screen video",
@@ -36,48 +32,14 @@ const CAPTURE_SOURCE_LABELS: Record<MediaChunkSource, string> = {
   "system-audio": "System audio",
 };
 
-type MenuPosition = {
-  readonly x: number;
-  readonly y: number;
-};
+type InteractionMode = "move" | "resize";
 
-type DragPointer = {
+type ActivePointerGesture = {
   readonly pointerId: number;
-  readonly offsetX: number;
-  readonly offsetY: number;
+  readonly mode: InteractionMode;
+  readonly screenX: number;
+  readonly screenY: number;
 };
-
-function getMenuSize(menuElement: HTMLDivElement | null): {
-  readonly width: number;
-  readonly height: number;
-} {
-  return {
-    width: menuElement?.offsetWidth ?? DEFAULT_MENU_SIZE.width,
-    height: menuElement?.offsetHeight ?? DEFAULT_MENU_SIZE.height,
-  };
-}
-
-function clampMenuPosition(
-  position: MenuPosition,
-  size: {
-    readonly width: number;
-    readonly height: number;
-  },
-): MenuPosition {
-  const maxX = Math.max(
-    MENU_MARGIN,
-    window.innerWidth - size.width - MENU_MARGIN,
-  );
-  const maxY = Math.max(
-    MENU_MARGIN,
-    window.innerHeight - size.height - MENU_MARGIN,
-  );
-
-  return {
-    x: Math.min(Math.max(position.x, MENU_MARGIN), maxX),
-    y: Math.min(Math.max(position.y, MENU_MARGIN), maxY),
-  };
-}
 
 function matchesRecordingShortcut(event: KeyboardEvent): boolean {
   return (
@@ -120,28 +82,27 @@ function getStatusCopy(session: SessionSnapshot | null): {
 }
 
 export default function App() {
-  const menuRef = useRef<HTMLDivElement | null>(null);
-  const dragPointerRef = useRef<DragPointer | null>(null);
   const currentSessionRef = useRef<SessionSnapshot | null>(null);
+  const pointerGestureRef = useRef<ActivePointerGesture | null>(null);
   const platformLabel = useMemo(() => window.electronApp.platform, []);
   const shortcutLabel = useMemo(
     () => (platformLabel === "darwin" ? "Cmd+Shift+R" : "Ctrl+Shift+R"),
     [platformLabel],
   );
+  const [activeInteraction, setActiveInteraction] =
+    useState<InteractionMode | null>(null);
   const [currentSession, setCurrentSession] = useState<SessionSnapshot | null>(
     null,
   );
-  const [menuPosition, setMenuPosition] = useState<MenuPosition>({
-    x: 32,
-    y: 32,
-  });
   const [feedbackMessage, setFeedbackMessage] = useState(
     "Ready to start a local recording session.",
   );
-  const [isDragging, setIsDragging] = useState(false);
   const [isShortcutEnabled, setIsShortcutEnabled] = useState(true);
   const [isStarting, setIsStarting] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
+  const [windowBounds, setWindowBounds] = useState<WindowBoundsSnapshot | null>(
+    null,
+  );
 
   currentSessionRef.current = currentSession;
 
@@ -159,9 +120,43 @@ export default function App() {
     });
   }, []);
 
+  const beginPointerGesture = useCallback(
+    (mode: InteractionMode, event: ReactPointerEvent<HTMLButtonElement>) => {
+      if (event.button !== 0) {
+        return;
+      }
+
+      pointerGestureRef.current = {
+        pointerId: event.pointerId,
+        mode,
+        screenX: event.screenX,
+        screenY: event.screenY,
+      };
+      setActiveInteraction(mode);
+      event.currentTarget.setPointerCapture(event.pointerId);
+    },
+    [],
+  );
+
+  const handleMoveStart = useCallback(
+    (event: ReactPointerEvent<HTMLButtonElement>) => {
+      beginPointerGesture("move", event);
+    },
+    [beginPointerGesture],
+  );
+  const handleResizeStart = useCallback(
+    (event: ReactPointerEvent<HTMLButtonElement>) => {
+      beginPointerGesture("resize", event);
+    },
+    [beginPointerGesture],
+  );
+
   const isRecording = currentSession?.status === "active";
   const statusCopy = getStatusCopy(currentSession);
   const isBusy = isStarting || isStopping;
+  const windowSizeLabel = windowBounds
+    ? `${windowBounds.width} x ${windowBounds.height}`
+    : "Syncing window";
 
   const handleStartRecording = useCallback(async () => {
     if (isBusy || currentSessionRef.current?.status === "active") {
@@ -232,29 +227,6 @@ export default function App() {
     await window.electronApp.appControls.closeApplication();
   }, []);
 
-  const handleDragStart = useCallback(
-    (event: ReactPointerEvent<HTMLButtonElement>) => {
-      if (event.button !== 0) {
-        return;
-      }
-
-      const rect = menuRef.current?.getBoundingClientRect();
-
-      if (!rect) {
-        return;
-      }
-
-      dragPointerRef.current = {
-        pointerId: event.pointerId,
-        offsetX: event.clientX - rect.left,
-        offsetY: event.clientY - rect.top,
-      };
-      setIsDragging(true);
-      event.currentTarget.setPointerCapture(event.pointerId);
-    },
-    [],
-  );
-
   useEffect(() => {
     const unsubscribeSessionChanged =
       window.electronApp.sessionLifecycleEvents.onSessionChanged((session) => {
@@ -292,63 +264,94 @@ export default function App() {
   }, [syncIncomingSession]);
 
   useEffect(() => {
-    if (!isDragging) {
+    let isSubscribed = true;
+
+    void window.electronApp.windowControls
+      .getWindowBounds()
+      .then((bounds) => {
+        if (isSubscribed) {
+          setWindowBounds(bounds);
+        }
+      })
+      .catch((error: unknown) => {
+        if (isSubscribed) {
+          setFeedbackMessage(
+            error instanceof Error
+              ? error.message
+              : "Unable to sync overlay window size.",
+          );
+        }
+      });
+
+    const unsubscribe =
+      window.electronApp.windowControls.onWindowBoundsChanged(setWindowBounds);
+
+    return () => {
+      isSubscribed = false;
+      unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!activeInteraction) {
       return;
     }
 
     const handlePointerMove = (event: PointerEvent) => {
-      const dragPointer = dragPointerRef.current;
+      const gesture = pointerGestureRef.current;
 
-      if (!dragPointer || event.pointerId !== dragPointer.pointerId) {
+      if (!gesture || event.pointerId !== gesture.pointerId) {
         return;
       }
 
-      setMenuPosition(
-        clampMenuPosition(
-          {
-            x: event.clientX - dragPointer.offsetX,
-            y: event.clientY - dragPointer.offsetY,
-          },
-          getMenuSize(menuRef.current),
-        ),
-      );
+      const deltaX = Math.round(event.screenX - gesture.screenX);
+      const deltaY = Math.round(event.screenY - gesture.screenY);
+
+      if (deltaX === 0 && deltaY === 0) {
+        return;
+      }
+
+      pointerGestureRef.current = {
+        ...gesture,
+        screenX: event.screenX,
+        screenY: event.screenY,
+      };
+
+      if (gesture.mode === "move") {
+        window.electronApp.windowControls.moveWindowBy({
+          deltaX,
+          deltaY,
+        });
+        return;
+      }
+
+      window.electronApp.windowControls.resizeWindowBy({
+        deltaWidth: deltaX,
+        deltaHeight: deltaY,
+      });
     };
 
-    const stopDragging = (event: PointerEvent) => {
-      const dragPointer = dragPointerRef.current;
+    const stopPointerGesture = (event: PointerEvent) => {
+      const gesture = pointerGestureRef.current;
 
-      if (!dragPointer || event.pointerId !== dragPointer.pointerId) {
+      if (!gesture || event.pointerId !== gesture.pointerId) {
         return;
       }
 
-      dragPointerRef.current = null;
-      setIsDragging(false);
+      pointerGestureRef.current = null;
+      setActiveInteraction(null);
     };
 
     window.addEventListener("pointermove", handlePointerMove);
-    window.addEventListener("pointerup", stopDragging);
-    window.addEventListener("pointercancel", stopDragging);
+    window.addEventListener("pointerup", stopPointerGesture);
+    window.addEventListener("pointercancel", stopPointerGesture);
 
     return () => {
       window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("pointerup", stopDragging);
-      window.removeEventListener("pointercancel", stopDragging);
+      window.removeEventListener("pointerup", stopPointerGesture);
+      window.removeEventListener("pointercancel", stopPointerGesture);
     };
-  }, [isDragging]);
-
-  useEffect(() => {
-    const handleResize = () => {
-      setMenuPosition((position) =>
-        clampMenuPosition(position, getMenuSize(menuRef.current)),
-      );
-    };
-
-    window.addEventListener("resize", handleResize);
-
-    return () => {
-      window.removeEventListener("resize", handleResize);
-    };
-  }, []);
+  }, [activeInteraction]);
 
   useEffect(() => {
     if (!isShortcutEnabled) {
@@ -372,136 +375,170 @@ export default function App() {
   }, [handleToggleRecording, isShortcutEnabled]);
 
   return (
-    <main className="dark min-h-screen bg-background text-foreground">
-      <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top,oklch(0.33_0.05_248)_0%,oklch(0.16_0.01_326)_55%,oklch(0.12_0.01_326)_100%)]">
-        <div className="absolute inset-0 bg-[linear-gradient(135deg,transparent_0%,oklch(1_0_0_/_0.04)_100%)]" />
-
-        <section
-          ref={menuRef}
-          className="absolute w-[min(32rem,calc(100vw-3rem))]"
-          style={{
-            transform: `translate3d(${menuPosition.x}px, ${menuPosition.y}px, 0)`,
-          }}
+    <main className="dark min-h-screen bg-transparent text-foreground">
+      <div className="min-h-screen bg-transparent p-3">
+        <Card
+          size="sm"
+          className="min-h-[calc(100vh-1.5rem)] border border-border/60 bg-card/60 shadow-2xl backdrop-blur-xl"
         >
-          <Card
-            size="sm"
-            className="border border-border/60 bg-card/55 shadow-2xl backdrop-blur-xl"
-          >
-            <CardHeader className="border-b border-border/50">
-              <CardAction className="flex items-center gap-2">
+          <CardHeader className="border-b border-border/50">
+            <CardAction className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="xs"
+                className={cn(
+                  "touch-none",
+                  activeInteraction === "move"
+                    ? "cursor-grabbing"
+                    : "cursor-grab",
+                )}
+                onPointerDown={handleMoveStart}
+              >
+                Drag window
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                size="xs"
+                onClick={() => {
+                  void handleCloseApplication();
+                }}
+              >
+                Close app
+              </Button>
+            </CardAction>
+
+            <div className="flex items-center gap-2">
+              <Badge variant={statusCopy.variant}>{statusCopy.label}</Badge>
+              <Badge variant="outline" className="capitalize">
+                {platformLabel}
+              </Badge>
+              <Badge variant="outline">{windowSizeLabel}</Badge>
+            </div>
+
+            <CardTitle>Interview recording overlay</CardTitle>
+            <CardDescription>
+              Drag and resize events are sent through IPC so Electron controls
+              the frameless overlay window directly while the app stays focused.
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent className="flex flex-col gap-4">
+            <div className="flex flex-col gap-3 border border-border/50 bg-background/45 p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={isBusy || isRecording}
+                  onClick={() => {
+                    void handleStartRecording();
+                  }}
+                >
+                  Start recording
+                </Button>
                 <Button
                   type="button"
                   variant="outline"
-                  size="xs"
-                  className={cn(
-                    "touch-none",
-                    isDragging ? "cursor-grabbing" : "cursor-grab",
-                  )}
-                  onPointerDown={handleDragStart}
-                >
-                  Move menu
-                </Button>
-                <Button
-                  type="button"
-                  variant="destructive"
-                  size="xs"
+                  size="sm"
+                  disabled={isBusy || !isRecording}
                   onClick={() => {
-                    void handleCloseApplication();
+                    void handleStopRecording();
                   }}
                 >
-                  Close app
+                  Stop recording
                 </Button>
-              </CardAction>
-
-              <div className="flex items-center gap-2">
-                <Badge variant={statusCopy.variant}>{statusCopy.label}</Badge>
-                <Badge variant="outline" className="capitalize">
-                  {platformLabel}
-                </Badge>
+                {currentSession ? (
+                  <Badge variant="outline">
+                    Session {currentSession.id.slice(0, 8)}
+                  </Badge>
+                ) : null}
               </div>
 
-              <CardTitle>Interview recording menu bar</CardTitle>
-              <CardDescription>
-                Floating session controls for start, stop, quit, and a
-                toggleable {shortcutLabel} shortcut while the app is focused.
-              </CardDescription>
-            </CardHeader>
+              <p className="text-sm text-muted-foreground">{feedbackMessage}</p>
+            </div>
 
-            <CardContent className="flex flex-col gap-4">
-              <div className="flex flex-col gap-3 border border-border/50 bg-background/45 p-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={isBusy || isRecording}
-                    onClick={() => {
-                      void handleStartRecording();
-                    }}
-                  >
-                    Start recording
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={isBusy || !isRecording}
-                    onClick={() => {
-                      void handleStopRecording();
-                    }}
-                  >
-                    Stop recording
-                  </Button>
-                  {currentSession ? (
-                    <Badge variant="outline">
-                      Session {currentSession.id.slice(0, 8)}
-                    </Badge>
-                  ) : null}
+            <div className="flex flex-col gap-3 border border-border/50 bg-background/35 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-col gap-1">
+                  <p className="text-sm font-medium">Keyboard shortcut</p>
+                  <p className="text-sm text-muted-foreground">
+                    Toggle start and stop with {shortcutLabel}.
+                  </p>
                 </div>
-
-                <p className="text-sm text-muted-foreground">
-                  {feedbackMessage}
-                </p>
+                <Switch
+                  checked={isShortcutEnabled}
+                  aria-label="Toggle recording keyboard shortcut"
+                  onCheckedChange={setIsShortcutEnabled}
+                />
               </div>
 
-              <div className="flex flex-col gap-3 border border-border/50 bg-background/35 p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex flex-col gap-1">
-                    <p className="text-sm font-medium">Keyboard shortcut</p>
-                    <p className="text-sm text-muted-foreground">
-                      Toggle start and stop with {shortcutLabel}.
-                    </p>
-                  </div>
-                  <Switch
-                    checked={isShortcutEnabled}
-                    aria-label="Toggle recording keyboard shortcut"
-                    onCheckedChange={setIsShortcutEnabled}
-                  />
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  {DEFAULT_CAPTURE_SOURCES.map((source) => (
-                    <Badge key={source} variant="secondary">
-                      {CAPTURE_SOURCE_LABELS[source]}
-                    </Badge>
-                  ))}
-                </div>
+              <div className="flex flex-wrap gap-2">
+                {DEFAULT_CAPTURE_SOURCES.map((source) => (
+                  <Badge key={source} variant="secondary">
+                    {CAPTURE_SOURCE_LABELS[source]}
+                  </Badge>
+                ))}
               </div>
-            </CardContent>
+            </div>
 
-            <CardFooter className="justify-between gap-3 border-border/50">
-              <p className="text-xs text-muted-foreground">
+            <div className="flex flex-col gap-2 border border-border/50 bg-background/35 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-medium">Overlay window controls</p>
+                {windowBounds ? (
+                  <p className="text-xs text-muted-foreground">
+                    Position {windowBounds.x}, {windowBounds.y}
+                  </p>
+                ) : null}
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Use the drag button in the header to move the overlay and hold
+                the resize handle in the footer to change the Electron window
+                size.
+              </p>
+            </div>
+          </CardContent>
+
+          <CardFooter className="justify-between gap-3 border-border/50">
+            <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+              <p>
                 {isShortcutEnabled
                   ? `${shortcutLabel} is enabled.`
                   : `${shortcutLabel} is disabled.`}
               </p>
-              <p className="text-xs text-muted-foreground">
-                {isDragging
-                  ? "Dragging menu."
-                  : "Drag the menu to reposition it."}
+              <p>
+                Minimum size{" "}
+                {windowBounds
+                  ? `${windowBounds.minWidth} x ${windowBounds.minHeight}`
+                  : "syncing"}
               </p>
-            </CardFooter>
-          </Card>
-        </section>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <p className="text-xs text-muted-foreground">
+                {activeInteraction === "resize"
+                  ? "Resizing overlay."
+                  : activeInteraction === "move"
+                    ? "Moving overlay."
+                    : "Resize"}
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="xs"
+                className={cn(
+                  "touch-none",
+                  activeInteraction === "resize"
+                    ? "cursor-nwse-resize bg-muted"
+                    : "cursor-nwse-resize",
+                )}
+                onPointerDown={handleResizeStart}
+              >
+                Resize window
+              </Button>
+            </div>
+          </CardFooter>
+        </Card>
       </div>
     </main>
   );
