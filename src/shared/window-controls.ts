@@ -1,3 +1,5 @@
+import type { Unsubscribe } from "./session-lifecycle";
+
 export const WINDOW_CONTROL_CHANNELS = {
   moveWindowBy: "window-controls:move-window-by",
   resizeWindowBy: "window-controls:resize-window-by",
@@ -7,8 +9,6 @@ export const WINDOW_CONTROL_CHANNELS = {
 export const WINDOW_CONTROL_EVENT_CHANNELS = {
   boundsChanged: "window-controls:event-bounds-changed",
 } as const;
-
-export type Unsubscribe = () => void;
 
 export type WindowBoundsSnapshot = {
   readonly x: number;
