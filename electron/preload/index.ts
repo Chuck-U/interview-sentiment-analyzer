@@ -2,10 +2,12 @@ import type { IpcRendererEvent } from "electron";
 import { contextBridge, ipcRenderer } from "electron";
 
 import {
-  type ElectronAppBridge,
   type SessionLifecycleBridge,
   type SessionLifecycleEventsBridge,
 } from "../../src/shared/session-lifecycle";
+import type { AppControlsBridge } from "../../src/shared/app-controls";
+import { APP_CONTROL_CHANNELS } from "../../src/shared/app-controls";
+import type { ElectronAppBridge } from "../../src/shared/electron-app";
 import {
   SESSION_LIFECYCLE_CHANNELS,
   SESSION_LIFECYCLE_EVENT_CHANNELS,
@@ -71,10 +73,17 @@ const sessionLifecycleEventsBridge: SessionLifecycleEventsBridge = {
   },
 };
 
+const appControlsBridge: AppControlsBridge = {
+  closeApplication() {
+    return ipcRenderer.invoke(APP_CONTROL_CHANNELS.closeApplication);
+  },
+};
+
 const electronAppBridge: ElectronAppBridge = {
   platform: process.platform,
   sessionLifecycle: sessionLifecycleBridge,
   sessionLifecycleEvents: sessionLifecycleEventsBridge,
+  appControls: appControlsBridge,
 };
 
 contextBridge.exposeInMainWorld("electronApp", electronAppBridge);

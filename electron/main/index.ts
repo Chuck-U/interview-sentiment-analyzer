@@ -4,13 +4,12 @@ import { app, BrowserWindow, ipcMain } from "electron";
 
 import { createSessionLifecycleBackend } from "../../src/backend";
 import { registerSessionLifecycleIpc } from "../../src/backend/infrastructure/ipc/register-session-lifecycle-ipc";
+import { APP_CONTROL_CHANNELS } from "../../src/shared/app-controls";
 import { SESSION_LIFECYCLE_EVENT_CHANNELS } from "../../src/backend/infrastructure/ipc/session-lifecycle-channels";
 
 const devServerUrl = process.env.VITE_DEV_SERVER_URL;
 const pipelineOrchestrationMode =
-  process.env.PIPELINE_ORCHESTRATOR === "langchain"
-    ? "langchain"
-    : "built-in";
+  process.env.PIPELINE_ORCHESTRATOR === "langchain" ? "langchain" : "built-in";
 
 function publishToAllWindows(channel: string, payload: unknown): void {
   for (const window of BrowserWindow.getAllWindows()) {
@@ -43,25 +42,42 @@ function createMainWindow() {
 }
 
 app.whenReady().then(async () => {
-  const sessionLifecycleBackend = createSessionLifecycleBackend(app, {
-    onChunkRegistered(chunk) {
-      publishToAllWindows(SESSION_LIFECYCLE_EVENT_CHANNELS.chunkRegistered, chunk);
-    },
-    onRecoveryIssue(issue) {
-      publishToAllWindows(SESSION_LIFECYCLE_EVENT_CHANNELS.recoveryIssue, issue);
-    },
-    onSessionChanged(session) {
-      publishToAllWindows(SESSION_LIFECYCLE_EVENT_CHANNELS.sessionChanged, session);
-    },
-    onSessionFinalized(session) {
-      publishToAllWindows(
-        SESSION_LIFECYCLE_EVENT_CHANNELS.sessionFinalized,
-        session,
-      );
-    },
-  }, {
-    orchestrationMode: pipelineOrchestrationMode,
+  ipcMain.handle(APP_CONTROL_CHANNELS.closeApplication, () => {
+    app.quit();
   });
+
+  const sessionLifecycleBackend = createSessionLifecycleBackend(
+    app,
+    {
+      onChunkRegistered(chunk) {
+        publishToAllWindows(
+          SESSION_LIFECYCLE_EVENT_CHANNELS.chunkRegistered,
+          chunk,
+        );
+      },
+      onRecoveryIssue(issue) {
+        publishToAllWindows(
+          SESSION_LIFECYCLE_EVENT_CHANNELS.recoveryIssue,
+          issue,
+        );
+      },
+      onSessionChanged(session) {
+        publishToAllWindows(
+          SESSION_LIFECYCLE_EVENT_CHANNELS.sessionChanged,
+          session,
+        );
+      },
+      onSessionFinalized(session) {
+        publishToAllWindows(
+          SESSION_LIFECYCLE_EVENT_CHANNELS.sessionFinalized,
+          session,
+        );
+      },
+    },
+    {
+      orchestrationMode: pipelineOrchestrationMode,
+    },
+  );
 
   registerSessionLifecycleIpc(ipcMain, sessionLifecycleBackend.controller);
   createMainWindow();
