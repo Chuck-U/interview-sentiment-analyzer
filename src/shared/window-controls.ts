@@ -4,6 +4,8 @@ export const WINDOW_CONTROL_CHANNELS = {
   moveWindowBy: "window-controls:move-window-by",
   resizeWindowBy: "window-controls:resize-window-by",
   getWindowBounds: "window-controls:get-window-bounds",
+  bringToFront: "window-controls:bring-to-front",
+  sendToBack: "window-controls:send-to-back",
 } as const;
 
 export const WINDOW_CONTROL_EVENT_CHANNELS = {
@@ -36,6 +38,8 @@ export type WindowControlsBridge = {
   onWindowBoundsChanged(
     listener: (bounds: WindowBoundsSnapshot) => void,
   ): Unsubscribe;
+  bringToFront(): void;
+  sendToBack(): void;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {

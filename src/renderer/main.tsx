@@ -1,6 +1,5 @@
 import  {  useEffect, useState, useRef, useCallback, useMemo } from "react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
-
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,6 +18,23 @@ import type {
   SessionSnapshot,
 } from "@/shared/session-lifecycle";
 import type { WindowBoundsSnapshot } from "@/shared/window-controls";
+import {
+  DEFAULT_SHORTCUT_ID_RECORDING_TOGGLE,
+  formatElectronAcceleratorLabel,
+} from "@/shared/shortcuts";
+
+
+
+
+// interface ElectronAppBridgeType extends ElectronAppBridge {
+//   readonly windowControls: WindowControlsBridge;
+//   readonly appControls: AppControlsBridge;
+//   readonly sessionLifecycle: SessionLifecycleBridge;
+//   readonly sessionLifecycleEvents: SessionLifecycleEventsBridge;
+// }
+
+
+
 
 const DEFAULT_CAPTURE_SOURCES: readonly MediaChunkSource[] = [
   "microphone",
@@ -40,15 +56,6 @@ type ActivePointerGesture = {
   readonly screenX: number;
   readonly screenY: number;
 };
-
-function matchesRecordingShortcut(event: KeyboardEvent): boolean {
-  return (
-    event.key.toLowerCase() === "r" &&
-    (event.metaKey || event.ctrlKey) &&
-    event.shiftKey &&
-    !event.altKey
-  );
-}
 
 function getStatusCopy(session: SessionSnapshot | null): {
   readonly label: string;
@@ -85,9 +92,15 @@ function getStatusCopy(session: SessionSnapshot | null): {
   const currentSessionRef = useRef<SessionSnapshot | null>(null);
   const pointerGestureRef = useRef<ActivePointerGesture | null>(null);
   const platformLabel = useMemo(() => window.electronApp.platform, []);
+  const [recordingShortcutAccelerator, setRecordingShortcutAccelerator] =
+    useState<string>("CommandOrControl+Shift+R");
   const shortcutLabel = useMemo(
-    () => (platformLabel === "darwin" ? "Cmd+Shift+R" : "Ctrl+Shift+R"),
-    [platformLabel],
+    () =>
+      formatElectronAcceleratorLabel(
+        recordingShortcutAccelerator,
+        platformLabel,
+      ),
+    [platformLabel, recordingShortcutAccelerator],
   );
   const [activeInteraction, setActiveInteraction] =
     useState<InteractionMode | null>(null);
@@ -150,7 +163,6 @@ function getStatusCopy(session: SessionSnapshot | null): {
     },
     [beginPointerGesture],
   );
-
   const isRecording = currentSession?.status === "active";
   const statusCopy = getStatusCopy(currentSession);
   const isBusy = isStarting || isStopping;
@@ -213,18 +225,44 @@ function getStatusCopy(session: SessionSnapshot | null): {
     }
   }, [isBusy, syncIncomingSession]);
 
-  const handleToggleRecording = useCallback(async () => {
-    if (currentSessionRef.current?.status === "active") {
-      await handleStopRecording();
-      return;
-    }
-
-    await handleStartRecording();
-  }, [handleStartRecording, handleStopRecording]);
-
   const handleCloseApplication = useCallback(async () => {
     setFeedbackMessage("Closing application.");
     await window.electronApp.appControls.closeApplication();
+  }, []);
+
+  useEffect(() => {
+    let isSubscribed = true;
+
+    void window.electronApp.shortcuts
+      .getConfig()
+      .then((config) => {
+        if (!isSubscribed) {
+          return;
+        }
+
+        const entry =
+          config.shortcuts[DEFAULT_SHORTCUT_ID_RECORDING_TOGGLE];
+
+        if (!entry) {
+          return;
+        }
+
+        setIsShortcutEnabled(entry.enabled);
+        setRecordingShortcutAccelerator(entry.accelerator);
+      })
+      .catch((error: unknown) => {
+        if (!isSubscribed) {
+          return;
+        }
+
+        setFeedbackMessage(
+          error instanceof Error ? error.message : "Unable to load shortcuts.",
+        );
+      });
+
+    return () => {
+      isSubscribed = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -353,29 +391,37 @@ function getStatusCopy(session: SessionSnapshot | null): {
     };
   }, [activeInteraction]);
 
-  useEffect(() => {
-    if (!isShortcutEnabled) {
-      return;
-    }
-
-    const handleShortcut = (event: KeyboardEvent) => {
-      if (!matchesRecordingShortcut(event)) {
-        return;
-      }
-
-      event.preventDefault();
-      void handleToggleRecording();
-    };
-
-    window.addEventListener("keydown", handleShortcut);
-
-    return () => {
-      window.removeEventListener("keydown", handleShortcut);
-    };
-  }, [handleToggleRecording, isShortcutEnabled]);
-
   return (
-    <main className="dark min-h-screen bg-transparent text-foreground">
+    <main className="dark min-h-screen bg-red-500 opacity-70 text-foreground w-full">
+      <div className="bg-blue-500 w-full h-10 flex gap-x-2 items-center justify-center">
+        <Button
+                type="button"
+                variant="outline"
+                size="xs"
+                className={cn(
+                  "touch-none",
+                  activeInteraction === "move"
+                    ? "cursor-grabbing"
+                    : "cursor-grab",
+                )}
+                style={{ WebkitAppRegion: "no-drag" } as CSSProperties}
+                onPointerDown={handleMoveStart}
+              >
+                Drag window
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="xs"
+                style={{ WebkitAppRegion: "no-drag" } as CSSProperties}
+                onClick={() => {
+                  void handleCloseApplication();
+                }}
+              >
+                Close app
+              </Button>
+     
+        </div>
       <div className="min-h-screen bg-transparent p-3">
         <Card
           size="sm"
@@ -474,7 +520,24 @@ function getStatusCopy(session: SessionSnapshot | null): {
                 <Switch
                   checked={isShortcutEnabled}
                   aria-label="Toggle recording keyboard shortcut"
-                  onCheckedChange={setIsShortcutEnabled}
+                  onCheckedChange={(enabled) => {
+                    const previous = isShortcutEnabled;
+                    setIsShortcutEnabled(enabled);
+
+                    void window.electronApp.shortcuts
+                      .setShortcutEnabled({
+                        shortcutId: DEFAULT_SHORTCUT_ID_RECORDING_TOGGLE,
+                        enabled,
+                      })
+                      .catch((error: unknown) => {
+                        setIsShortcutEnabled(previous);
+                        setFeedbackMessage(
+                          error instanceof Error
+                            ? error.message
+                            : "Unable to update shortcut.",
+                        );
+                      });
+                  }}
                 />
               </div>
 

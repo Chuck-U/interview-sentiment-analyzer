@@ -3,6 +3,7 @@ import type {
   SessionLifecycleBridge,
   SessionLifecycleEventsBridge,
 } from "./session-lifecycle";
+import type { ShortcutsBridge } from "./shortcuts";
 import type { WindowControlsBridge } from "./window-controls";
 
 export type ElectronAppBridge = {
@@ -11,4 +12,5 @@ export type ElectronAppBridge = {
   readonly sessionLifecycleEvents: SessionLifecycleEventsBridge;
   readonly appControls: AppControlsBridge;
   readonly windowControls: WindowControlsBridge;
+  readonly shortcuts: ShortcutsBridge;
 };

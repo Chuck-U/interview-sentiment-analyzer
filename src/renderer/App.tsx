@@ -3,6 +3,6 @@ import ReactDom from "react-dom/client";
 import Main from "./main";
 ReactDom.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <Main />
+      <Main />
   </React.StrictMode>,
 );

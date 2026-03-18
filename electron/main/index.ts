@@ -1,9 +1,11 @@
 import path from "node:path";
 
-import { app, BrowserWindow, ipcMain, } from "electron";
+import { app, BrowserWindow, globalShortcut, ipcMain } from "electron";
 
 import { createSessionLifecycleBackend } from "../../src/backend";
 import { registerSessionLifecycleIpc } from "../../src/backend/infrastructure/ipc/register-session-lifecycle-ipc";
+import { createShortcutsConfigStore } from "../../src/backend/infrastructure/shortcuts/shortcutsConfigStore";
+import { registerConfiguredGlobalShortcuts } from "../../src/backend/infrastructure/shortcuts/globalShortcuts.shortcuts";
 import { APP_CONTROL_CHANNELS } from "../../src/shared/app-controls";
 import { SESSION_LIFECYCLE_EVENT_CHANNELS } from "../../src/backend/infrastructure/ipc/session-lifecycle-channels";
 import {
@@ -13,6 +15,12 @@ import {
   WINDOW_CONTROL_EVENT_CHANNELS,
   type WindowBoundsSnapshot,
 } from "../../src/shared/window-controls";
+import type { SessionSnapshot } from "../../src/shared/session-lifecycle";
+import {
+  SHORTCUTS_IPC_CHANNELS,
+  normalizeSetShortcutEnabledRequest,
+} from "../../src/shared/shortcuts";
+import type { SessionLifecycleController } from "../../src/backend/interfaces/controllers/session-lifecycle-controller";
 
 const devServerUrl = process.env.VITE_DEV_SERVER_URL ?? 'http://localhost:5180';
 
@@ -56,19 +64,19 @@ function createMainWindow() {
   const preloadPath = path.join(__dirname, "../preload/index.js");
 
   const mainWindow = new BrowserWindow({
-    width: MAIN_WINDOW_DEFAULT_WIDTH,
-    height: MAIN_WINDOW_DEFAULT_HEIGHT,
-    minWidth: MAIN_WINDOW_MIN_WIDTH ?? 800,
-    minHeight: MAIN_WINDOW_MIN_HEIGHT ?? 300,
+    width: MAIN_WINDOW_DEFAULT_WIDTH ?? 1800,
+    height: MAIN_WINDOW_DEFAULT_HEIGHT ?? 900,
+    minWidth: MAIN_WINDOW_MIN_WIDTH ?? 1600,
+    minHeight: MAIN_WINDOW_MIN_HEIGHT ?? 900,
     alwaysOnTop: true,
     frame: false,
-    transparent: false,
-    backgroundColor: "#00000080",
+    transparent: true,
+    backgroundColor: "#00000000",
     resizable: true,
     show: false, // Start hidden, then show after setup
     fullscreenable: false,
-    hasShadow: false,
-    focusable: true,
+    hasShadow: true,
+    focusable: false,
     movable: true,
     x: 0, // Start at a visible position
     y: 100,
@@ -100,14 +108,58 @@ function createMainWindow() {
   return mainWindow;
 }
 async function initializeApp() {
-  console.error('[initializeApp]')
   app.whenReady().then(async () => {
-    createMainWindow();
+    const mainWindow = createMainWindow();
     console.log('[app createWindow]')
+    console.log('[mainWindow]', mainWindow)
+    console.log('[app createWindow]')
+    console.log('[mainWindow]', mainWindow)
+    mainWindow.show();
+    mainWindow.focus();
+
+    let currentSession: SessionSnapshot | null = null;
+    let sessionLifecycleController: SessionLifecycleController | null = null;
+
+    const shortcutsConfigStore = createShortcutsConfigStore(app);
 
     ipcMain.handle(APP_CONTROL_CHANNELS.closeApplication, () => {
       app.quit();
     });
+
+    ipcMain.handle(SHORTCUTS_IPC_CHANNELS.ensureConfig, async () => {
+      await shortcutsConfigStore.ensureConfigExists();
+    });
+
+    ipcMain.handle(SHORTCUTS_IPC_CHANNELS.getConfig, async () => {
+      return shortcutsConfigStore.loadConfig();
+    });
+
+    ipcMain.handle(
+      SHORTCUTS_IPC_CHANNELS.setShortcutEnabled,
+      async (_event, input: unknown) => {
+        const request = normalizeSetShortcutEnabledRequest(input);
+        await shortcutsConfigStore.updateShortcutEnabled({
+          shortcutId: request.shortcutId,
+          enabled: request.enabled,
+        });
+
+        const updatedConfig = await shortcutsConfigStore.loadConfig();
+
+        if (sessionLifecycleController) {
+          await registerConfiguredGlobalShortcuts({
+            config: updatedConfig,
+            mainWindow,
+            controller: sessionLifecycleController,
+            getCurrentSession: () => currentSession,
+          });
+        }
+      },
+    );
+
+    app.on("will-quit", () => {
+      globalShortcut.unregisterAll();
+    });
+
     ipcMain.on(WINDOW_CONTROL_CHANNELS.moveWindowBy, (event, input) => {
       const targetWindow = BrowserWindow.fromWebContents(event.sender);
 
@@ -163,12 +215,14 @@ async function initializeApp() {
           );
         },
         onSessionChanged(session) {
+          currentSession = session;
           publishToAllWindows(
             SESSION_LIFECYCLE_EVENT_CHANNELS.sessionChanged,
             session,
           );
         },
         onSessionFinalized(session) {
+          currentSession = session;
           publishToAllWindows(
             SESSION_LIFECYCLE_EVENT_CHANNELS.sessionFinalized,
             session,
@@ -183,11 +237,23 @@ async function initializeApp() {
     registerSessionLifecycleIpc(ipcMain, sessionLifecycleBackend.controller);
     await sessionLifecycleBackend.recover();
 
+    sessionLifecycleController = sessionLifecycleBackend.controller;
+
+    const shortcutsConfig = await shortcutsConfigStore.loadConfig();
+    await registerConfiguredGlobalShortcuts({
+      config: shortcutsConfig,
+      mainWindow,
+      controller: sessionLifecycleController,
+      getCurrentSession: () => currentSession,
+    });
+
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) {
         const browserWindow = createMainWindow();
         console.log('[browserWindow show]', browserWindow)
         browserWindow.show();
+        browserWindow.setMovable(true);
+        console.log('[app activate], browserWindow movable set to true')
       }
     });
   });
