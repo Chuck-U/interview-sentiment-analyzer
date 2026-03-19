@@ -1,6 +1,14 @@
 import path from "node:path";
 
-import { app, BrowserWindow, globalShortcut, ipcMain } from "electron";
+import {
+  app,
+  BrowserWindow,
+  globalShortcut,
+  ipcMain,
+  Menu,
+  nativeImage,
+  Tray,
+} from "electron";
 
 import { createSessionLifecycleBackend } from "../../src/backend";
 import { registerSessionLifecycleIpc } from "../../src/backend/infrastructure/ipc/register-session-lifecycle-ipc";
@@ -76,7 +84,7 @@ function createMainWindow() {
     show: false, // Start hidden, then show after setup
     fullscreenable: false,
     hasShadow: true,
-    focusable: false,
+    focusable: true,
     movable: true,
     x: 0, // Start at a visible position
     y: 100,
@@ -107,6 +115,31 @@ function createMainWindow() {
   void mainWindow.loadFile(path.join(__dirname, "../../../dist/index.html"));
   return mainWindow;
 }
+
+function createEmptyTrayIcon(): Electron.NativeImage {
+  // 16x16 transparent PNG (base64). Tray requires an icon; this satisfies the "empty icon" requirement.
+  const transparentPngBase64 =
+    "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAQAAAC1+jfqAAAAI0lEQVR42mNgGAWjYBSMglEwCkbAAQYGAwAAc7oKfJ6o0aQAAAAASUVORK5CYII=";
+
+  return nativeImage.createFromBuffer(Buffer.from(transparentPngBase64, "base64"));
+}
+
+function createTrayMenu(args: {
+  getWindowVisibilityLabel: () => string;
+  onToggleVisibility: () => void;
+  onExit: () => void;
+}): Menu {
+  const { getWindowVisibilityLabel, onToggleVisibility, onExit } = args;
+
+  return Menu.buildFromTemplate([
+    {
+      label: getWindowVisibilityLabel(),
+      click: () => onToggleVisibility(),
+    },
+    { type: "separator" },
+    { label: "Exit", click: () => onExit() },
+  ]);
+}
 async function initializeApp() {
   app.whenReady().then(async () => {
     const mainWindow = createMainWindow();
@@ -116,6 +149,47 @@ async function initializeApp() {
     console.log('[mainWindow]', mainWindow)
     mainWindow.show();
     mainWindow.focus();
+
+    let tray: Tray | null = null;
+
+    const toggleVisibility = () => {
+      if (mainWindow.isVisible()) {
+        mainWindow.hide();
+      } else {
+        mainWindow.show();
+        mainWindow.focus();
+      }
+      syncTrayMenu();
+    };
+
+    const syncTrayMenu = () => {
+      if (!tray) {
+        return;
+      }
+
+      const label = mainWindow.isVisible()
+        ? "Hide agent controls"
+        : "Show agent controls";
+
+      tray.setContextMenu(
+        createTrayMenu({
+          getWindowVisibilityLabel: () => label,
+          onToggleVisibility: toggleVisibility,
+          onExit: () => app.quit(),
+        }),
+      );
+    };
+
+    tray = new Tray(createEmptyTrayIcon());
+    syncTrayMenu();
+    tray.on("click", toggleVisibility);
+
+    mainWindow.on("show", () => {
+      syncTrayMenu();
+    });
+    mainWindow.on("hide", () => {
+      syncTrayMenu();
+    });
 
     let currentSession: SessionSnapshot | null = null;
     let sessionLifecycleController: SessionLifecycleController | null = null;

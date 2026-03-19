@@ -123,6 +123,10 @@ select {
   font: inherit;
 }
 
+button {
+  @apply rounded-md;
+}
+
 .dark {
   --background: oklch(0.145 0.008 326);
   --foreground: oklch(0.985 0 0);
