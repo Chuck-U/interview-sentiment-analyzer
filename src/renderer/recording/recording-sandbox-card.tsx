@@ -35,15 +35,15 @@ export function RecordingSandboxCard() {
   const isRecording = snapshot.status === "recording";
 
   return (
-    <Card className="w-full">
-      <CardHeader className="flex flex-col gap-1">
+    <Card className="flex h-full min-h-0 w-full flex-col overflow-hidden">
+      <CardHeader className="flex shrink-0 flex-col gap-1">
         <CardTitle>Capture Sandbox</CardTitle>
         <p className="text-sm text-muted-foreground">
           Desktop capture smoke test. Capture starts in the renderer, then the final file is
           handed to Electron over IPC and written to disk when you stop.
         </p>
       </CardHeader>
-      <CardContent className="flex flex-col gap-3">
+      <CardContent className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
         <div className="flex flex-wrap items-center gap-2">
           <Badge
             variant={

@@ -34,8 +34,11 @@ import {
 import { SESSION_LIFECYCLE_EVENT_CHANNELS } from "../../src/backend/infrastructure/ipc/session-lifecycle-channels";
 import { RECORDING_CHANNELS, RECORDING_EVENT_CHANNELS } from "../../src/backend/infrastructure/ipc/recording-channels";
 import {
+  applyResizeWindowByRequest,
+  clampWindowSize,
   parseMoveWindowByRequest,
   parseResizeWindowByRequest,
+  parseSetWindowSizeRequest,
   WINDOW_CONTROL_CHANNELS,
   WINDOW_CONTROL_EVENT_CHANNELS,
   type WindowBoundsSnapshot,
@@ -95,8 +98,10 @@ function publishToAllWindows(channel: string, payload: unknown): void {
 function createWindowBoundsSnapshot(
   window: BrowserWindow,
 ): WindowBoundsSnapshot {
-  const [minWidth, minHeight] = window.getMinimumSize();
   const bounds = window.getBounds();
+  const [rawMinWidth, rawMinHeight] = window.getMinimumSize();
+  const minWidth = rawMinWidth > 0 ? rawMinWidth : MAIN_WINDOW_MIN_WIDTH;
+  const minHeight = rawMinHeight > 0 ? rawMinHeight : MAIN_WINDOW_MIN_HEIGHT;
 
   return {
     x: bounds.x,
@@ -105,6 +110,18 @@ function createWindowBoundsSnapshot(
     height: bounds.height,
     minWidth,
     minHeight,
+  };
+}
+
+function getMinimumWindowSize(window: BrowserWindow): {
+  readonly width: number;
+  readonly height: number;
+} {
+  const [rawMinWidth, rawMinHeight] = window.getMinimumSize();
+
+  return {
+    width: rawMinWidth > 0 ? rawMinWidth : MAIN_WINDOW_MIN_WIDTH,
+    height: rawMinHeight > 0 ? rawMinHeight : MAIN_WINDOW_MIN_HEIGHT,
   };
 }
 
@@ -215,30 +232,30 @@ function getCapturePermissions(): CapturePermissionSnapshot {
   return {
     microphone:
       microphone === "granted" ||
-      microphone === "denied" ||
-      microphone === "restricted" ||
-      microphone === "not-determined"
+        microphone === "denied" ||
+        microphone === "restricted" ||
+        microphone === "not-determined"
         ? microphone
         : "unsupported",
     camera:
       camera === "granted" ||
-      camera === "denied" ||
-      camera === "restricted" ||
-      camera === "not-determined"
+        camera === "denied" ||
+        camera === "restricted" ||
+        camera === "not-determined"
         ? camera
         : "unsupported",
     screen:
       screenPermission === "granted" ||
-      screenPermission === "denied" ||
-      screenPermission === "restricted" ||
-      screenPermission === "not-determined"
+        screenPermission === "denied" ||
+        screenPermission === "restricted" ||
+        screenPermission === "not-determined"
         ? screenPermission
         : "unsupported",
     systemAudio:
       screenPermission === "granted" ||
-      screenPermission === "denied" ||
-      screenPermission === "restricted" ||
-      screenPermission === "not-determined"
+        screenPermission === "denied" ||
+        screenPermission === "restricted" ||
+        screenPermission === "not-determined"
         ? screenPermission
         : "unsupported",
   };
@@ -282,8 +299,10 @@ async function initializeApp() {
 
     const toggleVisibility = () => {
       if (mainWindow.isVisible()) {
+        console.log('[app toggleVisibility] hide')
         mainWindow.hide();
       } else {
+        console.log('[app toggleVisibility] show')
         mainWindow.show();
         mainWindow.focus();
       }
@@ -296,8 +315,8 @@ async function initializeApp() {
       }
 
       const label = mainWindow.isVisible()
-        ? "Hide agent controls"
-        : "Show agent controls";
+        ? "Hide overlay"
+        : "Show overlay";
 
       tray.setContextMenu(
         createTrayMenu({
@@ -334,6 +353,11 @@ async function initializeApp() {
     ipcMain.handle(APP_CONTROL_CHANNELS.closeApplication, () => {
       monitorPicker.close();
       app.quit();
+    });
+
+
+    ipcMain.handle(APP_CONTROL_CHANNELS.toggleVisibility, async () => {
+      toggleVisibility();
     });
 
     ipcMain.handle(SHORTCUTS_IPC_CHANNELS.ensureConfig, async () => {
@@ -461,10 +485,35 @@ async function initializeApp() {
 
       const request = parseResizeWindowByRequest(input);
       const [currentWidth, currentHeight] = targetWindow.getSize();
-      targetWindow.setSize(
-        currentWidth + request.deltaWidth,
-        currentHeight + request.deltaHeight,
+      const nextSize = applyResizeWindowByRequest(
+        {
+          width: currentWidth,
+          height: currentHeight,
+        },
+        getMinimumWindowSize(targetWindow),
+        request,
       );
+
+      targetWindow.setSize(nextSize.width, nextSize.height);
+    });
+    ipcMain.handle(WINDOW_CONTROL_CHANNELS.setWindowSize, (event, input) => {
+      const targetWindow = BrowserWindow.fromWebContents(event.sender);
+
+      if (!targetWindow) {
+        throw new Error("Unable to resolve target window");
+      }
+
+      const request = parseSetWindowSizeRequest(input);
+      const nextSize = clampWindowSize(
+        {
+          width: request.width,
+          height: request.height,
+        },
+        getMinimumWindowSize(targetWindow),
+      );
+
+      targetWindow.setSize(nextSize.width, nextSize.height);
+      return createWindowBoundsSnapshot(targetWindow);
     });
     ipcMain.handle(WINDOW_CONTROL_CHANNELS.getWindowBounds, (event) => {
       const targetWindow = BrowserWindow.fromWebContents(event.sender);

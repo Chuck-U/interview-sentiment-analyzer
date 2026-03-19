@@ -1,5 +1,4 @@
 import type { CSSProperties } from "react";
-
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -15,6 +14,7 @@ import type {
   CaptureDisplayOption,
 } from "../capture-options/domain";
 import { MediaStreamPreview } from "./WebcamPreview";
+import { cn } from "@/lib/utils";
 
 type CaptureOptionsPanelProps = {
   readonly isBusy: boolean;
@@ -44,6 +44,8 @@ type CaptureOptionsPanelProps = {
   readonly onSetWebcamPreviewVisible: (visible: boolean) => void;
   readonly onSetDesktopPreviewVisible: (visible: boolean) => void;
   readonly onOpenMonitorPicker: () => void;
+  showPermissions: boolean;
+  setShowPermissions: (visible: boolean) => void
 };
 
 function getPermissionVariant(status: string): "default" | "outline" | "destructive" {
@@ -104,15 +106,16 @@ export function CaptureOptionsPanel({
   onSetWebcamPreviewVisible,
   onSetDesktopPreviewVisible,
   onOpenMonitorPicker,
+  showPermissions = false,
+  setShowPermissions,
 }: CaptureOptionsPanelProps) {
   const noDragStyle = { WebkitAppRegion: "no-drag" } as CSSProperties;
   const selectedMicrophone = microphoneDevices.find((device) => device.isSelected);
   const selectedWebcam = webcamDevices.find((device) => device.isSelected);
   const selectedDisplay = displays.find((display) => display.isSelected);
-
   return (
     <div className="flex flex-col gap-3" style={noDragStyle}>
-      <div className="flex flex-wrap gap-2">
+      <div className={cn("flex flex-wrap gap-2", showPermissions ? "block" : "hidden")} onClick={() => setShowPermissions(!showPermissions)}>
         <Badge variant={permissions ? getPermissionVariant(permissions.microphone) : "outline"}>
           Mic {permissions?.microphone ?? "unknown"}
         </Badge>
@@ -124,7 +127,7 @@ export function CaptureOptionsPanel({
         </Badge>
       </div>
 
-      <div className="flex flex-col gap-2 rounded-md border border-border/50 bg-background/35 p-3">
+      <div className="flex flex-col gap-2 rounded-md border border-border/50 p-3">
         <div className="flex items-center justify-between gap-3">
           <div className="flex flex-col gap-1">
             <p className="text-sm font-medium">Microphone</p>
@@ -140,8 +143,9 @@ export function CaptureOptionsPanel({
           />
         </div>
         <div className="flex flex-col gap-2">
-          <Label htmlFor="microphone-select">Input device</Label>
+          <Label htmlFor="microphone-select" id="microphone-select">Input device</Label>
           <Select
+
             value={selectedMicrophone?.deviceId}
             onValueChange={onSetMicrophoneDeviceId}
             disabled={!microphoneEnabled || isBusy || microphoneDevices.length === 0}
@@ -171,11 +175,10 @@ export function CaptureOptionsPanel({
       <div className="flex flex-col gap-2 rounded-md border border-border/50 bg-background/35 p-3">
         <div className="flex items-center justify-between gap-3">
           <div className="flex flex-col gap-1">
-            <p className="text-sm font-medium">Webcam</p>
-            <p className="text-xs text-muted-foreground">
-              Choose the camera used for local recording.
-            </p>
+            <label htmlFor="webcam-select" id="webcam-select">Webcam</label>
+
           </div>
+          {/* add collapsible panel with the webcam preview */}
           <Switch
             checked={webcamEnabled}
             disabled={isBusy}
@@ -281,7 +284,7 @@ export function CaptureOptionsPanel({
           </RadioGroup>
         </div>
 
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2 max-w-1/2">
           <div className="flex items-center justify-between gap-3">
             <Label>Desktop preview</Label>
             <Switch
@@ -291,6 +294,7 @@ export function CaptureOptionsPanel({
               onCheckedChange={onSetDesktopPreviewVisible}
             />
           </div>
+          {/* add collapsible panel with the desktop preview */}
           <MediaStreamPreview
             stream={isDesktopPreviewVisible ? desktopPreviewStream : null}
             unavailableLabel="Desktop preview hidden"

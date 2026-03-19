@@ -1,6 +1,5 @@
 import type { IpcRendererEvent } from "electron";
 import { contextBridge, ipcRenderer } from "electron";
-import { z } from "zod/v4";
 import {
   type SessionLifecycleBridge,
   type SessionLifecycleEventsBridge,
@@ -19,6 +18,7 @@ import {
   normalizeCaptureOptionsConfig,
 } from "../../src/shared/capture-options";
 import type {
+  SetWindowSizeRequest,
   WindowBoundsSnapshot,
   WindowControlsBridge,
 } from "../../src/shared/window-controls";
@@ -95,6 +95,9 @@ const sessionLifecycleEventsBridge: SessionLifecycleEventsBridge = {
   },
 };
 const appControlsBridge: AppControlsBridge = {
+  toggleVisibility() {
+    return ipcRenderer.invoke(APP_CONTROL_CHANNELS.toggleVisibility);
+  },
   closeApplication() {
     return ipcRenderer.invoke(APP_CONTROL_CHANNELS.closeApplication);
   },
@@ -112,6 +115,12 @@ const windowControlsBridge: WindowControlsBridge = {
   },
   resizeWindowBy(request) {
     ipcRenderer.send(WINDOW_CONTROL_CHANNELS.resizeWindowBy, request);
+  },
+  setWindowSize(request: SetWindowSizeRequest) {
+    return ipcRenderer.invoke(
+      WINDOW_CONTROL_CHANNELS.setWindowSize,
+      request,
+    ) as Promise<WindowBoundsSnapshot>;
   },
   getWindowBounds() {
     return ipcRenderer.invoke(

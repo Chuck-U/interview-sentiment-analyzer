@@ -23,7 +23,7 @@ export function AgentControls({
 }: AgentControlsProps) {
   return (
     <div className="flex h-full w-full flex-col gap-3">
-      <Card className="w-full h-full">
+      <Card className="w-full h-full overflow-y-auto">
         <CardHeader className="flex flex-col gap-1">
           <CardTitle>Agent Controls</CardTitle>
           <div className="flex flex-wrap items-center gap-2">
@@ -38,7 +38,7 @@ export function AgentControls({
           </div>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
-          <div className="rounded-md border border-border/50 bg-background/35 p-3">
+          <div className="rounded-md border border-border/50 bg-transparent p-3">
             <div className="flex items-center justify-between gap-3">
               <div className="flex flex-col gap-1">
                 <p className="text-sm font-medium">Start / Stop recording</p>

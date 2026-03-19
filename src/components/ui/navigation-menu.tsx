@@ -1,10 +1,16 @@
-import * as React from "react"
-import { cva } from "class-variance-authority"
-import { NavigationMenu as NavigationMenuPrimitive } from "radix-ui"
+import * as React from "react";
+import { cva } from "class-variance-authority";
+import { NavigationMenu as NavigationMenuPrimitive } from "radix-ui";
 
-import { cn } from "@/lib/utils"
-import { RiArrowDownSLine, RiCloseLine, RiPlayLine, RiStopLine } from "@remixicon/react"
-import { ButtonGroup } from "./button-group"
+import { cn } from "@/lib/utils";
+import {
+  RiArrowDownSLine,
+  RiCloseLine,
+  RiEyeLine,
+  RiPlayLine,
+  RiStopLine,
+} from "@remixicon/react";
+import { ButtonGroup } from "./button-group";
 
 function NavigationMenu({
   className,
@@ -12,22 +18,22 @@ function NavigationMenu({
   viewport = true,
   ...props
 }: React.ComponentProps<typeof NavigationMenuPrimitive.Root> & {
-  viewport?: boolean
+  viewport?: boolean;
 }) {
   return (
     <NavigationMenuPrimitive.Root
       data-slot="navigation-menu"
       data-viewport={viewport}
       className={cn(
-        "group/navigation-menu relative flex max-w-max flex-1 items-center justify-center",
-        className
+        "group/navigation-menu relative flex max-w-max flex-1 items-center justify-center bg-transparent",
+        className,
       )}
       {...props}
     >
       {children}
       {viewport && <NavigationMenuViewport />}
     </NavigationMenuPrimitive.Root>
-  )
+  );
 }
 
 function NavigationMenuList({
@@ -39,11 +45,11 @@ function NavigationMenuList({
       data-slot="navigation-menu-list"
       className={cn(
         "group flex flex-1 list-none items-center justify-center gap-0",
-        className
+        className,
       )}
       {...props}
     />
-  )
+  );
 }
 
 function NavigationMenuItem({
@@ -56,12 +62,12 @@ function NavigationMenuItem({
       className={cn("relative", className)}
       {...props}
     />
-  )
+  );
 }
 
 const navigationMenuTriggerStyle = cva(
-  "group/navigation-menu-trigger inline-flex h-9 w-max items-center justify-center rounded-none bg-background px-2.5 py-1.5 text-xs font-medium transition-all outline-none hover:bg-muted focus:bg-muted focus-visible:ring-1 focus-visible:ring-ring/50 focus-visible:outline-1 disabled:pointer-events-none disabled:opacity-50 data-popup-open:bg-muted/50 data-popup-open:hover:bg-muted data-open:bg-muted/50 data-open:hover:bg-muted data-open:focus:bg-muted"
-)
+  "group/navigation-menu-trigger inline-flex h-9 w-max items-center justify-center rounded-none bg-background px-2.5 py-1.5 text-xs font-medium transition-all outline-none hover:bg-muted focus:bg-muted focus-visible:ring-1 focus-visible:ring-ring/50 focus-visible:outline-1 disabled:pointer-events-none disabled:opacity-50 data-popup-open:bg-muted/50 data-popup-open:hover:bg-muted data-open:bg-muted/50 data-open:hover:bg-muted data-open:focus:bg-muted",
+);
 
 function NavigationMenuTrigger({
   className,
@@ -75,9 +81,12 @@ function NavigationMenuTrigger({
       {...props}
     >
       {children}{" "}
-      <RiArrowDownSLine className="relative top-px ml-1 size-3 transition duration-300 group-data-popup-open/navigation-menu-trigger:rotate-180 group-data-open/navigation-menu-trigger:rotate-180" aria-hidden="true" />
+      <RiArrowDownSLine
+        className="relative top-px ml-1 size-3 transition duration-300 group-data-popup-open/navigation-menu-trigger:rotate-180 group-data-open/navigation-menu-trigger:rotate-180"
+        aria-hidden="true"
+      />
     </NavigationMenuPrimitive.Trigger>
-  )
+  );
 }
 
 function NavigationMenuContent({
@@ -89,11 +98,11 @@ function NavigationMenuContent({
       data-slot="navigation-menu-content"
       className={cn(
         "top-0 left-0 w-full p-1 ease-[cubic-bezier(0.22,1,0.36,1)] group-data-[viewport=false]/navigation-menu:top-full group-data-[viewport=false]/navigation-menu:mt-1.5 group-data-[viewport=false]/navigation-menu:overflow-hidden group-data-[viewport=false]/navigation-menu:rounded-none group-data-[viewport=false]/navigation-menu:bg-popover group-data-[viewport=false]/navigation-menu:text-popover-foreground group-data-[viewport=false]/navigation-menu:shadow group-data-[viewport=false]/navigation-menu:ring-1 group-data-[viewport=false]/navigation-menu:ring-foreground/10 group-data-[viewport=false]/navigation-menu:duration-300 data-[motion=from-end]:slide-in-from-right-52 data-[motion=from-start]:slide-in-from-left-52 data-[motion=to-end]:slide-out-to-right-52 data-[motion=to-start]:slide-out-to-left-52 data-[motion^=from-]:animate-in data-[motion^=from-]:fade-in data-[motion^=to-]:animate-out data-[motion^=to-]:fade-out **:data-[slot=navigation-menu-link]:focus:ring-0 **:data-[slot=navigation-menu-link]:focus:outline-none md:absolute md:w-auto group-data-[viewport=false]/navigation-menu:data-open:animate-in group-data-[viewport=false]/navigation-menu:data-open:fade-in-0 group-data-[viewport=false]/navigation-menu:data-open:zoom-in-95 group-data-[viewport=false]/navigation-menu:data-closed:animate-out group-data-[viewport=false]/navigation-menu:data-closed:fade-out-0 group-data-[viewport=false]/navigation-menu:data-closed:zoom-out-95",
-        className
+        className,
       )}
       {...props}
     />
-  )
+  );
 }
 
 function NavigationMenuViewport({
@@ -103,7 +112,7 @@ function NavigationMenuViewport({
   return (
     <div
       className={cn(
-        "absolute top-full left-0 isolate z-50 flex justify-center"
+        "absolute top-full left-0 isolate z-50 flex justify-center",
       )}
     >
       <NavigationMenuPrimitive.Viewport
@@ -115,7 +124,7 @@ function NavigationMenuViewport({
         {...props}
       />
     </div>
-  )
+  );
 }
 
 function NavigationMenuLink({
@@ -127,11 +136,11 @@ function NavigationMenuLink({
       data-slot="navigation-menu-link"
       className={cn(
         "flex items-center gap-2 rounded-none p-2 text-xs transition-all outline-none hover:bg-muted focus:bg-muted focus-visible:ring-1 focus-visible:ring-ring/50 focus-visible:outline-1 in-data-[slot=navigation-menu-content]:rounded-none data-active:bg-muted/50 data-active:hover:bg-muted data-active:focus:bg-muted [&_svg:not([class*='size-'])]:size-4",
-        className
+        className,
       )}
       {...props}
     />
-  )
+  );
 }
 
 function NavigationMenuIndicator({
@@ -143,13 +152,13 @@ function NavigationMenuIndicator({
       data-slot="navigation-menu-indicator"
       className={cn(
         "top-full z-1 flex h-1.5 items-end justify-center overflow-hidden data-[state=hidden]:animate-out data-[state=hidden]:fade-out data-[state=visible]:animate-in data-[state=visible]:fade-in",
-        className
+        className,
       )}
       {...props}
     >
       <div className="relative top-[60%] h-2 w-2 rotate-45 rounded-none bg-border shadow-md" />
     </NavigationMenuPrimitive.Indicator>
-  )
+  );
 }
 
 export {
@@ -162,26 +171,29 @@ export {
   NavigationMenuIndicator,
   NavigationMenuViewport,
   navigationMenuTriggerStyle,
-}
+};
 
 type AgentNavigationMenuItem = {
-  readonly id: string
-  readonly label: string
-  icon?: React.ReactNode
-  group?: string
-}
+  readonly id: string;
+  readonly label: string;
+  icon?: React.ReactNode;
+  group?: string;
+};
 
 type AgentNavigationMenuProps = {
-  readonly items: readonly AgentNavigationMenuItem[]
-  readonly value?: string
-  readonly defaultValue?: string
-  readonly onValueChange?: (value: string) => void
-  readonly className?: string
-  readonly isRecording?: boolean
-  readonly isBusy?: boolean
-  readonly onRecordingToggle?: (start: boolean) => void
-  readonly onClose?: () => void
-}
+  readonly items: readonly AgentNavigationMenuItem[];
+  readonly value?: string;
+  readonly defaultValue?: string;
+  readonly onValueChange?: (value: string) => void;
+  readonly className?: string;
+  readonly isRecording?: boolean;
+  readonly isBusy?: boolean;
+  readonly onRecordingToggle?: (start: boolean) => void;
+  readonly onClose?: () => void;
+  readonly onToggleVisibility?: () => void;
+  readonly resizeControl?: React.ReactNode;
+  readonly showOutline?: boolean;
+};
 
 /**
  * Simple tab-like navigation for the agent overlay.
@@ -197,32 +209,35 @@ function AgentNavigationMenu({
   isBusy,
   onRecordingToggle,
   onClose,
+  onToggleVisibility,
+  resizeControl,
+  showOutline = false,
 }: AgentNavigationMenuProps) {
   const [internalValue, setInternalValue] = React.useState<string>(
     value ?? defaultValue ?? items[0]?.id ?? "",
-  )
+  );
 
-  const activeValue = value ?? internalValue
+  const activeValue = value ?? internalValue;
 
   const setActiveValue = (next: string) => {
-    onValueChange?.(next)
+    onValueChange?.(next);
     if (value === undefined) {
-      setInternalValue(next)
+      setInternalValue(next);
     }
-  }
+  };
 
   if (items.length === 0) {
-    return null
+    return null;
   }
 
   type GroupedAcc = {
-    nodes: React.ReactNode[]
-    activeGroup: string | null
-    groupNodes: React.ReactNode[]
-  }
+    nodes: React.ReactNode[];
+    activeGroup: string | null;
+    groupNodes: React.ReactNode[];
+  };
 
   const renderTabButton = (item: AgentNavigationMenuItem) => {
-    const isActive = item.id === activeValue
+    const isActive = item.id === activeValue;
     return (
       <button
         key={item.id}
@@ -237,37 +252,37 @@ function AgentNavigationMenu({
       >
         {item.label}
       </button>
-    )
-  }
+    );
+  };
 
   const flushGroup = (acc: GroupedAcc) => {
     if (acc.activeGroup && acc.groupNodes.length > 0) {
       acc.nodes.push(
-        <ButtonGroup key={`group-${acc.activeGroup}`}>
+        <ButtonGroup key={`group-${acc.activeGroup}`} className="gap-x-2">
           {acc.groupNodes}
         </ButtonGroup>,
-      )
-      acc.groupNodes = []
-      acc.activeGroup = null
+      );
+      acc.groupNodes = [];
+      acc.activeGroup = null;
     }
-  }
+  };
 
   const result = items.reduce<GroupedAcc>(
     (acc, item) => {
       if (acc.activeGroup && item.group !== acc.activeGroup) {
-        flushGroup(acc)
+        flushGroup(acc);
       }
 
       if (item.group) {
-        acc.activeGroup = item.group
-        acc.groupNodes.push(renderTabButton(item))
-        return acc
+        acc.activeGroup = item.group;
+        acc.groupNodes.push(renderTabButton(item));
+        return acc;
       }
 
-      flushGroup(acc)
+      flushGroup(acc);
 
       if (item.id === "start-recording") {
-        const RecordingIcon = isRecording ? RiStopLine : RiPlayLine
+        const RecordingIcon = isRecording ? RiStopLine : RiPlayLine;
         acc.nodes.push(
           <button
             key={item.id}
@@ -283,10 +298,19 @@ function AgentNavigationMenu({
             )}
             aria-label={isRecording ? "Stop recording" : "Start recording"}
           >
-            <RecordingIcon className="size-8 rounded-full p-2 border-2 border-current" />
+            <RecordingIcon className="size-8 rounded-full p-2 border border-current-foreground/50 text-muted-foreground" />
           </button>,
-        )
-        return acc
+        );
+        return acc;
+      }
+
+      if (item.id === "resize-window") {
+        if (resizeControl) {
+          acc.nodes.push(
+            <React.Fragment key={item.id}>{resizeControl}</React.Fragment>,
+          );
+        }
+        return acc;
       }
 
       if (item.id === "close") {
@@ -300,29 +324,45 @@ function AgentNavigationMenu({
           >
             <RiCloseLine className="size-8 rounded-full p-1 hover:border-2 hover:border-red-400/70 transition-all duration-200 ease-in-out" />
           </button>,
-        )
-        return acc
+        );
+        return acc;
       }
 
-      acc.nodes.push(renderTabButton(item))
-      return acc
+      if (item.id === "toggle-visibility") {
+        acc.nodes.push(
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => onToggleVisibility?.()}
+            style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+            className="rounded-none p-1 text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <RiEyeLine className="size-8 rounded-full p-1 transition-all duration-200 ease-in-out" />
+          </button>,
+        );
+        return acc;
+      }
+
+      acc.nodes.push(renderTabButton(item));
+      return acc;
     },
     { nodes: [], activeGroup: null, groupNodes: [] },
-  )
+  );
 
-  flushGroup(result)
+  flushGroup(result);
 
   return (
     <div
       className={cn(
-        "flex w-full items-center gap-2 justify-between rounded-none border border-border/50 bg-background/35 p-2",
+        "flex w-full items-center justify-between gap-2 rounded-sm border border-border/50 bg-transparent p-2",
         className,
+        showOutline ? "outline-2 inset-0 outline-green-500/50 outline-dashed" : "",
       )}
       data-slot="agent-navigation-menu"
     >
       {result.nodes}
     </div>
-  )
+  );
 }
 
-export { AgentNavigationMenu }
+export { AgentNavigationMenu };
