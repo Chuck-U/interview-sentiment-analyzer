@@ -9,9 +9,15 @@ import type { RecordingBridge, RecordingEventsBridge } from "../../src/shared/re
 import type { AppControlsBridge } from "../../src/shared/app-controls";
 import { APP_CONTROL_CHANNELS } from "../../src/shared/app-controls";
 import type { ElectronAppBridge } from "../../src/shared/electron-app";
+import type { CaptureOptionsBridge } from "../../src/shared/capture-options";
 import type { ShortcutsBridge } from "../../src/shared/shortcuts";
 import { SHORTCUTS_IPC_CHANNELS } from "../../src/shared/shortcuts";
 import { normalizeSetShortcutEnabledRequest } from "../../src/shared/shortcuts";
+import {
+  CAPTURE_OPTIONS_CHANNELS,
+  CAPTURE_OPTIONS_EVENT_CHANNELS,
+  normalizeCaptureOptionsConfig,
+} from "../../src/shared/capture-options";
 import type {
   WindowBoundsSnapshot,
   WindowControlsBridge,
@@ -137,6 +143,38 @@ const shortcutsBridge: ShortcutsBridge = {
   },
 };
 
+const captureOptionsBridge: CaptureOptionsBridge = {
+  getConfig() {
+    return ipcRenderer.invoke(
+      CAPTURE_OPTIONS_CHANNELS.getConfig,
+    ) as Promise<ReturnType<typeof normalizeCaptureOptionsConfig>>;
+  },
+  setConfig(config) {
+    return ipcRenderer.invoke(
+      CAPTURE_OPTIONS_CHANNELS.setConfig,
+      normalizeCaptureOptionsConfig(config),
+    ) as Promise<ReturnType<typeof normalizeCaptureOptionsConfig>>;
+  },
+  listDisplays() {
+    return ipcRenderer.invoke(CAPTURE_OPTIONS_CHANNELS.listDisplays);
+  },
+  getPermissions() {
+    return ipcRenderer.invoke(CAPTURE_OPTIONS_CHANNELS.getPermissions);
+  },
+  openMonitorPicker(request) {
+    return ipcRenderer.invoke(CAPTURE_OPTIONS_CHANNELS.openMonitorPicker, request);
+  },
+  closeMonitorPicker() {
+    return ipcRenderer.invoke(CAPTURE_OPTIONS_CHANNELS.closeMonitorPicker);
+  },
+  onSelectedDisplayChanged(listener) {
+    return subscribeToChannel(
+      CAPTURE_OPTIONS_EVENT_CHANNELS.selectedDisplayChanged,
+      listener,
+    );
+  },
+};
+
 const recordingBridge: RecordingBridge = {
   persistChunk(request) {
     return ipcRenderer.invoke(RECORDING_CHANNELS.persistChunk, {
@@ -146,6 +184,15 @@ const recordingBridge: RecordingBridge = {
   },
   persistScreenshot(request) {
     return ipcRenderer.invoke(RECORDING_CHANNELS.persistScreenshot, {
+      ...request,
+      buffer: Array.from(new Uint8Array(request.buffer)),
+    });
+  },
+  beginSandboxRecording(request) {
+    return ipcRenderer.invoke(RECORDING_CHANNELS.beginSandboxRecording, request);
+  },
+  saveSandboxRecording(request) {
+    return ipcRenderer.invoke(RECORDING_CHANNELS.saveSandboxRecording, {
       ...request,
       buffer: Array.from(new Uint8Array(request.buffer)),
     });
@@ -188,6 +235,7 @@ const electronAppBridge: ElectronAppBridge = {
   sessionLifecycleEvents: sessionLifecycleEventsBridge,
   recording: recordingBridge,
   recordingEvents: recordingEventsBridge,
+  captureOptions: captureOptionsBridge,
   appControls: appControlsBridge,
   windowControls: windowControlsBridge,
   shortcuts: shortcutsBridge,

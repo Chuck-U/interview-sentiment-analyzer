@@ -1,6 +1,8 @@
 export const RECORDING_CHANNELS = {
   persistChunk: "recording:persist-chunk",
   persistScreenshot: "recording:persist-screenshot",
+  beginSandboxRecording: "recording:begin-sandbox-recording",
+  saveSandboxRecording: "recording:save-sandbox-recording",
   exportRecording: "recording:export-recording",
 } as const;
 

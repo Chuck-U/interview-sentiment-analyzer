@@ -76,6 +76,7 @@ export function createRecordingExportService(
 
       const sourceDirectories: { source: string; dir: string }[] = [
         { source: "microphone", dir: path.join(sessionLayout.chunksRoot, "audio") },
+        { source: "webcam", dir: path.join(sessionLayout.chunksRoot, "webcam") },
         { source: "system-audio", dir: path.join(sessionLayout.chunksRoot, "system-audio") },
         { source: "screen-video", dir: path.join(sessionLayout.chunksRoot, "screen-video") },
         { source: "screenshot", dir: path.join(sessionLayout.chunksRoot, "screenshots") },
@@ -102,7 +103,7 @@ export function createRecordingExportService(
 
         if (
           !primaryExportSourceDir &&
-          (source === "screen-video" || source === "microphone")
+          (source === "screen-video" || source === "webcam" || source === "microphone")
         ) {
           primaryExportSourceDir = dir;
           const firstFile = chunks[0]?.relativePath ?? "";

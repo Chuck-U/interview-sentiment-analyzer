@@ -4,7 +4,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
+import { RecordingSandboxCard } from "@/renderer/recording/recording-sandbox-card";
+import type { CapturePermissionSnapshot } from "@/shared/capture-options";
 import type { RecordingStateSnapshot } from "@/shared/recording";
+
+import { CaptureOptionsPanel } from "./CaptureOptionsPanel";
+import type { CaptureDeviceOption, CaptureDisplayOption } from "../capture-options/domain";
 
 export type AgentOptionsView = "controls" | "options";
 
@@ -28,6 +33,33 @@ export type OptionsProps = {
 
   readonly recordingState: RecordingStateSnapshot | null;
   readonly onExportRecording?: () => void;
+
+  readonly permissions: CapturePermissionSnapshot | null;
+  readonly microphoneDevices: readonly CaptureDeviceOption[];
+  readonly webcamDevices: readonly CaptureDeviceOption[];
+  readonly displays: readonly CaptureDisplayOption[];
+  readonly microphoneEnabled: boolean;
+  readonly webcamEnabled: boolean;
+  readonly screenEnabled: boolean;
+  readonly systemAudioEnabled: boolean;
+  readonly screenshotEnabled: boolean;
+  readonly microphoneLevel: number;
+  readonly isWebcamPreviewVisible: boolean;
+  readonly webcamPreviewStream: MediaStream | null;
+  readonly isDesktopPreviewVisible: boolean;
+  readonly desktopPreviewStream: MediaStream | null;
+  readonly hasCaptureSourceEnabled: boolean;
+  readonly onSetMicrophoneEnabled: (enabled: boolean) => void;
+  readonly onSetWebcamEnabled: (enabled: boolean) => void;
+  readonly onSetScreenEnabled: (enabled: boolean) => void;
+  readonly onSetSystemAudioEnabled: (enabled: boolean) => void;
+  readonly onSetScreenshotEnabled: (enabled: boolean) => void;
+  readonly onSetMicrophoneDeviceId: (deviceId: string) => void;
+  readonly onSetWebcamDeviceId: (deviceId: string) => void;
+  readonly onSetDisplayId: (displayId: string) => void;
+  readonly onSetWebcamPreviewVisible: (visible: boolean) => void;
+  readonly onSetDesktopPreviewVisible: (visible: boolean) => void;
+  readonly onOpenMonitorPicker: () => void;
 
   readonly onResizeStart: (event: ReactPointerEvent<HTMLButtonElement>) => void;
   readonly activeInteraction: "move" | "resize" | null;
@@ -68,6 +100,32 @@ export function Options({
   onSetShortcutEnabled,
   recordingState,
   onExportRecording,
+  permissions,
+  microphoneDevices,
+  webcamDevices,
+  displays,
+  microphoneEnabled,
+  webcamEnabled,
+  screenEnabled,
+  systemAudioEnabled,
+  screenshotEnabled,
+  microphoneLevel,
+  isWebcamPreviewVisible,
+  webcamPreviewStream,
+  isDesktopPreviewVisible,
+  desktopPreviewStream,
+  hasCaptureSourceEnabled,
+  onSetMicrophoneEnabled,
+  onSetWebcamEnabled,
+  onSetScreenEnabled,
+  onSetSystemAudioEnabled,
+  onSetScreenshotEnabled,
+  onSetMicrophoneDeviceId,
+  onSetWebcamDeviceId,
+  onSetDisplayId,
+  onSetWebcamPreviewVisible,
+  onSetDesktopPreviewVisible,
+  onOpenMonitorPicker,
   onResizeStart,
   activeInteraction,
   onQuit,
@@ -112,12 +170,36 @@ export function Options({
             </div>
 
             <div className="flex flex-col gap-2">
-              <p className="text-sm font-medium">Preferences</p>
-              <div className="rounded-md border border-border/50 bg-background/35 p-3">
-                <p className="text-sm text-muted-foreground">
-                  Placeholder for additional agent preferences.
-                </p>
-              </div>
+              <p className="text-sm font-medium">Recording sources</p>
+              <CaptureOptionsPanel
+                isBusy={isBusy}
+                microphoneDevices={microphoneDevices}
+                webcamDevices={webcamDevices}
+                displays={displays}
+                permissions={permissions}
+                microphoneEnabled={microphoneEnabled}
+                webcamEnabled={webcamEnabled}
+                screenEnabled={screenEnabled}
+                systemAudioEnabled={systemAudioEnabled}
+                screenshotEnabled={screenshotEnabled}
+                microphoneLevel={microphoneLevel}
+                isWebcamPreviewVisible={isWebcamPreviewVisible}
+                webcamPreviewStream={webcamPreviewStream}
+                isDesktopPreviewVisible={isDesktopPreviewVisible}
+                desktopPreviewStream={desktopPreviewStream}
+                hasCaptureSourceEnabled={hasCaptureSourceEnabled}
+                onSetMicrophoneEnabled={onSetMicrophoneEnabled}
+                onSetWebcamEnabled={onSetWebcamEnabled}
+                onSetScreenEnabled={onSetScreenEnabled}
+                onSetSystemAudioEnabled={onSetSystemAudioEnabled}
+                onSetScreenshotEnabled={onSetScreenshotEnabled}
+                onSetMicrophoneDeviceId={onSetMicrophoneDeviceId}
+                onSetWebcamDeviceId={onSetWebcamDeviceId}
+                onSetDisplayId={onSetDisplayId}
+                onSetWebcamPreviewVisible={onSetWebcamPreviewVisible}
+                onSetDesktopPreviewVisible={onSetDesktopPreviewVisible}
+                onOpenMonitorPicker={onOpenMonitorPicker}
+              />
             </div>
           </CardContent>
         </Card>
@@ -248,6 +330,8 @@ export function Options({
             </Button>
           </CardFooter>
         </Card>
+
+        <RecordingSandboxCard />
       </div>
     );
 }

@@ -2,23 +2,15 @@ import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import { AgentNavigationMenu } from "@/components/ui/navigation-menu";
 import { Options } from "./Slot/Options";
-import type {
-  MediaChunkSource,
-  SessionSnapshot,
-} from "@/shared/session-lifecycle";
+import type { SessionSnapshot } from "@/shared/session-lifecycle";
 import type { RecordingStateSnapshot } from "@/shared/recording";
 import type { WindowBoundsSnapshot } from "@/shared/window-controls";
 import {
   DEFAULT_SHORTCUT_ID_RECORDING_TOGGLE,
   formatElectronAcceleratorLabel,
 } from "@/shared/shortcuts";
+import { useCaptureOptions } from "./capture-options/useCaptureOptions";
 import { CaptureManager } from "./recording/capture-manager";
-
-const DEFAULT_CAPTURE_SOURCES: readonly MediaChunkSource[] = [
-  "microphone",
-  "screen-video",
-  "screenshot",
-];
 
 
 type InteractionMode = "move" | "resize";
@@ -92,8 +84,17 @@ function getStatusCopy(session: SessionSnapshot | null): {
   );
   const [recordingState, setRecordingState] =
     useState<RecordingStateSnapshot | null>(null);
+  const [activeView, setActiveView] = useState<"controls" | "options">(
+    "controls",
+  );
 
   currentSessionRef.current = currentSession;
+
+  const captureOptions = useCaptureOptions({
+    isMenuActive: activeView === "options",
+    recordingState,
+    onError: setFeedbackMessage,
+  });
 
   const syncIncomingSession = useCallback((session: SessionSnapshot) => {
     setCurrentSession((previousSession) => {
@@ -144,8 +145,43 @@ function getStatusCopy(session: SessionSnapshot | null): {
     ? `Position ${windowBounds.x}, ${windowBounds.y}`
     : undefined;
 
+  const createCaptureManager = useCallback(() => {
+    return new CaptureManager({
+      onChunkAvailable(sessionId, source, sequenceNumber, mimeType, recordedAt, buffer) {
+        return window.electronApp.recording.persistChunk({
+          sessionId,
+          source,
+          sequenceNumber,
+          mimeType,
+          recordedAt,
+          buffer,
+        });
+      },
+      onScreenshotAvailable(sessionId, sequenceNumber, mimeType, capturedAt, buffer) {
+        return window.electronApp.recording.persistScreenshot({
+          sessionId,
+          sequenceNumber,
+          mimeType,
+          capturedAt,
+          buffer,
+        });
+      },
+      onStateChanged(state) {
+        setRecordingState(state);
+      },
+      onCaptureError(_sessionId, source, _errorCode, errorMessage) {
+        setFeedbackMessage(`Capture error (${source}): ${errorMessage}`);
+      },
+    });
+  }, []);
+
   const handleStartRecording = useCallback(async () => {
     if (isBusy || currentSessionRef.current?.status === "active") {
+      return;
+    }
+
+    if (captureOptions.captureSources.length === 0) {
+      setFeedbackMessage("Enable at least one capture source before recording.");
       return;
     }
 
@@ -154,7 +190,7 @@ function getStatusCopy(session: SessionSnapshot | null): {
 
     try {
       const response = await window.electronApp.sessionLifecycle.startSession({
-        captureSources: DEFAULT_CAPTURE_SOURCES,
+        captureSources: captureOptions.captureSources,
       });
 
       syncIncomingSession(response.session);
@@ -166,36 +202,14 @@ function getStatusCopy(session: SessionSnapshot | null): {
         captureManagerRef.current.destroy();
       }
 
-      const manager = new CaptureManager({
-        onChunkAvailable(sessionId, source, sequenceNumber, mimeType, recordedAt, buffer) {
-          return window.electronApp.recording.persistChunk({
-            sessionId,
-            source,
-            sequenceNumber,
-            mimeType,
-            recordedAt,
-            buffer,
-          });
-        },
-        onScreenshotAvailable(sessionId, sequenceNumber, mimeType, capturedAt, buffer) {
-          return window.electronApp.recording.persistScreenshot({
-            sessionId,
-            sequenceNumber,
-            mimeType,
-            capturedAt,
-            buffer,
-          });
-        },
-        onStateChanged(state) {
-          setRecordingState(state);
-        },
-        onCaptureError(_sessionId, source, _errorCode, errorMessage) {
-          setFeedbackMessage(`Capture error (${source}): ${errorMessage}`);
-        },
-      });
+      const manager = createCaptureManager();
 
       captureManagerRef.current = manager;
-      await manager.startCapture(response.session.id, DEFAULT_CAPTURE_SOURCES);
+      await manager.startCapture(
+        response.session.id,
+        captureOptions.captureSources,
+        captureOptions.config,
+      );
     } catch (error) {
       setFeedbackMessage(
         error instanceof Error ? error.message : "Unable to start recording.",
@@ -203,7 +217,7 @@ function getStatusCopy(session: SessionSnapshot | null): {
     } finally {
       setIsStarting(false);
     }
-  }, [isBusy, syncIncomingSession]);
+  }, [captureOptions.captureSources, captureOptions.config, createCaptureManager, isBusy, syncIncomingSession]);
 
   const handleStopRecording = useCallback(async () => {
     const session = currentSessionRef.current;
@@ -411,6 +425,43 @@ function getStatusCopy(session: SessionSnapshot | null): {
   }, []);
 
   useEffect(() => {
+    const session = currentSession;
+
+    if (!session) {
+      return;
+    }
+
+    if (session.status === "active") {
+      if (captureManagerRef.current || isStarting) {
+        return;
+      }
+
+      const manager = createCaptureManager();
+      captureManagerRef.current = manager;
+
+      void manager
+        .startCapture(session.id, session.captureSources, captureOptions.config)
+        .catch((error: unknown) => {
+          setFeedbackMessage(
+            error instanceof Error ? error.message : "Unable to attach capture.",
+          );
+          if (captureManagerRef.current === manager) {
+            captureManagerRef.current = null;
+          }
+        });
+      return;
+    }
+
+    if (session.status === "finalizing" && captureManagerRef.current && !isStopping) {
+      void captureManagerRef.current.stopCapture().catch((error: unknown) => {
+        setFeedbackMessage(
+          error instanceof Error ? error.message : "Unable to stop capture.",
+        );
+      });
+    }
+  }, [captureOptions.config, createCaptureManager, currentSession, isStarting, isStopping]);
+
+  useEffect(() => {
     return () => {
       if (captureManagerRef.current) {
         captureManagerRef.current.destroy();
@@ -508,10 +559,6 @@ function getStatusCopy(session: SessionSnapshot | null): {
     };
   }, [activeInteraction]);
 
-  const [activeView, setActiveView] = useState<"controls" | "options">(
-    "controls",
-  );
-
   // Render the refactored agent UI first; the legacy UI below is kept for
   // now to minimize risky deletions during the refactor.
   if (activeView === "controls" || activeView === "options") {
@@ -565,6 +612,34 @@ function getStatusCopy(session: SessionSnapshot | null): {
               recordingState={recordingState}
               onExportRecording={() => {
                 void handleExportRecording();
+              }}
+              permissions={captureOptions.permissions}
+              microphoneDevices={captureOptions.microphoneDevices}
+              webcamDevices={captureOptions.webcamDevices}
+              displays={captureOptions.displays}
+              microphoneEnabled={captureOptions.config.microphone.enabled}
+              webcamEnabled={captureOptions.config.webcam.enabled}
+              screenEnabled={captureOptions.config.screen.enabled}
+              systemAudioEnabled={captureOptions.config.systemAudio.enabled}
+              screenshotEnabled={captureOptions.config.screenshot.enabled}
+              microphoneLevel={captureOptions.microphoneLevel}
+              isWebcamPreviewVisible={captureOptions.isWebcamPreviewVisible}
+              webcamPreviewStream={captureOptions.webcamPreviewStream}
+              isDesktopPreviewVisible={captureOptions.isDesktopPreviewVisible}
+              desktopPreviewStream={captureOptions.desktopPreviewStream}
+              hasCaptureSourceEnabled={captureOptions.hasCaptureSourceEnabled}
+              onSetMicrophoneEnabled={captureOptions.setMicrophoneEnabled}
+              onSetWebcamEnabled={captureOptions.setWebcamEnabled}
+              onSetScreenEnabled={captureOptions.setScreenEnabled}
+              onSetSystemAudioEnabled={captureOptions.setSystemAudioEnabled}
+              onSetScreenshotEnabled={captureOptions.setScreenshotEnabled}
+              onSetMicrophoneDeviceId={captureOptions.setMicrophoneDeviceId}
+              onSetWebcamDeviceId={captureOptions.setWebcamDeviceId}
+              onSetDisplayId={captureOptions.setDisplayId}
+              onSetWebcamPreviewVisible={captureOptions.setWebcamPreviewVisible}
+              onSetDesktopPreviewVisible={captureOptions.setDesktopPreviewVisible}
+              onOpenMonitorPicker={() => {
+                void captureOptions.openMonitorPicker();
               }}
               onResizeStart={handleResizeStart}
               activeInteraction={activeInteraction}

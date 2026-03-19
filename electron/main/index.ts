@@ -3,10 +3,13 @@ import path from "node:path";
 import {
   app,
   BrowserWindow,
+  desktopCapturer,
   globalShortcut,
   ipcMain,
   Menu,
   nativeImage,
+  screen,
+  systemPreferences,
   Tray,
 } from "electron";
 
@@ -14,11 +17,20 @@ import { createSessionLifecycleBackend } from "../../src/backend";
 import { registerSessionLifecycleIpc } from "../../src/backend/infrastructure/ipc/register-session-lifecycle-ipc";
 import { registerRecordingIpc } from "../../src/backend/infrastructure/ipc/register-recording-ipc";
 import { createRecordingPersistenceService } from "../../src/backend/infrastructure/recording/recording-persistence";
-import { createRecordingExportService } from "@backend/infrastructure/recording/recording-export";
+import { createRecordingExportService } from "../../src/backend/infrastructure/recording/recording-export";
+import { createRecordingSandboxPersistenceService } from "../../src/backend/infrastructure/recording/recording-sandbox-persistence";
 import { createSessionStorageLayoutResolver } from "../../src/backend/infrastructure/storage/session-storage-layout";
-import { createShortcutsConfigStore } from "../../src/backend/infrastructure/shortcuts/shortcutsConfigStore";
+import { createAppConfigStore } from "../../src/backend/infrastructure/config/appConfigStore";
 import { registerConfiguredGlobalShortcuts } from "../../src/backend/infrastructure/shortcuts/globalShortcuts.shortcuts";
 import { APP_CONTROL_CHANNELS } from "../../src/shared/app-controls";
+import {
+  CAPTURE_OPTIONS_CHANNELS,
+  CAPTURE_OPTIONS_EVENT_CHANNELS,
+  normalizeCaptureOptionsConfig,
+  type CaptureOptionsConfig,
+  type CaptureDisplaySnapshot,
+  type CapturePermissionSnapshot,
+} from "../../src/shared/capture-options";
 import { SESSION_LIFECYCLE_EVENT_CHANNELS } from "../../src/backend/infrastructure/ipc/session-lifecycle-channels";
 import { RECORDING_CHANNELS, RECORDING_EVENT_CHANNELS } from "../../src/backend/infrastructure/ipc/recording-channels";
 import {
@@ -28,12 +40,14 @@ import {
   WINDOW_CONTROL_EVENT_CHANNELS,
   type WindowBoundsSnapshot,
 } from "../../src/shared/window-controls";
-import type { SessionSnapshot } from "../../src/shared/session-lifecycle";
+import type { MediaChunkSource, SessionSnapshot } from "../../src/shared/session-lifecycle";
 import {
   SHORTCUTS_IPC_CHANNELS,
+  DEFAULT_RECORDING_CAPTURE_SOURCES,
   normalizeSetShortcutEnabledRequest,
 } from "../../src/shared/shortcuts";
 import type { SessionLifecycleController } from "../../src/backend/interfaces/controllers/session-lifecycle-controller";
+import { createMonitorPickerController } from "./monitor-picker";
 
 const devServerUrl = process.env.VITE_DEV_SERVER_URL ?? 'http://localhost:5180';
 
@@ -43,6 +57,34 @@ const MAIN_WINDOW_MIN_WIDTH = 460;
 const MAIN_WINDOW_MIN_HEIGHT = 320;
 const MAIN_WINDOW_DEFAULT_WIDTH = 560;
 const MAIN_WINDOW_DEFAULT_HEIGHT = 360;
+
+function buildCaptureSourcesFromConfig(
+  config: CaptureOptionsConfig,
+): readonly MediaChunkSource[] {
+  const sources: MediaChunkSource[] = [];
+
+  if (config.microphone.enabled) {
+    sources.push("microphone");
+  }
+
+  if (config.webcam.enabled) {
+    sources.push("webcam");
+  }
+
+  if (config.systemAudio.enabled) {
+    sources.push("system-audio");
+  }
+
+  if (config.screen.enabled) {
+    sources.push("screen-video");
+  }
+
+  if (config.screenshot.enabled) {
+    sources.push("screenshot");
+  }
+
+  return sources.length > 0 ? sources : DEFAULT_RECORDING_CAPTURE_SOURCES;
+}
 
 function publishToAllWindows(channel: string, payload: unknown): void {
   for (const window of BrowserWindow.getAllWindows()) {
@@ -119,6 +161,87 @@ function createMainWindow() {
 
   void mainWindow.loadFile(path.join(__dirname, "../../../dist/index.html"));
   return mainWindow;
+}
+
+async function listCaptureDisplays(): Promise<readonly CaptureDisplaySnapshot[]> {
+  const sources = await desktopCapturer.getSources({
+    types: ["screen"],
+    thumbnailSize: { width: 0, height: 0 },
+  });
+
+  const sourceByDisplayId = new Map(
+    sources
+      .filter((source) => source.display_id)
+      .map((source) => [source.display_id, source]),
+  );
+  const primaryDisplayId = String(screen.getPrimaryDisplay().id);
+
+  return screen.getAllDisplays().map((display) => {
+    const displayId = String(display.id);
+    const source = sourceByDisplayId.get(displayId);
+
+    return {
+      displayId,
+      label: display.label || source?.name || `Display ${displayId}`,
+      isPrimary: displayId === primaryDisplayId,
+      bounds: {
+        x: display.bounds.x,
+        y: display.bounds.y,
+        width: display.bounds.width,
+        height: display.bounds.height,
+      },
+      sourceId: source?.id,
+    };
+  });
+}
+
+function getPermissionStatus(kind: "microphone" | "camera" | "screen"): string {
+  if (process.platform !== "darwin" && process.platform !== "win32") {
+    return "unsupported";
+  }
+
+  try {
+    return systemPreferences.getMediaAccessStatus(kind);
+  } catch {
+    return "unsupported";
+  }
+}
+
+function getCapturePermissions(): CapturePermissionSnapshot {
+  const microphone = getPermissionStatus("microphone");
+  const camera = getPermissionStatus("camera");
+  const screenPermission = getPermissionStatus("screen");
+
+  return {
+    microphone:
+      microphone === "granted" ||
+      microphone === "denied" ||
+      microphone === "restricted" ||
+      microphone === "not-determined"
+        ? microphone
+        : "unsupported",
+    camera:
+      camera === "granted" ||
+      camera === "denied" ||
+      camera === "restricted" ||
+      camera === "not-determined"
+        ? camera
+        : "unsupported",
+    screen:
+      screenPermission === "granted" ||
+      screenPermission === "denied" ||
+      screenPermission === "restricted" ||
+      screenPermission === "not-determined"
+        ? screenPermission
+        : "unsupported",
+    systemAudio:
+      screenPermission === "granted" ||
+      screenPermission === "denied" ||
+      screenPermission === "restricted" ||
+      screenPermission === "not-determined"
+        ? screenPermission
+        : "unsupported",
+  };
 }
 
 function createEmptyTrayIcon(): Electron.NativeImage {
@@ -198,31 +321,39 @@ async function initializeApp() {
 
     let currentSession: SessionSnapshot | null = null;
     let sessionLifecycleController: SessionLifecycleController | null = null;
-
-    const shortcutsConfigStore = createShortcutsConfigStore(app);
+    const appConfigStore = createAppConfigStore(app);
+    const monitorPicker = createMonitorPickerController({
+      onSelectionChanged(displayId) {
+        publishToAllWindows(
+          CAPTURE_OPTIONS_EVENT_CHANNELS.selectedDisplayChanged,
+          { displayId },
+        );
+      },
+    });
 
     ipcMain.handle(APP_CONTROL_CHANNELS.closeApplication, () => {
+      monitorPicker.close();
       app.quit();
     });
 
     ipcMain.handle(SHORTCUTS_IPC_CHANNELS.ensureConfig, async () => {
-      await shortcutsConfigStore.ensureConfigExists();
+      await appConfigStore.ensureConfigExists();
     });
 
     ipcMain.handle(SHORTCUTS_IPC_CHANNELS.getConfig, async () => {
-      return shortcutsConfigStore.loadConfig();
+      return appConfigStore.loadShortcutsConfig();
     });
 
     ipcMain.handle(
       SHORTCUTS_IPC_CHANNELS.setShortcutEnabled,
       async (_event, input: unknown) => {
         const request = normalizeSetShortcutEnabledRequest(input);
-        await shortcutsConfigStore.updateShortcutEnabled({
+        await appConfigStore.updateShortcutEnabled({
           shortcutId: request.shortcutId,
           enabled: request.enabled,
         });
 
-        const updatedConfig = await shortcutsConfigStore.loadConfig();
+        const updatedConfig = await appConfigStore.loadShortcutsConfig();
 
         if (sessionLifecycleController) {
           await registerConfiguredGlobalShortcuts({
@@ -230,12 +361,79 @@ async function initializeApp() {
             mainWindow,
             controller: sessionLifecycleController,
             getCurrentSession: () => currentSession,
+            getCaptureSources: async () => {
+              const captureOptions = await appConfigStore.loadCaptureOptionsConfig();
+              return buildCaptureSourcesFromConfig(captureOptions);
+            },
           });
         }
       },
     );
 
+    ipcMain.handle(CAPTURE_OPTIONS_CHANNELS.getConfig, async () => {
+      return appConfigStore.loadCaptureOptionsConfig();
+    });
+
+    ipcMain.handle(CAPTURE_OPTIONS_CHANNELS.setConfig, async (_event, input) => {
+      const config = normalizeCaptureOptionsConfig(input);
+      return appConfigStore.saveCaptureOptionsConfig(config);
+    });
+
+    ipcMain.handle(CAPTURE_OPTIONS_CHANNELS.listDisplays, async () => {
+      return listCaptureDisplays();
+    });
+
+    ipcMain.handle(CAPTURE_OPTIONS_CHANNELS.getPermissions, async () => {
+      return getCapturePermissions();
+    });
+
+    ipcMain.handle(
+      CAPTURE_OPTIONS_CHANNELS.openMonitorPicker,
+      async (_event, input) => {
+        let selectedDisplayId: string | undefined;
+        if (typeof input === "object" && input !== null) {
+          const candidate = (input as Record<string, unknown>).selectedDisplayId;
+          if (typeof candidate === "string" && candidate.trim().length > 0) {
+            selectedDisplayId = candidate.trim();
+          }
+        }
+
+        const resolvedDisplayId = monitorPicker.open({ selectedDisplayId });
+        return { displayId: resolvedDisplayId };
+      },
+    );
+
+    ipcMain.handle(CAPTURE_OPTIONS_CHANNELS.closeMonitorPicker, async () => {
+      monitorPicker.close();
+    });
+
+    mainWindow.webContents.session.setDisplayMediaRequestHandler(
+      async (_request, callback) => {
+        const captureOptions = await appConfigStore.loadCaptureOptionsConfig();
+        const sources = await desktopCapturer.getSources({
+          types: ["screen"],
+          thumbnailSize: { width: 0, height: 0 },
+        });
+        const selectedSource =
+          sources.find(
+            (source) => source.display_id === captureOptions.display.displayId,
+          ) ?? sources[0];
+
+        if (!selectedSource) {
+          callback({});
+          return;
+        }
+
+        callback({
+          video: selectedSource,
+          audio: captureOptions.systemAudio.enabled ? "loopback" : undefined,
+        });
+      },
+      { useSystemPicker: false },
+    );
+
     app.on("will-quit", () => {
+      monitorPicker.close();
       globalShortcut.unregisterAll();
     });
 
@@ -322,8 +520,20 @@ async function initializeApp() {
     const storageLayoutResolver = createSessionStorageLayoutResolver(appDataRoot);
     const recordingPersistence = createRecordingPersistenceService(storageLayoutResolver);
     const recordingExport = createRecordingExportService(storageLayoutResolver);
+    const sandboxRecordingPersistence = createRecordingSandboxPersistenceService(
+      path.join(
+        app.getPath("videos"),
+        "Interview Sentiment Analyzer",
+        "sandbox-captures",
+      ),
+    );
 
-    registerRecordingIpc(ipcMain, recordingPersistence, sessionLifecycleBackend.controller);
+    registerRecordingIpc(
+      ipcMain,
+      recordingPersistence,
+      sandboxRecordingPersistence,
+      sessionLifecycleBackend.controller,
+    );
 
     ipcMain.handle(
       RECORDING_CHANNELS.exportRecording,
@@ -362,12 +572,16 @@ async function initializeApp() {
 
     sessionLifecycleController = sessionLifecycleBackend.controller;
 
-    const shortcutsConfig = await shortcutsConfigStore.loadConfig();
+    const shortcutsConfig = await appConfigStore.loadShortcutsConfig();
     await registerConfiguredGlobalShortcuts({
       config: shortcutsConfig,
       mainWindow,
       controller: sessionLifecycleController,
       getCurrentSession: () => currentSession,
+      getCaptureSources: async () => {
+        const captureOptions = await appConfigStore.loadCaptureOptionsConfig();
+        return buildCaptureSourcesFromConfig(captureOptions);
+      },
     });
 
     app.on("activate", () => {

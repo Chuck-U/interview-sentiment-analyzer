@@ -8,6 +8,7 @@ import type {
 
 const chunkSourceDirectories: Record<MediaChunkSource, string> = {
   microphone: path.join("chunks", "audio"),
+  webcam: path.join("chunks", "webcam"),
   "system-audio": path.join("chunks", "system-audio"),
   "screen-video": path.join("chunks", "screen-video"),
   screenshot: path.join("chunks", "screenshots"),

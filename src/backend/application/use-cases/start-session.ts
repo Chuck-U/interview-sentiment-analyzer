@@ -67,6 +67,9 @@ export function createStartSessionUseCase(
       `${storageLayout.chunksRoot}/audio`,
     );
     await dependencies.fileSystem.ensureDirectory(
+      `${storageLayout.chunksRoot}/webcam`,
+    );
+    await dependencies.fileSystem.ensureDirectory(
       `${storageLayout.chunksRoot}/system-audio`,
     );
     await dependencies.fileSystem.ensureDirectory(

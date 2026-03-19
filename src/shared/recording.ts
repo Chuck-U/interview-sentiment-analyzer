@@ -26,15 +26,23 @@ export const RECORDING_EXPORT_STATUSES = [
   "failed",
 ] as const;
 
+export const SANDBOX_RECORDING_KINDS = [
+  "desktop",
+  "microphone",
+] as const;
+
 export type CaptureSourceState = (typeof CAPTURE_SOURCE_STATES)[number];
 export type CaptureErrorCode = (typeof CAPTURE_ERROR_CODES)[number];
 export type RecordingExportStatus = (typeof RECORDING_EXPORT_STATUSES)[number];
+export type SandboxRecordingKind = (typeof SANDBOX_RECORDING_KINDS)[number];
 
 export type CaptureSourceSnapshot = {
   readonly source: MediaChunkSource;
   readonly state: CaptureSourceState;
   readonly chunkCount: number;
   readonly latestChunkPath?: string;
+  readonly activeDeviceId?: string;
+  readonly activeDisplayId?: string;
   readonly errorCode?: CaptureErrorCode;
   readonly errorMessage?: string;
 };
@@ -86,11 +94,38 @@ export type ExportRecordingResponse = {
   readonly exportFilePath?: string;
 };
 
+export type BeginSandboxRecordingRequest = {
+  readonly kind: SandboxRecordingKind;
+};
+
+export type BeginSandboxRecordingResponse = {
+  readonly outputDirectory: string;
+};
+
+export type SaveSandboxRecordingRequest = {
+  readonly kind: SandboxRecordingKind;
+  readonly mimeType: string;
+  readonly startedAt: string;
+  readonly stoppedAt: string;
+  readonly buffer: ArrayBuffer;
+};
+
+export type SaveSandboxRecordingResponse = {
+  readonly filePath: string;
+  readonly byteSize: number;
+};
+
 export type RecordingBridge = {
   persistChunk(request: PersistChunkRequest): Promise<PersistChunkResponse>;
   persistScreenshot(
     request: PersistScreenshotRequest,
   ): Promise<PersistScreenshotResponse>;
+  beginSandboxRecording(
+    request: BeginSandboxRecordingRequest,
+  ): Promise<BeginSandboxRecordingResponse>;
+  saveSandboxRecording(
+    request: SaveSandboxRecordingRequest,
+  ): Promise<SaveSandboxRecordingResponse>;
   exportRecording(
     request: ExportRecordingRequest,
   ): Promise<ExportRecordingResponse>;
