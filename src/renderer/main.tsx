@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from "react";
-import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
+import type { CSSProperties } from "react";
 import { AgentNavigationMenu } from "@/components/ui/navigation-menu";
-import type { ResizeWindowByRequest, WindowBoundsSnapshot } from "@/shared/window-controls";
+import type { WindowBoundsSnapshot, WindowSizePreset } from "@/shared/window-controls";
 import { Options } from "./Slot/Options";
 import type { SessionSnapshot } from "@/shared/session-lifecycle";
 import type { RecordingStateSnapshot } from "@/shared/recording";
@@ -12,16 +12,7 @@ import {
 import { useCaptureOptions } from "./capture-options/useCaptureOptions";
 import { CaptureManager } from "./recording/capture-manager";
 import { WindowResizeControl } from "./window-controls/window-resize-control";
-
-
-type InteractionMode = "move" | "resize";
-
-type ActivePointerGesture = {
-  readonly pointerId: number;
-  readonly mode: InteractionMode;
-  readonly screenX: number;
-  readonly screenY: number;
-};
+import { useViews } from "./hooks/useViews";
 
 function getStatusCopy(session: SessionSnapshot | null): {
   readonly label: string;
@@ -56,7 +47,6 @@ function getStatusCopy(session: SessionSnapshot | null): {
 
 function Main() {
   const currentSessionRef = useRef<SessionSnapshot | null>(null);
-  const pointerGestureRef = useRef<ActivePointerGesture | null>(null);
   const captureManagerRef = useRef<CaptureManager | null>(null);
   const platformLabel = useMemo(() => window.electronApp.platform, []);
   const [recordingShortcutAccelerator, setRecordingShortcutAccelerator] =
@@ -69,8 +59,6 @@ function Main() {
       ),
     [platformLabel, recordingShortcutAccelerator],
   );
-  const [activeInteraction, setActiveInteraction] =
-    useState<InteractionMode | null>(null);
   const [currentSession, setCurrentSession] = useState<SessionSnapshot | null>(
     null,
   );
@@ -85,9 +73,7 @@ function Main() {
   );
   const [recordingState, setRecordingState] =
     useState<RecordingStateSnapshot | null>(null);
-  const [activeView, setActiveView] = useState<"controls" | "options">(
-    "controls",
-  );
+  const { activeView, handleSetActiveView, resizePresetOptions } = useViews();
 
   currentSessionRef.current = currentSession;
 
@@ -111,41 +97,13 @@ function Main() {
     });
   }, []);
 
-  const beginPointerGesture = useCallback(
-    (mode: InteractionMode, event: ReactPointerEvent<HTMLButtonElement>) => {
-      if (event.button !== 0) {
-        return;
-      }
-
-      pointerGestureRef.current = {
-        pointerId: event.pointerId,
-        mode,
-        screenX: event.screenX,
-        screenY: event.screenY,
-      };
-      setActiveInteraction(mode);
-      event.currentTarget.setPointerCapture(event.pointerId);
-    },
-    [],
-  );
-
-  const handleResizeStart = useCallback(
-    (event: ReactPointerEvent<HTMLButtonElement>) => {
-      beginPointerGesture("resize", event);
-    },
-    [beginPointerGesture],
-  );
-  const handleResizeByDelta = useCallback(
-    async (request: ResizeWindowByRequest) => {
-      const nextBounds =
-        windowBounds ?? (await window.electronApp.windowControls.getWindowBounds());
-
-      return window.electronApp.windowControls.setWindowSize({
-        width: nextBounds.width + request.deltaWidth,
-        height: nextBounds.height + request.deltaHeight,
+  const handleResizePreset = useCallback(
+    async (preset: WindowSizePreset) => {
+      return window.electronApp.windowControls.setWindowSizePreset({
+        preset,
       });
     },
-    [windowBounds],
+    [],
   );
   const isRecording = currentSession?.status === "active";
   const statusCopy = getStatusCopy(currentSession);
@@ -512,66 +470,6 @@ function Main() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!activeInteraction) {
-      return;
-    }
-
-    const handlePointerMove = (event: PointerEvent) => {
-      const gesture = pointerGestureRef.current;
-
-      if (!gesture || event.pointerId !== gesture.pointerId) {
-        return;
-      }
-
-      const deltaX = Math.round(event.screenX - gesture.screenX);
-      const deltaY = Math.round(event.screenY - gesture.screenY);
-
-      if (deltaX === 0 && deltaY === 0) {
-        return;
-      }
-
-      pointerGestureRef.current = {
-        ...gesture,
-        screenX: event.screenX,
-        screenY: event.screenY,
-      };
-
-      if (gesture.mode === "move") {
-        window.electronApp.windowControls.moveWindowBy({
-          deltaX,
-          deltaY,
-        });
-        return;
-      }
-      window.electronApp.windowControls.resizeWindowBy({
-        deltaWidth: deltaX,
-        deltaHeight: deltaY,
-      });
-    };
-
-    const stopPointerGesture = (event: PointerEvent) => {
-      const gesture = pointerGestureRef.current;
-
-      if (!gesture || event.pointerId !== gesture.pointerId) {
-        return;
-      }
-
-      pointerGestureRef.current = null;
-      setActiveInteraction(null);
-    };
-
-    window.addEventListener("pointermove", handlePointerMove);
-    window.addEventListener("pointerup", stopPointerGesture);
-    window.addEventListener("pointercancel", stopPointerGesture);
-
-    return () => {
-      window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("pointerup", stopPointerGesture);
-      window.removeEventListener("pointercancel", stopPointerGesture);
-    };
-  }, [activeInteraction]);
-
   // Render the refactored agent UI first; the legacy UI below is kept for
   // now to minimize risky deletions during the refactor.
   return (
@@ -593,7 +491,7 @@ function Main() {
           value={activeView}
           onValueChange={(value) => {
             if (value === "controls" || value === "options") {
-              setActiveView(value);
+              handleSetActiveView(value);
             }
           }}
           isRecording={isRecording}
@@ -606,10 +504,9 @@ function Main() {
           }}
           resizeControl={(
             <WindowResizeControl
-              activeInteraction={activeInteraction}
               windowBounds={windowBounds}
-              onResizeStart={handleResizeStart}
-              onResizeByDelta={handleResizeByDelta}
+              presetOptions={resizePresetOptions}
+              onSelectPreset={handleResizePreset}
             />
           )}
           onClose={() => {
@@ -670,8 +567,6 @@ function Main() {
           onOpenMonitorPicker={() => {
             void captureOptions.openMonitorPicker();
           }}
-          onResizeStart={handleResizeStart}
-          activeInteraction={activeInteraction}
           onQuit={() => {
             void handleCloseApplication();
           }}

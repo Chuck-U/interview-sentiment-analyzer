@@ -1,4 +1,4 @@
-import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
+import type { CSSProperties } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -61,9 +61,6 @@ export type OptionsProps = {
   readonly onSetWebcamPreviewVisible: (visible: boolean) => void;
   readonly onSetDesktopPreviewVisible: (visible: boolean) => void;
   readonly onOpenMonitorPicker: () => void;
-
-  readonly onResizeStart: (event: ReactPointerEvent<HTMLButtonElement>) => void;
-  readonly activeInteraction: "move" | "resize" | null;
   readonly onQuit: () => void;
 };
 
@@ -127,8 +124,6 @@ export function Options({
   onSetWebcamPreviewVisible,
   onSetDesktopPreviewVisible,
   onOpenMonitorPicker,
-  onResizeStart: _onResizeStart,
-  activeInteraction: _activeInteraction,
   onQuit,
 }: OptionsProps) {
   const [showPermissions, setShowPermissions] = useState(false);

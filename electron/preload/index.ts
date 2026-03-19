@@ -18,6 +18,7 @@ import {
   normalizeCaptureOptionsConfig,
 } from "../../src/shared/capture-options";
 import type {
+  SetWindowSizePresetRequest,
   SetWindowSizeRequest,
   WindowBoundsSnapshot,
   WindowControlsBridge,
@@ -119,6 +120,12 @@ const windowControlsBridge: WindowControlsBridge = {
   setWindowSize(request: SetWindowSizeRequest) {
     return ipcRenderer.invoke(
       WINDOW_CONTROL_CHANNELS.setWindowSize,
+      request,
+    ) as Promise<WindowBoundsSnapshot>;
+  },
+  setWindowSizePreset(request: SetWindowSizePresetRequest) {
+    return ipcRenderer.invoke(
+      WINDOW_CONTROL_CHANNELS.setWindowSizePreset,
       request,
     ) as Promise<WindowBoundsSnapshot>;
   },

@@ -38,9 +38,11 @@ import {
   clampWindowSize,
   parseMoveWindowByRequest,
   parseResizeWindowByRequest,
+  parseSetWindowSizePresetRequest,
   parseSetWindowSizeRequest,
   WINDOW_CONTROL_CHANNELS,
   WINDOW_CONTROL_EVENT_CHANNELS,
+  type WindowSizePreset,
   type WindowBoundsSnapshot,
 } from "../../src/shared/window-controls";
 import type { MediaChunkSource, SessionSnapshot } from "../../src/shared/session-lifecycle";
@@ -123,6 +125,44 @@ function getMinimumWindowSize(window: BrowserWindow): {
     width: rawMinWidth > 0 ? rawMinWidth : MAIN_WINDOW_MIN_WIDTH,
     height: rawMinHeight > 0 ? rawMinHeight : MAIN_WINDOW_MIN_HEIGHT,
   };
+}
+
+function getWindowSizeForPreset(
+  window: BrowserWindow,
+  preset: WindowSizePreset,
+): {
+  readonly width: number;
+  readonly height: number;
+} {
+  const display = screen.getDisplayMatching(window.getBounds());
+  const { width: workAreaWidth, height: workAreaHeight } = display.workAreaSize;
+
+  switch (preset) {
+    case "half":
+      return clampWindowSize(
+        {
+          width: 900,
+          height: 700,
+        },
+        getMinimumWindowSize(window),
+      );
+    case "three-quarters":
+      return clampWindowSize(
+        {
+          width: Math.round(workAreaWidth * 0.75),
+          height: Math.round(workAreaHeight * 0.75),
+        },
+        getMinimumWindowSize(window),
+      );
+    case "full":
+      return clampWindowSize(
+        {
+          width: Math.max(workAreaWidth - 100, 0),
+          height: Math.max(workAreaHeight - 100, 0),
+        },
+        getMinimumWindowSize(window),
+      );
+  }
 }
 
 function publishWindowBounds(window: BrowserWindow): void {
@@ -511,6 +551,19 @@ async function initializeApp() {
         },
         getMinimumWindowSize(targetWindow),
       );
+
+      targetWindow.setSize(nextSize.width, nextSize.height);
+      return createWindowBoundsSnapshot(targetWindow);
+    });
+    ipcMain.handle(WINDOW_CONTROL_CHANNELS.setWindowSizePreset, (event, input) => {
+      const targetWindow = BrowserWindow.fromWebContents(event.sender);
+
+      if (!targetWindow) {
+        throw new Error("Unable to resolve target window");
+      }
+
+      const request = parseSetWindowSizePresetRequest(input);
+      const nextSize = getWindowSizeForPreset(targetWindow, request.preset);
 
       targetWindow.setSize(nextSize.width, nextSize.height);
       return createWindowBoundsSnapshot(targetWindow);

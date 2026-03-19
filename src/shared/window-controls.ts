@@ -4,6 +4,7 @@ export const WINDOW_CONTROL_CHANNELS = {
   moveWindowBy: "window-controls:move-window-by",
   resizeWindowBy: "window-controls:resize-window-by",
   setWindowSize: "window-controls:set-window-size",
+  setWindowSizePreset: "window-controls:set-window-size-preset",
   getWindowBounds: "window-controls:get-window-bounds",
   bringToFront: "window-controls:bring-to-front",
   sendToBack: "window-controls:send-to-back",
@@ -37,10 +38,19 @@ export type SetWindowSizeRequest = {
   readonly height: number;
 };
 
+export type WindowSizePreset = "half" | "three-quarters" | "full";
+
+export type SetWindowSizePresetRequest = {
+  readonly preset: WindowSizePreset;
+};
+
 export type WindowControlsBridge = {
   moveWindowBy(request: MoveWindowByRequest): void;
   resizeWindowBy(request: ResizeWindowByRequest): void;
   setWindowSize(request: SetWindowSizeRequest): Promise<WindowBoundsSnapshot>;
+  setWindowSizePreset(
+    request: SetWindowSizePresetRequest,
+  ): Promise<WindowBoundsSnapshot>;
   getWindowBounds(): Promise<WindowBoundsSnapshot>;
   onWindowBoundsChanged(
     listener: (bounds: WindowBoundsSnapshot) => void,
@@ -96,6 +106,25 @@ export function parseSetWindowSizeRequest(
     width: parseFiniteInteger(input.width, "width"),
     height: parseFiniteInteger(input.height, "height"),
   };
+}
+
+export function parseSetWindowSizePresetRequest(
+  input: unknown,
+): SetWindowSizePresetRequest {
+  if (!isRecord(input)) {
+    throw new Error("setWindowSizePreset request must be an object");
+  }
+
+  const { preset } = input;
+  if (
+    preset !== "half" &&
+    preset !== "three-quarters" &&
+    preset !== "full"
+  ) {
+    throw new Error("preset must be one of: half, three-quarters, full");
+  }
+
+  return { preset };
 }
 
 type WindowSizeSnapshot = {

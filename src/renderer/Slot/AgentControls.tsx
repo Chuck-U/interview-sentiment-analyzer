@@ -1,7 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { Button } from "@/components/ui/button";
 import { CSSProperties } from "react";
 import type { OptionsProps } from "./Options";
 
@@ -18,12 +17,10 @@ export function AgentControls({
   isRecording,
   isBusy,
   onToggleRecording,
-  onResizeStart,
-  activeInteraction,
 }: AgentControlsProps) {
   return (
     <div className="flex h-full w-full flex-col gap-3">
-      <Card className="w-full h-full overflow-y-auto">
+      <Card className="w-full h-full">
         <CardHeader className="flex flex-col gap-1">
           <CardTitle>Agent Controls</CardTitle>
           <div className="flex flex-wrap items-center gap-2">
@@ -61,21 +58,7 @@ export function AgentControls({
             ) : null}
           </div>
         </CardContent>
-        <CardFooter className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="xs"
-              style={{ WebkitAppRegion: "no-drag" } as CSSProperties}
-              onPointerDown={onResizeStart}
-              className="touch-none"
-            >
-              {activeInteraction === "resize" ? "Resizing overlay" : "Resize window"}
-            </Button>
-          </div>
-
-        </CardFooter>
+        <CardFooter className="flex items-center justify-between gap-3" />
       </Card>
     </div>
   );
