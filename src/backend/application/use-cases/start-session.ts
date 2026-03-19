@@ -31,6 +31,7 @@ export function createStartSessionUseCase(
     request: StartSessionRequest,
   ): Promise<StartSessionResponse> {
     if (request.idempotencyKey) {
+      console.log('[StartSessionUseCase] Finding session by idempotency key');
       const existingSession =
         await dependencies.sessionRepository.findByIdempotencyKey(
           request.idempotencyKey,

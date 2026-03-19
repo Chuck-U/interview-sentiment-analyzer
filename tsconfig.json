@@ -16,6 +16,18 @@
       "@/*": [
         "src/*"
       ],
+      "@electron/*": [
+        "electron/*"
+      ],
+      "@backend/*": [
+        "src/backend/*"
+      ],
+      "@workers/*": [
+        "src/workers/*"
+      ],
+      "@pipelines/*": [
+        "src/pipelines/*"
+      ],
       "@shared/*": [
         "src/shared/*"
       ]
@@ -25,6 +37,7 @@
     "dist",
     "dist-electron",
     "release",
-    "node_modules"
+    "node_modules",
+    "interview-sentiment-analyzer-main"
   ]
 }

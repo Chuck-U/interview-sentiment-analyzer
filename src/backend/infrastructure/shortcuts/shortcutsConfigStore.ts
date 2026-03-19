@@ -74,7 +74,7 @@ export function createShortcutsConfigStore(
       const defaults = cloneDefaultConfig();
       await writeAtomicJsonFile(configPath, defaults);
       return;
-    } catch (error: unknown) {
+    } catch (_error: unknown) {
       // If the file is missing or malformed, fall back to defaults.
       // (We intentionally do not block startup due to corrupted user config.)
       const backupPath = `${configPath}.corrupt-${process.pid}-${Date.now()}`;

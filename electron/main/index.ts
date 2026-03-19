@@ -12,10 +12,15 @@ import {
 
 import { createSessionLifecycleBackend } from "../../src/backend";
 import { registerSessionLifecycleIpc } from "../../src/backend/infrastructure/ipc/register-session-lifecycle-ipc";
+import { registerRecordingIpc } from "../../src/backend/infrastructure/ipc/register-recording-ipc";
+import { createRecordingPersistenceService } from "../../src/backend/infrastructure/recording/recording-persistence";
+import { createRecordingExportService } from "@backend/infrastructure/recording/recording-export";
+import { createSessionStorageLayoutResolver } from "../../src/backend/infrastructure/storage/session-storage-layout";
 import { createShortcutsConfigStore } from "../../src/backend/infrastructure/shortcuts/shortcutsConfigStore";
 import { registerConfiguredGlobalShortcuts } from "../../src/backend/infrastructure/shortcuts/globalShortcuts.shortcuts";
 import { APP_CONTROL_CHANNELS } from "../../src/shared/app-controls";
 import { SESSION_LIFECYCLE_EVENT_CHANNELS } from "../../src/backend/infrastructure/ipc/session-lifecycle-channels";
+import { RECORDING_CHANNELS, RECORDING_EVENT_CHANNELS } from "../../src/backend/infrastructure/ipc/recording-channels";
 import {
   parseMoveWindowByRequest,
   parseResizeWindowByRequest,
@@ -309,6 +314,50 @@ async function initializeApp() {
     );
 
     registerSessionLifecycleIpc(ipcMain, sessionLifecycleBackend.controller);
+
+    const appDataRoot = path.join(
+      app.getPath("appData"),
+      "interview-sentiment-analyzer",
+    );
+    const storageLayoutResolver = createSessionStorageLayoutResolver(appDataRoot);
+    const recordingPersistence = createRecordingPersistenceService(storageLayoutResolver);
+    const recordingExport = createRecordingExportService(storageLayoutResolver);
+
+    registerRecordingIpc(ipcMain, recordingPersistence, sessionLifecycleBackend.controller);
+
+    ipcMain.handle(
+      RECORDING_CHANNELS.exportRecording,
+      async (_event, input: unknown) => {
+        if (typeof input !== "object" || input === null) {
+          throw new Error("exportRecording request must be an object");
+        }
+        const sessionId = (input as Record<string, unknown>).sessionId as string;
+
+        publishToAllWindows(RECORDING_EVENT_CHANNELS.exportProgress, {
+          sessionId,
+          exportStatus: "assembling",
+        });
+
+        try {
+          const result = await recordingExport.exportSession(sessionId);
+          publishToAllWindows(RECORDING_EVENT_CHANNELS.exportProgress, {
+            sessionId,
+            exportStatus: "completed",
+            exportFilePath: result.exportFilePath,
+          });
+          return { exportStatus: "completed", exportFilePath: result.exportFilePath };
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : "Export failed";
+          publishToAllWindows(RECORDING_EVENT_CHANNELS.exportProgress, {
+            sessionId,
+            exportStatus: "failed",
+            errorMessage,
+          });
+          return { exportStatus: "failed" };
+        }
+      },
+    );
+
     await sessionLifecycleBackend.recover();
 
     sessionLifecycleController = sessionLifecycleBackend.controller;

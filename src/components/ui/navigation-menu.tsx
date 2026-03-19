@@ -3,7 +3,8 @@ import { cva } from "class-variance-authority"
 import { NavigationMenu as NavigationMenuPrimitive } from "radix-ui"
 
 import { cn } from "@/lib/utils"
-import { RiArrowDownSLine } from "@remixicon/react"
+import { RiArrowDownSLine, RiCloseLine, RiPlayLine, RiStopLine } from "@remixicon/react"
+import { ButtonGroup } from "./button-group"
 
 function NavigationMenu({
   className,
@@ -166,6 +167,8 @@ export {
 type AgentNavigationMenuItem = {
   readonly id: string
   readonly label: string
+  icon?: React.ReactNode
+  group?: string
 }
 
 type AgentNavigationMenuProps = {
@@ -174,6 +177,10 @@ type AgentNavigationMenuProps = {
   readonly defaultValue?: string
   readonly onValueChange?: (value: string) => void
   readonly className?: string
+  readonly isRecording?: boolean
+  readonly isBusy?: boolean
+  readonly onRecordingToggle?: (start: boolean) => void
+  readonly onClose?: () => void
 }
 
 /**
@@ -186,6 +193,10 @@ function AgentNavigationMenu({
   defaultValue,
   onValueChange,
   className,
+  isRecording,
+  isBusy,
+  onRecordingToggle,
+  onClose,
 }: AgentNavigationMenuProps) {
   const [internalValue, setInternalValue] = React.useState<string>(
     value ?? defaultValue ?? items[0]?.id ?? "",
@@ -204,33 +215,112 @@ function AgentNavigationMenu({
     return null
   }
 
+  type GroupedAcc = {
+    nodes: React.ReactNode[]
+    activeGroup: string | null
+    groupNodes: React.ReactNode[]
+  }
+
+  const renderTabButton = (item: AgentNavigationMenuItem) => {
+    const isActive = item.id === activeValue
+    return (
+      <button
+        key={item.id}
+        type="button"
+        onClick={() => setActiveValue(item.id)}
+        style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+        className={cn(
+          "rounded-none px-2 py-1 text-xs transition-colors",
+          isActive ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/50",
+        )}
+        aria-current={isActive ? "page" : undefined}
+      >
+        {item.label}
+      </button>
+    )
+  }
+
+  const flushGroup = (acc: GroupedAcc) => {
+    if (acc.activeGroup && acc.groupNodes.length > 0) {
+      acc.nodes.push(
+        <ButtonGroup key={`group-${acc.activeGroup}`}>
+          {acc.groupNodes}
+        </ButtonGroup>,
+      )
+      acc.groupNodes = []
+      acc.activeGroup = null
+    }
+  }
+
+  const result = items.reduce<GroupedAcc>(
+    (acc, item) => {
+      if (acc.activeGroup && item.group !== acc.activeGroup) {
+        flushGroup(acc)
+      }
+
+      if (item.group) {
+        acc.activeGroup = item.group
+        acc.groupNodes.push(renderTabButton(item))
+        return acc
+      }
+
+      flushGroup(acc)
+
+      if (item.id === "start-recording") {
+        const RecordingIcon = isRecording ? RiStopLine : RiPlayLine
+        acc.nodes.push(
+          <button
+            key={item.id}
+            type="button"
+            disabled={isBusy}
+            onClick={() => onRecordingToggle?.(!isRecording)}
+            style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+            className={cn(
+              "transition-colors disabled:opacity-50 disabled:pointer-events-none",
+              isRecording
+                ? "text-destructive"
+                : "text-accent-foreground",
+            )}
+            aria-label={isRecording ? "Stop recording" : "Start recording"}
+          >
+            <RecordingIcon className="size-8 rounded-full p-2 border-2 border-current" />
+          </button>,
+        )
+        return acc
+      }
+
+      if (item.id === "close") {
+        acc.nodes.push(
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => onClose?.()}
+            style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+            className="rounded-none p-1 text-muted-foreground hover:text-red-500/50 hover:border-red-400/70 transition-colors"
+          >
+            <RiCloseLine className="size-8 rounded-full p-1 hover:border-2 hover:border-red-400/70 transition-all duration-200 ease-in-out" />
+          </button>,
+        )
+        return acc
+      }
+
+      acc.nodes.push(renderTabButton(item))
+      return acc
+    },
+    { nodes: [], activeGroup: null, groupNodes: [] },
+  )
+
+  flushGroup(result)
+
   return (
     <div
       className={cn(
-        "flex w-full items-center gap-2 rounded-none border border-border/50 bg-background/35 p-2",
+        "flex w-full items-center gap-2 justify-between rounded-none border border-border/50 bg-background/35 p-2",
         className,
       )}
       data-slot="agent-navigation-menu"
     >
-      {items.map((item) => {
-        const isActive = item.id === activeValue
-
-        return (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => setActiveValue(item.id)}
-            style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-            className={cn(
-              "rounded-none px-2 py-1 text-xs transition-colors",
-              isActive ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/50",
-            )}
-            aria-current={isActive ? "page" : undefined}
-          >
-            {item.label}
-          </button>
-        )
-      })}
+      {result.nodes}
     </div>
   )
 }

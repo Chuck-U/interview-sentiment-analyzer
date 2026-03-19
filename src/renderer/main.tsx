@@ -1,4 +1,4 @@
-import  {  useEffect, useState, useRef, useCallback, useMemo } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import { AgentNavigationMenu } from "@/components/ui/navigation-menu";
 import { Options } from "./Slot/Options";
@@ -6,24 +6,13 @@ import type {
   MediaChunkSource,
   SessionSnapshot,
 } from "@/shared/session-lifecycle";
+import type { RecordingStateSnapshot } from "@/shared/recording";
 import type { WindowBoundsSnapshot } from "@/shared/window-controls";
 import {
   DEFAULT_SHORTCUT_ID_RECORDING_TOGGLE,
   formatElectronAcceleratorLabel,
 } from "@/shared/shortcuts";
-
-
-
-
-// interface ElectronAppBridgeType extends ElectronAppBridge {
-//   readonly windowControls: WindowControlsBridge;
-//   readonly appControls: AppControlsBridge;
-//   readonly sessionLifecycle: SessionLifecycleBridge;
-//   readonly sessionLifecycleEvents: SessionLifecycleEventsBridge;
-// }
-
-
-
+import { CaptureManager } from "./recording/capture-manager";
 
 const DEFAULT_CAPTURE_SOURCES: readonly MediaChunkSource[] = [
   "microphone",
@@ -75,6 +64,7 @@ function getStatusCopy(session: SessionSnapshot | null): {
  function Main() {
   const currentSessionRef = useRef<SessionSnapshot | null>(null);
   const pointerGestureRef = useRef<ActivePointerGesture | null>(null);
+  const captureManagerRef = useRef<CaptureManager | null>(null);
   const platformLabel = useMemo(() => window.electronApp.platform, []);
   const [recordingShortcutAccelerator, setRecordingShortcutAccelerator] =
     useState<string>("CommandOrControl+Shift+R");
@@ -100,6 +90,8 @@ function getStatusCopy(session: SessionSnapshot | null): {
   const [windowBounds, setWindowBounds] = useState<WindowBoundsSnapshot | null>(
     null,
   );
+  const [recordingState, setRecordingState] =
+    useState<RecordingStateSnapshot | null>(null);
 
   currentSessionRef.current = currentSession;
 
@@ -169,6 +161,41 @@ function getStatusCopy(session: SessionSnapshot | null): {
       setFeedbackMessage(
         `Recording started for session ${response.session.id.slice(0, 8)}.`,
       );
+
+      if (captureManagerRef.current) {
+        captureManagerRef.current.destroy();
+      }
+
+      const manager = new CaptureManager({
+        onChunkAvailable(sessionId, source, sequenceNumber, mimeType, recordedAt, buffer) {
+          return window.electronApp.recording.persistChunk({
+            sessionId,
+            source,
+            sequenceNumber,
+            mimeType,
+            recordedAt,
+            buffer,
+          });
+        },
+        onScreenshotAvailable(sessionId, sequenceNumber, mimeType, capturedAt, buffer) {
+          return window.electronApp.recording.persistScreenshot({
+            sessionId,
+            sequenceNumber,
+            mimeType,
+            capturedAt,
+            buffer,
+          });
+        },
+        onStateChanged(state) {
+          setRecordingState(state);
+        },
+        onCaptureError(_sessionId, source, _errorCode, errorMessage) {
+          setFeedbackMessage(`Capture error (${source}): ${errorMessage}`);
+        },
+      });
+
+      captureManagerRef.current = manager;
+      await manager.startCapture(response.session.id, DEFAULT_CAPTURE_SOURCES);
     } catch (error) {
       setFeedbackMessage(
         error instanceof Error ? error.message : "Unable to start recording.",
@@ -189,6 +216,10 @@ function getStatusCopy(session: SessionSnapshot | null): {
     setFeedbackMessage("Stopping recording session.");
 
     try {
+      if (captureManagerRef.current) {
+        await captureManagerRef.current.stopCapture();
+      }
+
       const response =
         await window.electronApp.sessionLifecycle.finalizeSession({
           sessionId: session.id,
@@ -206,6 +237,48 @@ function getStatusCopy(session: SessionSnapshot | null): {
       setIsStopping(false);
     }
   }, [isBusy, syncIncomingSession]);
+
+  const handleExportRecording = useCallback(async () => {
+    const session = currentSessionRef.current;
+    if (!session) {
+      return;
+    }
+
+    if (captureManagerRef.current) {
+      captureManagerRef.current.setExportStatus("assembling");
+    }
+
+    try {
+      
+      const result = await window.electronApp.recording.exportRecording({
+        sessionId: session.id,
+      });
+
+      if (captureManagerRef.current) {
+        captureManagerRef.current.setExportStatus(
+          result.exportStatus as "completed" | "failed",
+          result.exportFilePath,
+        );
+      }
+
+      if (result.exportStatus === "completed") {
+        setFeedbackMessage("Recording exported successfully.");
+      } else {
+        setFeedbackMessage("Recording export failed.");
+      }
+    } catch (error) {
+      if (captureManagerRef.current) {
+        captureManagerRef.current.setExportStatus(
+          "failed",
+          undefined,
+          error instanceof Error ? error.message : "Export failed",
+        );
+      }
+      setFeedbackMessage(
+        error instanceof Error ? error.message : "Unable to export recording.",
+      );
+    }
+  }, []);
 
   const handleCloseApplication = useCallback(async () => {
     setFeedbackMessage("Closing application.");
@@ -316,9 +389,39 @@ function getStatusCopy(session: SessionSnapshot | null): {
   }, [syncIncomingSession]);
 
   useEffect(() => {
+    const unsubscribeRecordingState =
+      window.electronApp.recordingEvents.onRecordingStateChanged((state) => {
+        setRecordingState(state);
+      });
+    const unsubscribeExportProgress =
+      window.electronApp.recordingEvents.onExportProgress((progress) => {
+        if (progress.exportStatus === "completed" && progress.exportFilePath) {
+          setFeedbackMessage("Recording exported successfully.");
+        } else if (progress.exportStatus === "failed") {
+          setFeedbackMessage(
+            progress.errorMessage ?? "Recording export failed.",
+          );
+        }
+      });
+
+    return () => {
+      unsubscribeRecordingState();
+      unsubscribeExportProgress();
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (captureManagerRef.current) {
+        captureManagerRef.current.destroy();
+        captureManagerRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     let isSubscribed = true;
 
-    // @ts-expect-error windowControls is not defined
     void window.electronApp.windowControls
       .getWindowBounds()
       .then((bounds: WindowBoundsSnapshot) => {
@@ -337,7 +440,6 @@ function getStatusCopy(session: SessionSnapshot | null): {
       });
 
     const unsubscribe =
-    // @ts-expect-error windowControls is not defined
       window.electronApp.windowControls.onWindowBoundsChanged(setWindowBounds);
 
     return () => {
@@ -372,14 +474,12 @@ function getStatusCopy(session: SessionSnapshot | null): {
       };
 
       if (gesture.mode === "move") {
-        // @ts-expect-error windowControls is not defined
         window.electronApp.windowControls.moveWindowBy({
           deltaX,
           deltaY,
         });
         return;
       }
-// @ts-expect-error windowControls is not defined
       window.electronApp.windowControls.resizeWindowBy({
         deltaWidth: deltaX,
         deltaHeight: deltaY,
@@ -417,14 +517,16 @@ function getStatusCopy(session: SessionSnapshot | null): {
   if (activeView === "controls" || activeView === "options") {
     return (
       <main
-        className="dark bg-transparent text-foreground w-full"
+        className="bg-transparent"
         style={{ WebkitAppRegion: "drag" } as CSSProperties}
       >
-        <div className="flex flex-col gap-3 p-3 relative">
+        <nav className="flex flex-col gap-3 p-3 relative">
           <AgentNavigationMenu
             items={[
-              { id: "controls", label: "Controls" },
-              { id: "options", label: "Options" },
+              { id: "controls", label: "Controls", group: "menuGroup" },
+              { id: "options", label: "Options", group: "menuGroup" },
+              { id: "start-recording", label: "Start Recording" },
+              { id: "close", label: "Close App" },
             ]}
             value={activeView}
             onValueChange={(value) => {
@@ -432,8 +534,17 @@ function getStatusCopy(session: SessionSnapshot | null): {
                 setActiveView(value);
               }
             }}
+            isRecording={isRecording}
+            isBusy={isBusy}
+            onRecordingToggle={(start) => {
+              void handleToggleRecording(start);
+            }}
+            onClose={() => {
+              void handleCloseApplication();
+            }}
           />
-          <div className="flex-1 min-h-0 size-full">
+        </nav>
+          <div className="flex-1 min-h-0 size-full relative bg-transparent">
             <Options
               view={activeView}
               statusLabel={statusCopy.label}
@@ -451,6 +562,10 @@ function getStatusCopy(session: SessionSnapshot | null): {
               shortcutLabel={shortcutLabel}
               isShortcutEnabled={isShortcutEnabled}
               onSetShortcutEnabled={handleSetShortcutEnabled}
+              recordingState={recordingState}
+              onExportRecording={() => {
+                void handleExportRecording();
+              }}
               onResizeStart={handleResizeStart}
               activeInteraction={activeInteraction}
               onQuit={() => {
@@ -458,7 +573,6 @@ function getStatusCopy(session: SessionSnapshot | null): {
               }}
             />
           </div>
-        </div>
       </main>
     );
   }
