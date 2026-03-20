@@ -37,6 +37,8 @@ import { RECORDING_CHANNELS, RECORDING_EVENT_CHANNELS } from "../../src/backend/
 import {
   clampWindowSize,
   parseMoveWindowByRequest,
+  parseSetAlwaysOnTopRequest,
+  parseSetPinnedRequest,
   parseSetWindowSizePresetRequest,
   parseSetWindowSizeRequest,
   WINDOW_CONTROL_CHANNELS,
@@ -67,9 +69,9 @@ const devServerUrl = process.env.VITE_DEV_SERVER_URL ?? 'http://localhost:5180';
 const pipelineOrchestrationMode =
   process.env.PIPELINE_ORCHESTRATOR === "langchain" ? "langchain" : "built-in";
 const MAIN_WINDOW_MIN_WIDTH = 460;
-const MAIN_WINDOW_MIN_HEIGHT = 320;
+const MAIN_WINDOW_MIN_HEIGHT = 104;
 const MAIN_WINDOW_DEFAULT_WIDTH = 560;
-const MAIN_WINDOW_DEFAULT_HEIGHT = 360;
+const MAIN_WINDOW_DEFAULT_HEIGHT = 112;
 const log = Log.getInstance().forSource(path.basename(__filename))
 
 function buildCaptureSourcesFromConfig(
@@ -156,15 +158,31 @@ function getWindowSizeForPreset(
 } {
   const display = screen.getDisplayMatching(window.getBounds());
   const { width: workAreaWidth, height: workAreaHeight } = display.workAreaSize;
+  const minimumSize = getMinimumWindowSize(window);
+  const [, currentHeight] = window.getSize();
+  const isLauncher = getWindowRole(window) === WINDOW_ROLES.launcher;
+
+  const widthRatio =
+    preset === "50%" ? 0.5 : preset === "75%" ? 0.75 : 0.9;
+
+  if (isLauncher) {
+    return clampWindowSize(
+      {
+        width: Math.round(workAreaWidth * widthRatio),
+        height: currentHeight,
+      },
+      minimumSize,
+    );
+  }
 
   switch (preset) {
     case "50%":
       return clampWindowSize(
         {
-          width: 900,
-          height: 700,
+          width: Math.round(workAreaWidth * 0.5),
+          height: Math.round(workAreaHeight * 0.5),
         },
-        getMinimumWindowSize(window),
+        minimumSize,
       );
     case "75%":
       return clampWindowSize(
@@ -172,7 +190,7 @@ function getWindowSizeForPreset(
           width: Math.round(workAreaWidth * 0.75),
           height: Math.round(workAreaHeight * 0.75),
         },
-        getMinimumWindowSize(window),
+        minimumSize,
       );
     case "90%":
       return clampWindowSize(
@@ -180,9 +198,31 @@ function getWindowSizeForPreset(
           width: Math.round(workAreaWidth * 0.9),
           height: Math.round(workAreaHeight * 0.9),
         },
-        getMinimumWindowSize(window),
+        minimumSize,
       );
   }
+}
+
+function getClampedWindowPositionForSize(
+  window: BrowserWindow,
+  size: {
+    readonly width: number;
+    readonly height: number;
+  },
+): {
+  readonly x: number;
+  readonly y: number;
+} {
+  const display = screen.getDisplayMatching(window.getBounds());
+  const { x, y, width, height } = display.workArea;
+  const [currentX, currentY] = window.getPosition();
+  const maxX = Math.max(x, x + width - size.width);
+  const maxY = Math.max(y, y + height - size.height);
+
+  return {
+    x: Math.min(Math.max(currentX, x), maxX),
+    y: Math.min(Math.max(currentY, y), maxY),
+  };
 }
 
 function publishWindowBounds(window: BrowserWindow): void {
@@ -203,15 +243,78 @@ function publishWindowBounds(window: BrowserWindow): void {
   }
 }
 
+function publishAlwaysOnTop(window: BrowserWindow): void {
+  if (window.isDestroyed()) {
+    return;
+  }
+
+  const contents = window.webContents;
+  if (contents.isDestroyed()) {
+    return;
+  }
+
+  try {
+    contents.send(
+      WINDOW_CONTROL_EVENT_CHANNELS.alwaysOnTopChanged,
+      window.isAlwaysOnTop(),
+    );
+  } catch {
+    // Ignore if the window is tearing down.
+  }
+}
+
+function publishPinned(window: BrowserWindow): void {
+  if (window.isDestroyed()) {
+    return;
+  }
+
+  const contents = window.webContents;
+  if (contents.isDestroyed()) {
+    return;
+  }
+
+  try {
+    contents.send(
+      WINDOW_CONTROL_EVENT_CHANNELS.pinnedChanged,
+      isWindowPinned(window),
+    );
+  } catch {
+    // Ignore if the window is tearing down.
+  }
+}
+
 const roleByWebContentsId = new Map<number, string>();
+const pinnedByWebContentsId = new Map<number, boolean>();
 const cardWindows = new Map<CardWindowRole, BrowserWindow>();
+let isQuitting = false;
+
+function getWindowRole(window: BrowserWindow): string | undefined {
+  return roleByWebContentsId.get(window.webContents.id);
+}
+
+function isWindowPinned(window: BrowserWindow): boolean {
+  return pinnedByWebContentsId.get(window.webContents.id) ?? false;
+}
+
+function setWindowPinned(window: BrowserWindow, pinned: boolean): boolean {
+  const webContentsId = window.webContents.id;
+  pinnedByWebContentsId.set(webContentsId, pinned);
+  window.setMovable(!pinned);
+  publishPinned(window);
+  return pinned;
+}
+
+function isCardWindowOpen(role: CardWindowRole): boolean {
+  const target = cardWindows.get(role);
+  return Boolean(target && !target.isDestroyed() && target.isVisible());
+}
 
 function getCardOpenState(): CardWindowsOpenState {
   return {
     openIds: {
-      controls: cardWindows.has("controls"),
-      options: cardWindows.has("options"),
-      sandbox: cardWindows.has("sandbox"),
+      controls: isCardWindowOpen("controls"),
+      options: isCardWindowOpen("options"),
+      sandbox: isCardWindowOpen("sandbox"),
     },
   };
 }
@@ -266,10 +369,41 @@ function createWindow(role: typeof WINDOW_ROLES[keyof typeof WINDOW_ROLES]): Bro
     },
   });
 
-  roleByWebContentsId.set(browserWindow.webContents.id, role);
+  const webContentsId = browserWindow.webContents.id;
+  roleByWebContentsId.set(webContentsId, role);
+  pinnedByWebContentsId.set(webContentsId, false);
+
+  browserWindow.on("close", (event) => {
+    if (isLauncher || isQuitting) {
+      return;
+    }
+
+    event.preventDefault();
+    if (!browserWindow.isDestroyed() && browserWindow.isVisible()) {
+      browserWindow.hide();
+    }
+    broadcastCardWindowOpenState();
+  });
+
+  browserWindow.on("show", () => {
+    if (!isLauncher) {
+      broadcastCardWindowOpenState();
+    }
+    publishAlwaysOnTop(browserWindow);
+    publishPinned(browserWindow);
+  });
+
+  browserWindow.on("hide", () => {
+    if (!isLauncher) {
+      broadcastCardWindowOpenState();
+    }
+    publishAlwaysOnTop(browserWindow);
+    publishPinned(browserWindow);
+  });
 
   browserWindow.on("closed", () => {
-    roleByWebContentsId.delete(browserWindow.webContents.id);
+    roleByWebContentsId.delete(webContentsId);
+    pinnedByWebContentsId.delete(webContentsId);
     if (!isLauncher) {
       cardWindows.delete(role as CardWindowRole);
     }
@@ -295,8 +429,16 @@ function createWindow(role: typeof WINDOW_ROLES[keyof typeof WINDOW_ROLES]): Bro
   }
 
   browserWindow.once("ready-to-show", () => {
+    if (browserWindow.isDestroyed()) {
+      return;
+    }
+
     browserWindow.show();
-    broadcastCardWindowOpenState();
+    publishAlwaysOnTop(browserWindow);
+    publishPinned(browserWindow);
+    if (!isLauncher) {
+      broadcastCardWindowOpenState();
+    }
   });
 
   return browserWindow;
@@ -408,6 +550,33 @@ function createTrayMenu(args: {
   ]);
 }
 async function initializeApp() {
+  process.on("warning", (warning) => {
+    console.warn("[electron warning]", warning);
+    log.ger({
+      type: "warn",
+      message: `[process warning] ${warning.name}: ${warning.message}`,
+      data: warning.stack,
+    });
+  });
+
+  process.on("unhandledRejection", (reason) => {
+    console.error("[electron unhandledRejection]", reason);
+    log.ger({
+      type: "error",
+      message: "[process unhandledRejection]",
+      data: reason,
+    });
+  });
+
+  process.on("uncaughtException", (error) => {
+    console.error("[electron uncaughtException]", error);
+    log.ger({
+      type: "fatal",
+      message: `[process uncaughtException] ${error.message}`,
+      data: error.stack,
+    });
+  });
+
   app.whenReady().then(async () => {
     const mainWindow = createWindow(WINDOW_ROLES.launcher);
     log.ger({ type: "info", message: "[app createWindow]", data: mainWindow })
@@ -497,8 +666,18 @@ async function initializeApp() {
       }
       const existing = cardWindows.get(input);
       if (existing && !existing.isDestroyed()) {
-        existing.show();
-        existing.focus();
+        try {
+          if (!existing.isVisible()) {
+            existing.show();
+          }
+          existing.focus();
+        } catch (error) {
+          log.ger({
+            type: "warn",
+            message: `[windowRegistry openWindow] unable to reuse ${input} window`,
+            data: error,
+          });
+        }
         broadcastCardWindowOpenState();
         return;
       }
@@ -510,7 +689,20 @@ async function initializeApp() {
         throw new Error("Invalid card window role.");
       }
       const target = cardWindows.get(input);
-      target?.close();
+      if (target && !target.isDestroyed()) {
+        try {
+          if (target.isVisible()) {
+            target.hide();
+          }
+        } catch (error) {
+          log.ger({
+            type: "warn",
+            message: `[windowRegistry closeWindow] unable to hide ${input} window`,
+            data: error,
+          });
+        }
+        broadcastCardWindowOpenState();
+      }
     });
 
     ipcMain.handle(WINDOW_REGISTRY_CHANNELS.focusWindow, (_event, input: unknown) => {
@@ -519,7 +711,15 @@ async function initializeApp() {
       }
       const target = cardWindows.get(input);
       if (target && !target.isDestroyed()) {
-        target.focus();
+        try {
+          target.focus();
+        } catch (error) {
+          log.ger({
+            type: "warn",
+            message: `[windowRegistry focusWindow] unable to focus ${input} window`,
+            data: error,
+          });
+        }
       }
     });
 
@@ -620,6 +820,10 @@ async function initializeApp() {
       { useSystemPicker: false },
     );
 
+    app.on("before-quit", () => {
+      isQuitting = true;
+    });
+
     app.on("will-quit", () => {
       monitorPicker.close();
       globalShortcut.unregisterAll();
@@ -632,13 +836,35 @@ async function initializeApp() {
         return;
       }
 
+      if (isWindowPinned(targetWindow)) {
+        log.ger({
+          type: "info",
+          message: "[app WINDOW_CONTROL_CHANNELS.moveWindowBy] skipped for pinned window",
+          data: {
+            role: getWindowRole(targetWindow),
+          },
+        });
+        return;
+      }
+
 
       const request = parseMoveWindowByRequest(input);
       const [currentX, currentY] = targetWindow.getPosition();
-      targetWindow.setPosition(
-        currentX + request.deltaX,
-        currentY + request.deltaY,
-      );
+      const nextPosition = {
+        x: currentX + request.deltaX,
+        y: currentY + request.deltaY,
+      };
+      log.ger({
+        type: "info",
+        message: "[app WINDOW_CONTROL_CHANNELS.moveWindowBy] next position",
+        data: {
+          role: getWindowRole(targetWindow),
+          request,
+          currentPosition: { x: currentX, y: currentY },
+          nextPosition,
+        },
+      });
+      targetWindow.setPosition(nextPosition.x, nextPosition.y);
     });
     ipcMain.on(WINDOW_CONTROL_CHANNELS.resizeWindowBy, (event, input) => {
       const targetWindow = BrowserWindow.fromWebContents(event.sender);
@@ -649,7 +875,34 @@ async function initializeApp() {
 
       const request = parseResizeWindowByRequest(input);
       const [currentWidth, currentHeight] = targetWindow.getSize();
-      targetWindow.setSize(currentWidth + request.deltaWidth, currentHeight + request.deltaHeight);
+      const nextSize = clampWindowSize(
+        {
+          width: currentWidth + request.deltaWidth,
+          height: currentHeight + request.deltaHeight,
+        },
+        getMinimumWindowSize(targetWindow),
+      );
+      const nextPosition = getClampedWindowPositionForSize(
+        targetWindow,
+        nextSize,
+      );
+      log.ger({
+        type: "info",
+        message: "[app WINDOW_CONTROL_CHANNELS.resizeWindowBy] next bounds",
+        data: {
+          role: getWindowRole(targetWindow),
+          request,
+          currentSize: { width: currentWidth, height: currentHeight },
+          nextSize,
+          nextPosition,
+        },
+      });
+      targetWindow.setBounds({
+        x: nextPosition.x,
+        y: nextPosition.y,
+        width: nextSize.width,
+        height: nextSize.height,
+      });
     });
     ipcMain.handle(WINDOW_CONTROL_CHANNELS.setWindowSize, (event, input) => {
       const targetWindow = BrowserWindow.fromWebContents(event.sender);
@@ -666,21 +919,58 @@ async function initializeApp() {
         },
         getMinimumWindowSize(targetWindow),
       );
+      const nextPosition = getClampedWindowPositionForSize(
+        targetWindow,
+        nextSize,
+      );
+      log.ger({
+        type: "info",
+        message: "[app WINDOW_CONTROL_CHANNELS.setWindowSize] next bounds",
+        data: {
+          role: getWindowRole(targetWindow),
+          request,
+          nextSize,
+          nextPosition,
+        },
+      });
 
-      targetWindow.setSize(nextSize.width, nextSize.height);
+      targetWindow.setBounds({
+        x: nextPosition.x,
+        y: nextPosition.y,
+        width: nextSize.width,
+        height: nextSize.height,
+      });
       return createWindowBoundsSnapshot(targetWindow);
     });
     ipcMain.handle(WINDOW_CONTROL_CHANNELS.setWindowSizePreset, async (event, input) => {
       const targetWindow = BrowserWindow.fromWebContents(event.sender);
-      log.ger({ type: "info", message: "[app WINDOW_CONTROL_CHANNELS.setWindowSizePreset] targetWindow", data: { targetWindow, input, event } })
       if (!targetWindow) {
         throw new Error("Unable to resolve target window");
       }
 
       const request = parseSetWindowSizePresetRequest(input);
-      const nextSize = getWindowSizeForPreset(targetWindow, request.preset as WindowSizePreset);
+      const nextSize = getWindowSizeForPreset(targetWindow, request.preset);
+      const nextPosition = getClampedWindowPositionForSize(
+        targetWindow,
+        nextSize,
+      );
+      log.ger({
+        type: "info",
+        message: "[app WINDOW_CONTROL_CHANNELS.setWindowSizePreset] next bounds",
+        data: {
+          role: getWindowRole(targetWindow),
+          request,
+          nextSize,
+          nextPosition,
+        },
+      });
 
-      targetWindow.setSize(nextSize.width, nextSize.height);
+      targetWindow.setBounds({
+        x: nextPosition.x,
+        y: nextPosition.y,
+        width: nextSize.width,
+        height: nextSize.height,
+      });
       return createWindowBoundsSnapshot(targetWindow);
     });
     ipcMain.handle(WINDOW_CONTROL_CHANNELS.getWindowBounds, (event) => {
@@ -691,6 +981,46 @@ async function initializeApp() {
       }
 
       return createWindowBoundsSnapshot(targetWindow);
+    });
+    ipcMain.handle(WINDOW_CONTROL_CHANNELS.getAlwaysOnTop, (event) => {
+      const targetWindow = BrowserWindow.fromWebContents(event.sender);
+
+      if (!targetWindow) {
+        throw new Error("Unable to resolve target window");
+      }
+
+      return targetWindow.isAlwaysOnTop();
+    });
+    ipcMain.handle(WINDOW_CONTROL_CHANNELS.setAlwaysOnTop, (event, input) => {
+      const targetWindow = BrowserWindow.fromWebContents(event.sender);
+
+      if (!targetWindow) {
+        throw new Error("Unable to resolve target window");
+      }
+
+      const request = parseSetAlwaysOnTopRequest(input);
+      targetWindow.setAlwaysOnTop(request.alwaysOnTop);
+      publishAlwaysOnTop(targetWindow);
+      return targetWindow.isAlwaysOnTop();
+    });
+    ipcMain.handle(WINDOW_CONTROL_CHANNELS.getPinned, (event) => {
+      const targetWindow = BrowserWindow.fromWebContents(event.sender);
+
+      if (!targetWindow) {
+        throw new Error("Unable to resolve target window");
+      }
+
+      return isWindowPinned(targetWindow);
+    });
+    ipcMain.handle(WINDOW_CONTROL_CHANNELS.setPinned, (event, input) => {
+      const targetWindow = BrowserWindow.fromWebContents(event.sender);
+
+      if (!targetWindow) {
+        throw new Error("Unable to resolve target window");
+      }
+
+      const request = parseSetPinnedRequest(input);
+      return setWindowPinned(targetWindow, request.pinned);
     });
 
     const sessionLifecycleBackend = createSessionLifecycleBackend(

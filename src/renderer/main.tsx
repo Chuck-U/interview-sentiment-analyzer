@@ -1,18 +1,19 @@
 import { useCallback, useEffect, useMemo } from "react";
-import type { CSSProperties } from "react";
+
+import { RiCloseFill } from "@remixicon/react";
 
 import { AgentNavigationMenu } from "@/components/ui/navigation-menu";
-import type { WindowSizePreset } from "@/shared/window-controls";
-import { WINDOW_ROLES } from "@/shared/window-registry";
-import { Options } from "./Slot/Options";
-import type { OptionsCardLayout } from "./Slot/Options";
 import type { SessionSnapshot } from "@/shared/session-lifecycle";
 import {
   DEFAULT_SHORTCUT_ID_RECORDING_TOGGLE,
   formatElectronAcceleratorLabel,
 } from "@/shared/shortcuts";
+import type { WindowSizePreset } from "@/shared/window-controls";
+import { WINDOW_ROLES } from "@/shared/window-registry";
+import { Options } from "./Slot/Options";
+import type { OptionsCardLayout } from "./Slot/Options";
 import { useCaptureOptions } from "./capture-options/useCaptureOptions";
-import { WindowResizeControl } from "./window-controls/window-resize-control";
+import { usePinnedWindowBehavior } from "./hooks/usePinnedWindowBehavior";
 import { useRecordingSession } from "./hooks/useRecordingSession";
 import { useShortcutsWindowEffects } from "./hooks/useShortcutsWindowEffects";
 import { useViews, VIEW_OPTIONS } from "./hooks/useViews";
@@ -25,7 +26,8 @@ import {
   pickFirstOpenCardView,
   setActiveView,
 } from "./store/slices/viewsSlice";
-import { RiCloseFill } from "@remixicon/react";
+import { WindowResizeControl } from "./window-controls/window-resize-control";
+import { WindowPinControl } from "./window-controls/window-pin-control";
 
 function getStatusCopy(session: SessionSnapshot | null): {
   readonly label: string;
@@ -62,18 +64,10 @@ function LauncherMain() {
   const dispatch = useAppDispatch();
   useShortcutsWindowEffects();
   useWindowRegistrySync();
-  const {
-    handleToggleRecording,
-    handleExportRecording: _handleExportRecording,
-    handleCloseApplication,
-  } = useRecordingSession();
 
-  const platformLabel = useMemo(() => window.electronApp.platform, []);
+  const { handleToggleRecording, handleCloseApplication } = useRecordingSession();
   const currentSession = useAppSelector(
     (state) => state.sessionRecording.currentSession,
-  );
-  const feedbackMessage = useAppSelector(
-    (state) => state.sessionRecording.feedbackMessage,
   );
   const isStarting = useAppSelector(
     (state) => state.sessionRecording.isStarting,
@@ -81,21 +75,12 @@ function LauncherMain() {
   const isStopping = useAppSelector(
     (state) => state.sessionRecording.isStopping,
   );
-  const recordingState = useAppSelector(
-    (state) => state.sessionRecording.recordingState,
-  );
-  const recordingShortcutAccelerator = useAppSelector(
-    (state) => state.shortcutsWindow.recordingShortcutAccelerator,
-  );
-  const isShortcutEnabled = useAppSelector(
-    (state) => state.shortcutsWindow.isShortcutEnabled,
-  );
   const windowBounds = useAppSelector(
     (state) => state.shortcutsWindow.windowBounds,
   );
-
   const { activeView, handleSetActiveView, resizePresetOptions } = useViews();
   const openWindowIds = useAppSelector((state) => state.views.openWindowIds);
+  const { dragRegionStyle, pinControlProps } = usePinnedWindowBehavior();
 
   useEffect(() => {
     if (
@@ -118,55 +103,14 @@ function LauncherMain() {
     [],
   );
 
-  const handleSetShortcutEnabled = useCallback(
-    (enabled: boolean) => {
-      const previous = isShortcutEnabled;
-      dispatch(setShortcutEnabled(enabled));
-
-      void window.electronApp.shortcuts
-        .setShortcutEnabled({
-          shortcutId: DEFAULT_SHORTCUT_ID_RECORDING_TOGGLE,
-          enabled,
-        })
-        .catch((error: unknown) => {
-          dispatch(setShortcutEnabled(previous));
-          dispatch(
-            setFeedbackMessage(
-              error instanceof Error
-                ? error.message
-                : "Unable to update shortcut.",
-            ),
-          );
-        });
-    },
-    [dispatch, isShortcutEnabled],
-  );
-
   const isRecording = currentSession?.status === "active";
-  const statusCopy = getStatusCopy(currentSession);
   const isBusy = isStarting || isStopping;
-  const windowSizeLabel = windowBounds
-    ? `${windowBounds.width} x ${windowBounds.height}`
-    : "Syncing window";
-
-  const windowBoundsLabel = windowBounds
-    ? `Position ${windowBounds.x}, ${windowBounds.y}`
-    : undefined;
-
-  const shortcutLabel = useMemo(
-    () =>
-      formatElectronAcceleratorLabel(
-        recordingShortcutAccelerator,
-        platformLabel,
-      ),
-    [platformLabel, recordingShortcutAccelerator],
-  );
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-1 flex-col bg-transparent">
+    <div className="flex h-full min-h-0 w-full flex-col justify-start bg-transparent pb-2">
       <nav
-        className="sticky top-0 z-[70] flex w-full shrink-0 flex-col gap-3 bg-background/15"
-        style={{ WebkitAppRegion: "drag" } as CSSProperties}
+        className="z-[70] mx-2 inline-flex max-w-[calc(100vw-16px)] shrink-0 flex-col gap-2 bg-background/15 mt-4"
+        style={dragRegionStyle}
       >
         <AgentNavigationMenu
           items={[
@@ -186,7 +130,11 @@ function LauncherMain() {
               value === VIEW_OPTIONS.sandbox
             ) {
               handleSetActiveView(value);
-              void window.electronApp.windowRegistry.openWindow(value);
+              if (openWindowIds[value]) {
+                void window.electronApp.windowRegistry.closeWindow(value);
+              } else {
+                void window.electronApp.windowRegistry.openWindow(value);
+              }
             }
           }}
           isRecording={isRecording}
@@ -198,69 +146,29 @@ function LauncherMain() {
             void window.electronApp.appControls.toggleVisibility();
           }}
           resizeControl={(
-            <WindowResizeControl
-              windowBounds={windowBounds}
-              presetOptions={resizePresetOptions}
-              onSelectPreset={handleResizePreset}
-            />
+            <div className="flex items-center gap-2">
+              <WindowPinControl {...pinControlProps} />
+              <WindowResizeControl
+                windowBounds={windowBounds}
+                presetOptions={resizePresetOptions}
+                onSelectPreset={handleResizePreset}
+              />
+            </div>
           )}
+          className="w-auto"
           onClose={() => {
             void handleCloseApplication();
           }}
         />
       </nav>
-      <main
-        className="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden bg-transparent px-10 pb-6"
-        style={{ WebkitAppRegion: "no-drag" } as CSSProperties}
-      >
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border border-border/40 bg-background/20">
-          <div className="shrink-0 border-b border-border/40 px-4 pt-4">
-            <p className="text-sm font-medium text-foreground">Launcher</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Open Controls, Options, or Sandbox from the menu. Each panel runs in
-              its own window so you can resize and position them independently.
-            </p>
-          </div>
-          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 py-4">
-            <div className="rounded-md border border-border/50 bg-background/35 p-3 text-sm">
-              <p className="font-medium">Session</p>
-              <p className="mt-1 text-muted-foreground">{feedbackMessage}</p>
-              {recordingState && recordingState.sources.length > 0 ? (
-                <p className="mt-2 text-muted-foreground">
-                  {recordingState.totalChunkCount} chunks captured
-                </p>
-              ) : null}
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <p className="text-xs text-muted-foreground">
-                Shortcut: {shortcutLabel} —{" "}
-                <button
-                  type="button"
-                  className="underline"
-                  style={{ WebkitAppRegion: "no-drag" } as CSSProperties}
-                  onClick={() => {
-                    void handleSetShortcutEnabled(!isShortcutEnabled);
-                  }}
-                >
-                  {isShortcutEnabled ? "enabled" : "disabled"}
-                </button>
-              </p>
-              <span className="text-xs text-muted-foreground">
-                Status: {statusCopy.label} ({windowSizeLabel}
-                {windowBoundsLabel ? `, ${windowBoundsLabel}` : ""})
-              </span>
-            </div>
-          </div>
-        </div>
-      </main>
     </div>
   );
 }
 
 function CardWindowMain({ layout }: { readonly layout: OptionsCardLayout }) {
   const dispatch = useAppDispatch();
-  // const openWindowIds = useAppSelector((state) => state.views.openWindowIds);
   useShortcutsWindowEffects();
+  const { resizePresetOptions } = useViews();
   const {
     handleToggleRecording,
     handleExportRecording,
@@ -292,6 +200,8 @@ function CardWindowMain({ layout }: { readonly layout: OptionsCardLayout }) {
   const windowBounds = useAppSelector(
     (state) => state.shortcutsWindow.windowBounds,
   );
+  const { dragRegionStyle, noDragRegionStyle, pinControlProps } =
+    usePinnedWindowBehavior();
 
   const handleCaptureOptionsError = useCallback(
     (message: string) => {
@@ -304,15 +214,6 @@ function CardWindowMain({ layout }: { readonly layout: OptionsCardLayout }) {
     isMenuActive: layout === "options",
     onError: handleCaptureOptionsError,
   });
-
-  // const handleResizePreset = useCallback(
-  //   async (preset: WindowSizePreset) => {
-  //     return window.electronApp.windowControls.setWindowSizePreset({
-  //       preset,
-  //     });
-  //   },
-  //   [],
-  // );
 
   const handleSetShortcutEnabled = useCallback(
     (enabled: boolean) => {
@@ -338,6 +239,15 @@ function CardWindowMain({ layout }: { readonly layout: OptionsCardLayout }) {
     [dispatch, isShortcutEnabled],
   );
 
+  const handleResizePreset = useCallback(
+    async (preset: WindowSizePreset) => {
+      return window.electronApp.windowControls.setWindowSizePreset({
+        preset,
+      });
+    },
+    [],
+  );
+
   const isRecording = currentSession?.status === "active";
   const statusCopy = getStatusCopy(currentSession);
   const isBusy = isStarting || isStopping;
@@ -359,21 +269,27 @@ function CardWindowMain({ layout }: { readonly layout: OptionsCardLayout }) {
   );
 
   return (
-    <div className="flex h-full min-h-0 w-full  flex-1 flex-col bg-transparent items-start">
+    <div className="flex max-h-full min-h-0 w-full flex-1 flex-col items-start bg-transparent h-fit justify-start">
       <nav
-        className="relative z-[70] flex w-full max-w-md mx-auto items-end justify-baseline shrink-0 flex-col border rounded-r-md rounded-bl-md group-hover:border-yellow-a10 active:bg-yellow-a10/70 transition-colors duration-200 ease-in-out pointer-drag"
-        style={{ WebkitAppRegion: "drag" } as CSSProperties}
+        className="relative z-[70] flex w-full max-w-md shrink-0 flex-col items-end justify-baseline rounded-r-md rounded-bl-md border transition-colors duration-200 ease-in-out group-hover:border-yellow-a10 active:bg-yellow-a10/70"
+        style={dragRegionStyle}
       >
-        <div
-          className="flex items-center justify-end leading-7"
-        >
+        <div className="flex w-full items-center justify-between gap-2 leading-7 px-2 py-1">
+          <div className="flex items-center gap-2">
+            <WindowPinControl {...pinControlProps} />
+            <WindowResizeControl
+              windowBounds={windowBounds}
+              presetOptions={resizePresetOptions}
+              onSelectPreset={handleResizePreset}
+            />
+          </div>
           <button
             type="button"
-            className="rounded-full p-2 hover:bg-red-900/5 text-muted-foreground hover:text-red-500/50 transition-colors duration-200 ease-in-out cursor-pointer"
+            className="cursor-pointer rounded-full p-2 text-muted-foreground transition-colors duration-200 ease-in-out hover:bg-red-900/5 hover:text-red-500/50"
             onClick={() => {
               void window.electronApp.windowRegistry.closeWindow(layout);
             }}
-            style={{ WebkitAppRegion: "no-drag" } as CSSProperties}
+            style={noDragRegionStyle}
             aria-label={`Close ${layout} window`}
           >
             <RiCloseFill className="size-6" />
@@ -382,7 +298,7 @@ function CardWindowMain({ layout }: { readonly layout: OptionsCardLayout }) {
       </nav>
       <main
         className="flex min-h-0 flex-1 flex-col overflow-hidden bg-transparent px-4 pb-4 pt-2"
-        style={{ WebkitAppRegion: "drag" } as CSSProperties}
+        style={dragRegionStyle}
       >
         <Options
           layout={layout}
@@ -433,6 +349,7 @@ function CardWindowMain({ layout }: { readonly layout: OptionsCardLayout }) {
           onOpenMonitorPicker={() => {
             void captureOptions.openMonitorPicker();
           }}
+          dragRegionStyle={dragRegionStyle}
           onQuit={() => {
             void handleCloseApplication();
           }}

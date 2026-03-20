@@ -61,6 +61,7 @@ export type OptionsProps = {
   readonly onSetWebcamPreviewVisible: (visible: boolean) => void;
   readonly onSetDesktopPreviewVisible: (visible: boolean) => void;
   readonly onOpenMonitorPicker: () => void;
+  readonly dragRegionStyle?: CSSProperties;
   readonly onQuit: () => void;
 };
 
@@ -124,6 +125,7 @@ export function Options({
   onSetWebcamPreviewVisible,
   onSetDesktopPreviewVisible,
   onOpenMonitorPicker,
+  dragRegionStyle,
   onQuit,
 }: OptionsProps) {
   const [showPermissions, setShowPermissions] = useState(false);
@@ -140,6 +142,7 @@ export function Options({
         </div>
       </CardHeader>
       <CardContent className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
+        {/* Future config work should persist per-window pin and bounds separately from capture options. */}
         <div className="flex flex-col gap-2">
           <p className="text-sm font-medium">Keyboard shortcuts</p>
           <div className="flex items-center justify-between gap-3 rounded-md border border-border/50 bg-background/35 p-3">
@@ -204,7 +207,10 @@ export function Options({
   );
 
   const controlsCard = (
-    <Card className="flex h-full min-h-0 w-full flex-col overflow-y-scroll min-h-80vh" style={{ WebkitAppRegion: "drag" } as CSSProperties}>
+    <Card
+      className="flex h-full min-h-0 w-full flex-col overflow-y-scroll min-h-80vh"
+      style={dragRegionStyle}
+    >
       <CardHeader className="flex shrink-0 flex-col gap-1">
         <CardTitle>Controls</CardTitle>
         <div className="flex flex-wrap items-center gap-2">

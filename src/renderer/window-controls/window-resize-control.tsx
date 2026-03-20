@@ -1,4 +1,3 @@
-import { useState } from "react";
 import type { CSSProperties } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -33,58 +32,56 @@ export function WindowResizeControl({
   presetOptions,
   onSelectPreset,
 }: WindowResizeControlProps) {
-  const [isResizing, setIsResizing] = useState(false);
-
-  const handleSelectPreset = async (preset: WindowSizePreset) => {
-    try {
-      setIsResizing(true);
-      await onSelectPreset(preset);
-    } finally {
-      setIsResizing(false);
-    }
-  };
+  const currentSizeLabel = windowBounds
+    ? `${windowBounds.width}px x ${windowBounds.height}px`
+    : "Syncing window size";
 
   return (
-    <div>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild style={{ WebkitAppRegion: "no-drag" } as CSSProperties}>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={isResizing}
-            aria-label="Resize window"
-            title="Resize window"
-            className="bg-transparent hover:bg-yellow-contrast"
-          >
-            <RiExpandDiagonalLine data-icon="inline-start hover:text-yellow-8" />
-          </Button>
-        </DropdownMenuTrigger>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild style={{ WebkitAppRegion: "no-drag" } as CSSProperties}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          aria-label="Resize window"
+          title={`Resize window. Current: ${currentSizeLabel}`}
+          className="bg-transparent hover:bg-yellow-contrast"
+        >
+          <RiExpandDiagonalLine data-icon="inline-start hover:text-yellow-8" />
+        </Button>
+      </DropdownMenuTrigger>
 
-        <DropdownMenuContent align="end" className="min-w-56">
-          {windowBounds ? (
-            <DropdownMenuLabel className="pt-0 text-[11px]">
-              Current: {windowBounds.width}px x {windowBounds.height}px
-            </DropdownMenuLabel>
-          ) : null}
-          <DropdownMenuSeparator />
-          <DropdownMenuGroup>
-            {presetOptions.map((option) => (
-              <DropdownMenuItem
-                key={option.preset}
-                onSelect={() => {
-                  void handleSelectPreset(option.preset);
-                }}
-              >
-                <div className="flex min-w-0 flex-col gap-0.5">
-                  <span>{option.label}</span>
-                </div>
-                <DropdownMenuShortcut>{option.preset}</DropdownMenuShortcut>
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
+      <DropdownMenuContent
+        side="top"
+        align="end"
+        sideOffset={8}
+        className="min-w-44"
+      >
+        <DropdownMenuLabel className="pt-0 text-[11px]">
+          Current: {currentSizeLabel}
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuGroup>
+          {presetOptions.map((option) => (
+            <DropdownMenuItem
+              key={option.preset}
+              onSelect={() => {
+                console.debug("[window-resize-control] preset selected", {
+                  preset: option.preset,
+                  label: option.label,
+                  currentSize: currentSizeLabel,
+                });
+                void onSelectPreset(option.preset);
+              }}
+            >
+              <div className="flex min-w-0 flex-col gap-0.5">
+                <span>{option.label}</span>
+              </div>
+              <DropdownMenuShortcut>{option.preset}</DropdownMenuShortcut>
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

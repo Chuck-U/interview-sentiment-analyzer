@@ -18,6 +18,8 @@ import {
   normalizeCaptureOptionsConfig,
 } from "../../src/shared/capture-options";
 import type {
+  SetAlwaysOnTopRequest,
+  SetPinnedRequest,
   SetWindowSizePresetRequest,
   SetWindowSizeRequest,
   WindowBoundsSnapshot,
@@ -143,9 +145,43 @@ const windowControlsBridge: WindowControlsBridge = {
       WINDOW_CONTROL_CHANNELS.getWindowBounds,
     ) as Promise<WindowBoundsSnapshot>;
   },
+  getAlwaysOnTop() {
+    return ipcRenderer.invoke(
+      WINDOW_CONTROL_CHANNELS.getAlwaysOnTop,
+    ) as Promise<boolean>;
+  },
+  setAlwaysOnTop(request: SetAlwaysOnTopRequest) {
+    return ipcRenderer.invoke(
+      WINDOW_CONTROL_CHANNELS.setAlwaysOnTop,
+      request,
+    ) as Promise<boolean>;
+  },
+  getPinned() {
+    return ipcRenderer.invoke(
+      WINDOW_CONTROL_CHANNELS.getPinned,
+    ) as Promise<boolean>;
+  },
+  setPinned(request: SetPinnedRequest) {
+    return ipcRenderer.invoke(
+      WINDOW_CONTROL_CHANNELS.setPinned,
+      request,
+    ) as Promise<boolean>;
+  },
   onWindowBoundsChanged(listener) {
     return subscribeToChannel(
       WINDOW_CONTROL_EVENT_CHANNELS.boundsChanged,
+      listener,
+    );
+  },
+  onAlwaysOnTopChanged(listener: (alwaysOnTop: boolean) => void) {
+    return subscribeToChannel(
+      WINDOW_CONTROL_EVENT_CHANNELS.alwaysOnTopChanged,
+      listener,
+    );
+  },
+  onPinnedChanged(listener: (pinned: boolean) => void) {
+    return subscribeToChannel(
+      WINDOW_CONTROL_EVENT_CHANNELS.pinnedChanged,
       listener,
     );
   },
