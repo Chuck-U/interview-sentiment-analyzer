@@ -11,3 +11,4 @@ release
 .env.test.local
 .env.production.local
 .yarn
+business-plan.md
