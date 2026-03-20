@@ -18,7 +18,8 @@
     "src/backend/**/*",
     "src/shared/**/*",
     "src/workers/**/*",
-    "src/pipelines/**/*"
+    "src/pipelines/**/*",
+    "src/renderer/store/slices/viewsSlice.ts"
   ],
   "exclude": [
     "dist",

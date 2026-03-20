@@ -27,6 +27,15 @@ import {
   WINDOW_CONTROL_CHANNELS,
   WINDOW_CONTROL_EVENT_CHANNELS,
 } from "../../src/shared/window-controls";
+import type {
+  CardWindowsOpenState,
+  WindowRegistryBridge,
+  WindowRegistryContext,
+} from "../../src/shared/window-registry";
+import {
+  WINDOW_REGISTRY_CHANNELS,
+  WINDOW_REGISTRY_EVENT_CHANNELS,
+} from "../../src/shared/window-registry";
 import {
   SESSION_LIFECYCLE_CHANNELS,
   SESSION_LIFECYCLE_EVENT_CHANNELS,
@@ -245,6 +254,34 @@ const recordingEventsBridge: RecordingEventsBridge = {
   },
 };
 
+const windowRegistryBridge: WindowRegistryBridge = {
+  getContext() {
+    return ipcRenderer.invoke(
+      WINDOW_REGISTRY_CHANNELS.getContext,
+    ) as Promise<WindowRegistryContext>;
+  },
+  getOpenState() {
+    return ipcRenderer.invoke(
+      WINDOW_REGISTRY_CHANNELS.getOpenState,
+    ) as Promise<CardWindowsOpenState>;
+  },
+  openWindow(role) {
+    return ipcRenderer.invoke(WINDOW_REGISTRY_CHANNELS.openWindow, role);
+  },
+  closeWindow(role) {
+    return ipcRenderer.invoke(WINDOW_REGISTRY_CHANNELS.closeWindow, role);
+  },
+  focusWindow(role) {
+    return ipcRenderer.invoke(WINDOW_REGISTRY_CHANNELS.focusWindow, role);
+  },
+  onOpenStateChanged(listener) {
+    return subscribeToChannel(
+      WINDOW_REGISTRY_EVENT_CHANNELS.openStateChanged,
+      listener,
+    );
+  },
+};
+
 const electronAppBridge: ElectronAppBridge = {
   platform: process.platform,
   sessionLifecycle: sessionLifecycleBridge,
@@ -255,6 +292,7 @@ const electronAppBridge: ElectronAppBridge = {
   appControls: appControlsBridge,
   windowControls: windowControlsBridge,
   shortcuts: shortcutsBridge,
+  windowRegistry: windowRegistryBridge,
 };
 
 contextBridge.exposeInMainWorld("electronApp", electronAppBridge);

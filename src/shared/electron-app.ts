@@ -7,6 +7,7 @@ import type {
 } from "./session-lifecycle";
 import type { ShortcutsBridge } from "./shortcuts";
 import type { WindowControlsBridge } from "./window-controls";
+import type { WindowRegistryBridge } from "./window-registry";
 
 export type ElectronAppBridge = {
   readonly platform: NodeJS.Platform;
@@ -18,4 +19,5 @@ export type ElectronAppBridge = {
   readonly appControls: AppControlsBridge;
   readonly windowControls: WindowControlsBridge;
   readonly shortcuts: ShortcutsBridge;
+  readonly windowRegistry: WindowRegistryBridge;
 };

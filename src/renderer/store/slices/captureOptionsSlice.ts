@@ -2,18 +2,15 @@ import { createAsyncThunk, createSlice, type PayloadAction } from "@reduxjs/tool
 
 import {
   DEFAULT_CAPTURE_OPTIONS_CONFIG,
-  type CaptureDeviceKind,
   type CaptureDeviceSnapshot,
   type CaptureDisplaySnapshot,
   type CaptureOptionsConfig,
   type CapturePermissionSnapshot,
 } from "@/shared/capture-options";
+import { loadCaptureOptionsBundle } from "@/shared/capture-options-load";
 import type { MediaChunkSource } from "@/shared/session-lifecycle";
 
-import {
-  buildCaptureSourcesFromConfig,
-  reconcileCaptureOptionsConfig,
-} from "@/renderer/capture-options/domain";
+import { buildCaptureSourcesFromConfig } from "@/renderer/capture-options/domain";
 
 export type CaptureOptionsSliceState = {
   readonly config: CaptureOptionsConfig;
@@ -29,78 +26,17 @@ const initialState: CaptureOptionsSliceState = {
   displays: [],
 };
 
-function buildFallbackLabel(
-  kind: CaptureDeviceKind,
-  index: number,
-  isDefault: boolean,
-): string {
-  if (kind === "audioinput") {
-    return isDefault ? "Default microphone" : `Microphone ${index + 1}`;
-  }
-
-  return isDefault ? "Default camera" : `Camera ${index + 1}`;
-}
-
-function normalizeDevices(
-  devices: readonly MediaDeviceInfo[],
-): readonly CaptureDeviceSnapshot[] {
-  const filtered = devices.filter(
-    (device): device is MediaDeviceInfo & { kind: CaptureDeviceKind } =>
-      device.kind === "audioinput" || device.kind === "videoinput",
-  );
-
-  const firstDeviceIndexByKind = new Map<CaptureDeviceKind, number>();
-
-  return filtered.map((device, index) => {
-    if (!firstDeviceIndexByKind.has(device.kind)) {
-      firstDeviceIndexByKind.set(device.kind, index);
-    }
-
-    const isDefault = firstDeviceIndexByKind.get(device.kind) === index;
-
-    return {
-      kind: device.kind,
-      deviceId: device.deviceId,
-      label: device.label || buildFallbackLabel(device.kind, index, isDefault),
-      groupId: device.groupId || undefined,
-      isDefault,
-    };
-  });
-}
-
-function configsEqual(a: CaptureOptionsConfig, b: CaptureOptionsConfig): boolean {
-  return JSON.stringify(a) === JSON.stringify(b);
-}
-
 export const loadCaptureOptions = createAsyncThunk(
   "captureOptions/load",
   async (_, { rejectWithValue }) => {
     try {
-      const [savedConfig, savedPermissions, displaySnapshots, deviceInfos] =
-        await Promise.all([
-          window.electronApp.captureOptions.getConfig(),
-          window.electronApp.captureOptions.getPermissions(),
-          window.electronApp.captureOptions.listDisplays(),
-          navigator.mediaDevices.enumerateDevices(),
-        ]);
-
-      const normalizedDevices = normalizeDevices(deviceInfos);
-      const reconciledConfig = reconcileCaptureOptionsConfig({
-        config: savedConfig,
-        devices: normalizedDevices,
-        displays: displaySnapshots,
+      return await loadCaptureOptionsBundle({
+        getConfig: () => window.electronApp.captureOptions.getConfig(),
+        getPermissions: () => window.electronApp.captureOptions.getPermissions(),
+        listDisplays: () => window.electronApp.captureOptions.listDisplays(),
+        enumerateDevices: () => navigator.mediaDevices.enumerateDevices(),
+        setConfig: (config) => window.electronApp.captureOptions.setConfig(config),
       });
-
-      if (!configsEqual(savedConfig, reconciledConfig)) {
-        await window.electronApp.captureOptions.setConfig(reconciledConfig);
-      }
-
-      return {
-        permissions: savedPermissions,
-        devices: normalizedDevices,
-        displays: displaySnapshots,
-        config: reconciledConfig,
-      };
     } catch (error) {
       return rejectWithValue(
         error instanceof Error

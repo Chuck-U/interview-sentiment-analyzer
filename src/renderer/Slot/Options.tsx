@@ -12,10 +12,10 @@ import { CaptureOptionsPanel } from "./CaptureOptionsPanel";
 import type { CaptureDeviceOption, CaptureDisplayOption } from "../capture-options/domain";
 import { useState } from "react";
 
-export type AgentOptionsView = "controls" | "options";
+export type OptionsCardLayout = "controls" | "options" | "sandbox";
 
 export type OptionsProps = {
-  readonly view: AgentOptionsView;
+  readonly layout: OptionsCardLayout;
   readonly statusLabel: string;
   readonly statusVariant: "default" | "secondary" | "outline";
   readonly platformLabel: string;
@@ -82,7 +82,7 @@ const EXPORT_STATUS_LABELS: Record<string, string> = {
 };
 
 export function Options({
-  view,
+  layout,
   statusLabel,
   statusVariant,
   platformLabel,
@@ -319,16 +319,20 @@ export function Options({
     </Card>
   );
 
+  const shellClass =
+    "flex h-full w-full min-h-0 flex-1 flex-col overflow-hidden";
+
+  if (layout === "options") {
+    return <div className={shellClass}>{optionsCard}</div>;
+  }
+
+  if (layout === "controls") {
+    return <div className={shellClass}>{controlsCard}</div>;
+  }
+
   return (
-    <div className="flex h-full w-full min-h-0 flex-1 flex-col gap-3 overflow-hidden">
-      {view === "options" ? (
-        optionsCard
-      ) : (
-        <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1.35fr)_minmax(0,1fr)] gap-3">
-          {controlsCard}
-          <RecordingSandboxCard />
-        </div>
-      )}
+    <div className={shellClass}>
+      <RecordingSandboxCard />
     </div>
   );
 }

@@ -52,6 +52,14 @@ import {
   normalizeSetShortcutEnabledRequest,
 } from "../../src/shared/shortcuts";
 import type { SessionLifecycleController } from "../../src/backend/interfaces/controllers/session-lifecycle-controller";
+import {
+  WINDOW_REGISTRY_CHANNELS,
+  WINDOW_REGISTRY_EVENT_CHANNELS,
+  WINDOW_ROLES,
+  type CardWindowsOpenState,
+  type CardWindowRole,
+  isCardWindowRole,
+} from "../../src/shared/window-registry";
 import { createMonitorPickerController } from "./monitor-picker";
 
 const devServerUrl = process.env.VITE_DEV_SERVER_URL ?? 'http://localhost:5180';
@@ -172,26 +180,60 @@ function publishWindowBounds(window: BrowserWindow): void {
   );
 }
 
-function createMainWindow() {
+const roleByWebContentsId = new Map<number, string>();
+const cardWindows = new Map<CardWindowRole, BrowserWindow>();
+
+function getCardOpenState(): CardWindowsOpenState {
+  return {
+    openIds: {
+      controls: cardWindows.has("controls"),
+      options: cardWindows.has("options"),
+      sandbox: cardWindows.has("sandbox"),
+    },
+  };
+}
+
+function broadcastCardWindowOpenState(): void {
+  publishToAllWindows(
+    WINDOW_REGISTRY_EVENT_CHANNELS.openStateChanged,
+    getCardOpenState(),
+  );
+}
+
+function registerWindowBoundsListeners(window: BrowserWindow): void {
+  window.on("move", () => {
+    publishWindowBounds(window);
+  });
+  window.on("resize", () => {
+    publishWindowBounds(window);
+  });
+  window.webContents.on("did-finish-load", () => {
+    publishWindowBounds(window);
+  });
+}
+
+function createWindow(role: typeof WINDOW_ROLES[keyof typeof WINDOW_ROLES]): BrowserWindow {
   const preloadPath = path.join(__dirname, "../preload/index.js");
 
-  const mainWindow = new BrowserWindow({
-    width: MAIN_WINDOW_DEFAULT_WIDTH ?? 1800,
-    height: MAIN_WINDOW_DEFAULT_HEIGHT ?? 900,
-    minWidth: MAIN_WINDOW_MIN_WIDTH ?? 1600,
-    minHeight: MAIN_WINDOW_MIN_HEIGHT ?? 900,
+  const isLauncher = role === WINDOW_ROLES.launcher;
+
+  const browserWindow = new BrowserWindow({
+    width: isLauncher ? MAIN_WINDOW_DEFAULT_WIDTH : 520,
+    height: isLauncher ? MAIN_WINDOW_DEFAULT_HEIGHT : 640,
+    minWidth: isLauncher ? MAIN_WINDOW_MIN_WIDTH : 320,
+    minHeight: isLauncher ? MAIN_WINDOW_MIN_HEIGHT : 240,
     alwaysOnTop: true,
     frame: false,
     transparent: true,
     backgroundColor: "#00000000",
     resizable: true,
-    show: false, // Start hidden, then show after setup
+    show: false,
     fullscreenable: false,
     hasShadow: true,
     focusable: true,
     movable: true,
-    x: 0, // Start at a visible position
-    y: 100,
+    x: isLauncher ? 0 : 40,
+    y: isLauncher ? 100 : 140,
     webPreferences: {
       preload: preloadPath,
       contextIsolation: true,
@@ -200,24 +242,40 @@ function createMainWindow() {
     },
   });
 
-  mainWindow.on("move", () => {
-    publishWindowBounds(mainWindow);
-  });
-  mainWindow.on("resize", () => {
-    publishWindowBounds(mainWindow);
-  });
-  mainWindow.webContents.on("did-finish-load", () => {
-    publishWindowBounds(mainWindow);
+  roleByWebContentsId.set(browserWindow.webContents.id, role);
+
+  browserWindow.on("closed", () => {
+    roleByWebContentsId.delete(browserWindow.webContents.id);
+    if (!isLauncher) {
+      cardWindows.delete(role as CardWindowRole);
+    }
+    broadcastCardWindowOpenState();
   });
 
-  if (devServerUrl) {
-    void mainWindow.loadURL(devServerUrl);
-    mainWindow.webContents.openDevTools({ mode: "detach" });
-    return mainWindow;
+  registerWindowBoundsListeners(browserWindow);
+
+  if (!isLauncher) {
+    cardWindows.set(role as CardWindowRole, browserWindow);
   }
 
-  void mainWindow.loadFile(path.join(__dirname, "../../../dist/index.html"));
-  return mainWindow;
+  const hash = role;
+  if (devServerUrl) {
+    void browserWindow.loadURL(`${devServerUrl}#${hash}`);
+    if (isLauncher) {
+      browserWindow.webContents.openDevTools({ mode: "detach" });
+    }
+  } else {
+    void browserWindow.loadFile(path.join(__dirname, "../../../dist/index.html"), {
+      hash,
+    });
+  }
+
+  browserWindow.once("ready-to-show", () => {
+    browserWindow.show();
+    broadcastCardWindowOpenState();
+  });
+
+  return browserWindow;
 }
 
 async function listCaptureDisplays(): Promise<readonly CaptureDisplaySnapshot[]> {
@@ -327,12 +385,11 @@ function createTrayMenu(args: {
 }
 async function initializeApp() {
   app.whenReady().then(async () => {
-    const mainWindow = createMainWindow();
+    const mainWindow = createWindow(WINDOW_ROLES.launcher);
     console.log('[app createWindow]')
     console.log('[mainWindow]', mainWindow)
     console.log('[app createWindow]')
     console.log('[mainWindow]', mainWindow)
-    mainWindow.show();
     mainWindow.focus();
 
     let tray: Tray | null = null;
@@ -398,6 +455,50 @@ async function initializeApp() {
 
     ipcMain.handle(APP_CONTROL_CHANNELS.toggleVisibility, async () => {
       toggleVisibility();
+    });
+
+    ipcMain.handle(WINDOW_REGISTRY_CHANNELS.getContext, (event) => {
+      const role = roleByWebContentsId.get(event.sender.id);
+      if (!role) {
+        throw new Error("Unable to resolve window role.");
+      }
+      return { role };
+    });
+
+    ipcMain.handle(WINDOW_REGISTRY_CHANNELS.getOpenState, () => {
+      return getCardOpenState();
+    });
+
+    ipcMain.handle(WINDOW_REGISTRY_CHANNELS.openWindow, (_event, input: unknown) => {
+      if (typeof input !== "string" || !isCardWindowRole(input)) {
+        throw new Error("Invalid card window role.");
+      }
+      const existing = cardWindows.get(input);
+      if (existing && !existing.isDestroyed()) {
+        existing.show();
+        existing.focus();
+        broadcastCardWindowOpenState();
+        return;
+      }
+      createWindow(input);
+    });
+
+    ipcMain.handle(WINDOW_REGISTRY_CHANNELS.closeWindow, (_event, input: unknown) => {
+      if (typeof input !== "string" || !isCardWindowRole(input)) {
+        throw new Error("Invalid card window role.");
+      }
+      const target = cardWindows.get(input);
+      target?.close();
+    });
+
+    ipcMain.handle(WINDOW_REGISTRY_CHANNELS.focusWindow, (_event, input: unknown) => {
+      if (typeof input !== "string" || !isCardWindowRole(input)) {
+        throw new Error("Invalid card window role.");
+      }
+      const target = cardWindows.get(input);
+      if (target && !target.isDestroyed()) {
+        target.focus();
+      }
     });
 
     ipcMain.handle(SHORTCUTS_IPC_CHANNELS.ensureConfig, async () => {
@@ -688,9 +789,8 @@ async function initializeApp() {
 
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) {
-        const browserWindow = createMainWindow();
+        const browserWindow = createWindow(WINDOW_ROLES.launcher);
         console.log('[browserWindow show]', browserWindow)
-        browserWindow.show();
         browserWindow.setMovable(true);
         console.log('[app activate], browserWindow movable set to true')
       }

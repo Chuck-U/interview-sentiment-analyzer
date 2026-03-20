@@ -1,6 +1,7 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 
 import type { RecordingStateSnapshot } from "@/shared/recording";
+import { shouldAcceptIncomingSession } from "@/shared/session-incoming-sync";
 import type { SessionSnapshot } from "@/shared/session-lifecycle";
 
 export type SessionRecordingState = {
@@ -48,11 +49,7 @@ const sessionRecordingSlice = createSlice({
       const session = action.payload;
       const previousSession = state.currentSession;
 
-      if (
-        previousSession &&
-        previousSession.id !== session.id &&
-        session.status !== "active"
-      ) {
+      if (!shouldAcceptIncomingSession(previousSession, session)) {
         return;
       }
 

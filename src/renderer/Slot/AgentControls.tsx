@@ -4,7 +4,7 @@ import { Switch } from "@/components/ui/switch";
 import { CSSProperties } from "react";
 import type { OptionsProps } from "./Options";
 
-export type AgentControlsProps = Omit<OptionsProps, "view" | "onQuit">;
+export type AgentControlsProps = Omit<OptionsProps, "layout" | "onQuit">;
 
 export function AgentControls({
   statusLabel,

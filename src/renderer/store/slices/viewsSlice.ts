@@ -5,6 +5,7 @@ import type { WindowSizePreset } from "@/shared/window-controls";
 export const VIEW_OPTIONS = {
   controls: "controls",
   options: "options",
+  sandbox: "sandbox",
 } as const;
 
 export type ViewOption = (typeof VIEW_OPTIONS)[keyof typeof VIEW_OPTIONS];
@@ -19,9 +20,9 @@ type ViewsState = {
 const initialState: ViewsState = {
   activeView: VIEW_OPTIONS.controls,
   openWindowIds: {
-    controls: true,
-    options: true,
-    sandbox: true,
+    controls: false,
+    options: false,
+    sandbox: false,
   },
 };
 
@@ -41,11 +42,22 @@ const viewsSlice = createSlice({
     toggleView(state, action: PayloadAction<CardWindowId>) {
       state.openWindowIds[action.payload] = !state.openWindowIds[action.payload];
     },
+    syncOpenWindowIds(
+      state,
+      action: PayloadAction<Record<CardWindowId, boolean>>,
+    ) {
+      state.openWindowIds = { ...action.payload };
+    },
   },
 });
 
-export const { setActiveView, openView, closeView, toggleView } =
-  viewsSlice.actions;
+export const {
+  setActiveView,
+  openView,
+  closeView,
+  toggleView,
+  syncOpenWindowIds,
+} = viewsSlice.actions;
 
 export type WindowSizePresetOption = {
   readonly preset: WindowSizePreset;

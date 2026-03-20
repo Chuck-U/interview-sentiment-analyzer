@@ -35,7 +35,7 @@ export function useSimpleMediaRecorder(): UseSimpleMediaRecorderResult {
     SimpleRecordingController<MediaStream, MediaRecorder & RecorderLike, Blob> | null
   >(null);
 
-  if (!controllerRef.current) {
+  if (controllerRef.current == null) {
     controllerRef.current = new SimpleRecordingController<
       MediaStream,
       MediaRecorder & RecorderLike,
