@@ -93,6 +93,8 @@ function LauncherMain() {
   const windowBounds = useAppSelector(
     (state) => state.shortcutsWindow.windowBounds,
   );
+  const [recordingState, setRecordingState] =
+    useState<RecordingStateSnapshot | null>(null);
 
   const { activeView, handleSetActiveView, resizePresetOptions } = useViews();
   const openWindowIds = useAppSelector((state) => state.views.openWindowIds);

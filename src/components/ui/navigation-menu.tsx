@@ -195,10 +195,7 @@ type AgentNavigationMenuProps = {
   readonly showOutline?: boolean;
 };
 
-/**
- * Simple tab-like navigation for the agent overlay.
- * This intentionally does not rely on Radix's open/close content behavior.
- */
+
 function AgentNavigationMenu({
   items,
   value,
