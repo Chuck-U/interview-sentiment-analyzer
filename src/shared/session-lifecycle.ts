@@ -28,6 +28,7 @@ export type SessionStorageLayout = {
   readonly appDataRoot: string;
   readonly sessionRoot: string;
   readonly chunksRoot: string;
+  readonly recordingsRoot: string;
   readonly transcriptsRoot: string;
   readonly summariesRoot: string;
   readonly tempRoot: string;
