@@ -27,11 +27,20 @@ import {
   SqlitePipelineStageRunRepository,
 } from "./infrastructure/persistence/sqlite/sqlite-pipeline";
 import {
+  SqliteParticipantBaselineRepository,
+  SqliteParticipantPresenceRepository,
+  SqliteParticipantRepository,
+  SqliteQuestionAnnotationRepository,
+} from "./infrastructure/persistence/sqlite/sqlite-participant-modeling";
+import {
   SqliteMediaChunkRepository,
   SqliteSessionRepository,
 } from "./infrastructure/persistence/sqlite/sqlite-session-lifecycle";
 import { initializeSessionLifecycleDatabase } from "./infrastructure/persistence/sqlite/sqlite-database";
+import { GoogleHostedAnalysisAdapter } from "./infrastructure/providers/google/google-hosted-analysis-adapter";
+import { StaticHostedAnalysisStageRouter } from "./infrastructure/providers/hosted-analysis-stage-router";
 import { LocalPipelineAnalysisProvider } from "./infrastructure/providers/local-pipeline-analysis";
+import { OpenAIHostedAnalysisAdapter } from "./infrastructure/providers/openai/openai-hosted-analysis-adapter";
 import { createSessionStorageLayoutResolver } from "./infrastructure/storage/session-storage-layout";
 import type {
   MediaChunkSnapshot,
@@ -167,18 +176,41 @@ export function createSessionLifecycleBackend(
     storageLayoutResolver,
   );
   const mediaChunkRepository = new SqliteMediaChunkRepository(database);
+  const participantRepository = new SqliteParticipantRepository(database);
+  const participantPresenceRepository = new SqliteParticipantPresenceRepository(
+    database,
+  );
+  const questionAnnotationRepository = new SqliteQuestionAnnotationRepository(
+    database,
+  );
+  const participantBaselineRepository = new SqliteParticipantBaselineRepository(
+    database,
+  );
   const pipelineEventRepository = new SqlitePipelineEventRepository(database);
   const pipelineStageRunRepository = new SqlitePipelineStageRunRepository(
     database,
   );
   const pipelineScope = createSqlitePipelineScope(database, {
     mediaChunkRepository,
+    participantBaselineRepository,
+    participantPresenceRepository,
+    participantRepository,
     pipelineEventRepository,
     pipelineStageRunRepository,
+    questionAnnotationRepository,
     sessionRepository,
+  });
+  const openAiHostedAnalysisAdapter = new OpenAIHostedAnalysisAdapter();
+  const googleHostedAnalysisAdapter = new GoogleHostedAnalysisAdapter();
+  const hostedStageRouter = new StaticHostedAnalysisStageRouter({
+    defaultAdapter: openAiHostedAnalysisAdapter,
+    stageAdapters: {
+      "condense_context.requested": googleHostedAnalysisAdapter,
+    },
   });
   const analysisProvider = new LocalPipelineAnalysisProvider({
     clock,
+    hostedStageRouter,
     idGenerator,
     storageLayoutResolver,
   });

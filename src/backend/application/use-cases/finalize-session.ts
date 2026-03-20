@@ -15,6 +15,7 @@ import {
   collectSessionArtifacts,
   createQueuedStageRunFromEvent,
   createSessionFinalizationRequestedEvent,
+  createSessionSummaryRequestedEvent,
   hasSessionFinalizationRequest,
 } from "../services/pipeline-events";
 import type {
@@ -68,28 +69,41 @@ export function createFinalizeSessionUseCase(
       hasSessionFinalizationRequest(sessionEvents);
 
     if (!existingFinalizationRequest) {
+      const inputArtifacts = collectSessionArtifacts(sessionEvents, [
+        "transcript",
+        "participant-set",
+        "question-set",
+        "interaction-metrics",
+        "participant-baseline",
+        "chunk-analysis",
+        "context-summary",
+      ]);
       const finalizationRequestedEvent = createSessionFinalizationRequestedEvent({
         correlationId: session.id,
         eventId: dependencies.idGenerator.createId(),
-        inputArtifacts: collectSessionArtifacts(sessionEvents, [
-          "context-summary",
-          "chunk-analysis",
-          "transcript",
-        ]),
+        inputArtifacts,
         occurredAt: finalizedAt,
         requestedBy: "user",
         sessionId: session.id,
       });
-      const finalizationStageRun = createQueuedStageRunFromEvent({
-        event: finalizationRequestedEvent,
+      const sessionSummaryRequestedEvent = createSessionSummaryRequestedEvent({
+        causationId: finalizationRequestedEvent.eventId,
+        correlationId: session.id,
+        eventId: dependencies.idGenerator.createId(),
+        inputArtifacts,
+        occurredAt: finalizedAt,
+        sessionId: session.id,
+      });
+      const sessionSummaryStageRun = createQueuedStageRunFromEvent({
+        event: sessionSummaryRequestedEvent,
         queuedAt: finalizedAt,
         runId: dependencies.idGenerator.createId(),
       });
 
       await dependencies.aggregateWriter.saveSessionUpdate({
         session: finalizingSession,
-        events: [finalizationRequestedEvent],
-        stageRuns: [finalizationStageRun],
+        events: [finalizationRequestedEvent, sessionSummaryRequestedEvent],
+        stageRuns: [sessionSummaryStageRun],
       });
     } else if (session.status !== "finalizing") {
       await dependencies.aggregateWriter.saveSessionUpdate({

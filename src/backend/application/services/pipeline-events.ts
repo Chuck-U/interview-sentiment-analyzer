@@ -112,6 +112,29 @@ export function createSessionFinalizationRequestedEvent(input: {
   });
 }
 
+export function createSessionSummaryRequestedEvent(input: {
+  readonly causationId: string;
+  readonly correlationId: string;
+  readonly eventId: string;
+  readonly inputArtifacts: readonly PipelineArtifactRef[];
+  readonly occurredAt: string;
+  readonly sessionId: string;
+}): PipelineEventEnvelope<"session.summary.requested"> {
+  return createPipelineEventEnvelope({
+    eventId: input.eventId,
+    eventType: "session.summary.requested",
+    sessionId: input.sessionId,
+    causationId: input.causationId,
+    correlationId: input.correlationId,
+    occurredAt: input.occurredAt,
+    payload: {
+      requestedAt: input.occurredAt,
+      inputArtifacts: [...input.inputArtifacts],
+      outputArtifacts: [],
+    },
+  });
+}
+
 export function createQueuedStageRunFromEvent(input: {
   readonly event: PipelineEventEnvelope;
   readonly queuedAt: string;

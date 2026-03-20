@@ -77,4 +77,56 @@ test("pipeline events default schema versions and enforce artifact handoffs", ()
       }),
     /outputArtifacts must include artifact kinds: transcript/,
   );
+
+  assert.throws(
+    () =>
+      createPipelineEventEnvelope({
+        eventId: "event-3",
+        eventType: "analyze_chunk.requested",
+        sessionId: "session-1",
+        chunkId: "chunk-1",
+        correlationId: "correlation-1",
+        occurredAt: "2026-03-12T12:00:20.000Z",
+        payload: {
+          chunkId: "chunk-1",
+          requestedAt: "2026-03-12T12:00:20.000Z",
+          inputArtifacts: [
+            {
+              artifactId: "transcript-1",
+              artifactKind: "transcript",
+              relativePath: "transcripts/chunk-1.json",
+            },
+            {
+              artifactId: "signals-1",
+              artifactKind: "signal-set",
+              relativePath: "summaries/signals/chunk-1.json",
+            },
+          ],
+          outputArtifacts: [],
+        },
+      }),
+    /inputArtifacts must include artifact kinds: participant-set, question-set, interaction-metrics, participant-baseline/,
+  );
+
+  const coachingRequested = createPipelineEventEnvelope({
+    eventId: "event-4",
+    eventType: "coaching.requested",
+    sessionId: "session-1",
+    correlationId: "correlation-1",
+    occurredAt: "2026-03-12T12:00:30.000Z",
+    payload: {
+      requestedAt: "2026-03-12T12:00:30.000Z",
+      inputArtifacts: [
+        {
+          artifactId: "session-summary-1",
+          artifactKind: "session-summary",
+          relativePath: "summaries/session-summary-session-1.md",
+        },
+      ],
+      outputArtifacts: [],
+    },
+  });
+
+  assert.equal(coachingRequested.stageName, "coaching.requested");
+  assert.equal(coachingRequested.payloadSchemaVersion, 1);
 });
