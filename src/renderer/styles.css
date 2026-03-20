@@ -130,11 +130,12 @@ button {
 }
 
 .dark {
-  --background: oklch(0.145 0.008 326);
+  --background: #0c090cff;
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.212 0.019 322.12);
   --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.212 0.019 322.12);
+  --popover:     rgba(39, 28, 41, 0.062);
+  /* oklch(0.212 0.019 322.12); */
   --popover-foreground: oklch(0.985 0 0);
   --primary: oklch(0.45 0.085 224.283);
   --primary-foreground: oklch(0.984 0.019 200.873);

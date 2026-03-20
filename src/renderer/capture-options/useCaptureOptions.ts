@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
-  DEFAULT_CAPTURE_OPTIONS_CONFIG,
-  type CaptureDeviceKind,
-  type CaptureDeviceSnapshot,
-  type CaptureDisplaySnapshot,
-  type CaptureOptionsConfig,
-  type CapturePermissionSnapshot,
+  loadCaptureOptions,
+  optimisticSetConfig,
+  persistCaptureConfig,
+} from "@/renderer/store/slices/captureOptionsSlice";
+import type {
+  CaptureOptionsConfig,
+  CapturePermissionSnapshot,
 } from "@/shared/capture-options";
-import type { RecordingStateSnapshot } from "@/shared/recording";
 import type { MediaChunkSource } from "@/shared/session-lifecycle";
+
+import { useAppDispatch, useAppSelector } from "../store/hooks";
 
 import {
   buildCaptureSourcesFromConfig,
@@ -23,7 +25,6 @@ import {
 
 type UseCaptureOptionsArgs = {
   readonly isMenuActive: boolean;
-  readonly recordingState: RecordingStateSnapshot | null;
   readonly onError?: (message: string) => void;
 };
 
@@ -54,60 +55,20 @@ type UseCaptureOptionsResult = {
   readonly captureSources: readonly MediaChunkSource[];
 };
 
-function buildFallbackLabel(
-  kind: CaptureDeviceKind,
-  index: number,
-  isDefault: boolean,
-): string {
-  if (kind === "audioinput") {
-    return isDefault ? "Default microphone" : `Microphone ${index + 1}`;
-  }
-
-  return isDefault ? "Default camera" : `Camera ${index + 1}`;
-}
-
-function normalizeDevices(
-  devices: readonly MediaDeviceInfo[],
-): readonly CaptureDeviceSnapshot[] {
-  const filtered = devices.filter(
-    (device): device is MediaDeviceInfo & { kind: CaptureDeviceKind } =>
-      device.kind === "audioinput" || device.kind === "videoinput",
-  );
-
-  const firstDeviceIndexByKind = new Map<CaptureDeviceKind, number>();
-
-  return filtered.map((device, index) => {
-    if (!firstDeviceIndexByKind.has(device.kind)) {
-      firstDeviceIndexByKind.set(device.kind, index);
-    }
-
-    const isDefault = firstDeviceIndexByKind.get(device.kind) === index;
-
-    return {
-      kind: device.kind,
-      deviceId: device.deviceId,
-      label: device.label || buildFallbackLabel(device.kind, index, isDefault),
-      groupId: device.groupId || undefined,
-      isDefault,
-    };
-  });
-}
-
-function configsEqual(a: CaptureOptionsConfig, b: CaptureOptionsConfig): boolean {
-  return JSON.stringify(a) === JSON.stringify(b);
-}
-
 export function useCaptureOptions(
   args: UseCaptureOptionsArgs,
 ): UseCaptureOptionsResult {
-  const { isMenuActive, onError, recordingState } = args;
-  const [config, setConfig] = useState<CaptureOptionsConfig>(
-    DEFAULT_CAPTURE_OPTIONS_CONFIG,
+  const { isMenuActive, onError } = args;
+  const dispatch = useAppDispatch();
+
+  const config = useAppSelector((state) => state.captureOptions.config);
+  const permissions = useAppSelector((state) => state.captureOptions.permissions);
+  const devices = useAppSelector((state) => state.captureOptions.devices);
+  const displays = useAppSelector((state) => state.captureOptions.displays);
+  const recordingState = useAppSelector(
+    (state) => state.sessionRecording.recordingState,
   );
-  const [permissions, setPermissions] =
-    useState<CapturePermissionSnapshot | null>(null);
-  const [devices, setDevices] = useState<readonly CaptureDeviceSnapshot[]>([]);
-  const [displays, setDisplays] = useState<readonly CaptureDisplaySnapshot[]>([]);
+
   const [microphoneLevel, setMicrophoneLevel] = useState(0);
   const [isWebcamPreviewVisible, setIsWebcamPreviewVisible] = useState(false);
   const [webcamPreviewStream, setWebcamPreviewStream] =
@@ -134,23 +95,25 @@ export function useCaptureOptions(
 
   const persistConfig = useCallback(
     async (nextConfig: CaptureOptionsConfig, previousConfig: CaptureOptionsConfig) => {
-      setConfig(nextConfig);
+      dispatch(optimisticSetConfig(nextConfig));
 
       try {
-        const savedConfig = await window.electronApp.captureOptions.setConfig(
-          nextConfig,
-        );
-        setConfig(savedConfig);
-      } catch (error) {
-        setConfig(previousConfig);
-        onError?.(
-          error instanceof Error
-            ? error.message
-            : "Unable to save capture options.",
-        );
+        await dispatch(
+          persistCaptureConfig({ nextConfig, previousConfig }),
+        ).unwrap();
+      } catch (error: unknown) {
+        const message =
+          error &&
+          typeof error === "object" &&
+          error !== null &&
+          "message" in error &&
+          typeof (error as { message: unknown }).message === "string"
+            ? (error as { message: string }).message
+            : "Unable to save capture options.";
+        onError?.(message);
       }
     },
-    [onError],
+    [dispatch, onError],
   );
 
   const applyConfigUpdate = useCallback(
@@ -169,37 +132,15 @@ export function useCaptureOptions(
 
   const refresh = useCallback(async () => {
     try {
-      const [savedConfig, savedPermissions, displaySnapshots, deviceInfos] =
-        await Promise.all([
-          window.electronApp.captureOptions.getConfig(),
-          window.electronApp.captureOptions.getPermissions(),
-          window.electronApp.captureOptions.listDisplays(),
-          navigator.mediaDevices.enumerateDevices(),
-        ]);
-
-      const normalizedDevices = normalizeDevices(deviceInfos);
-      const reconciledConfig = reconcileCaptureOptionsConfig({
-        config: savedConfig,
-        devices: normalizedDevices,
-        displays: displaySnapshots,
-      });
-
-      setPermissions(savedPermissions);
-      setDevices(normalizedDevices);
-      setDisplays(displaySnapshots);
-      setConfig(reconciledConfig);
-
-      if (!configsEqual(savedConfig, reconciledConfig)) {
-        await window.electronApp.captureOptions.setConfig(reconciledConfig);
-      }
+      await dispatch(loadCaptureOptions()).unwrap();
     } catch (error) {
       onError?.(
-        error instanceof Error
-          ? error.message
+        typeof error === "string"
+          ? error
           : "Unable to load capture options.",
       );
     }
-  }, [onError]);
+  }, [dispatch, onError]);
 
   useEffect(() => {
     void refresh();
@@ -243,7 +184,9 @@ export function useCaptureOptions(
 
   useEffect(() => {
     if (!isMenuActive || !config.microphone.enabled) {
-      setMicrophoneLevel(0);
+      queueMicrotask(() => {
+        setMicrophoneLevel(0);
+      });
       return;
     }
 
@@ -330,14 +273,16 @@ export function useCaptureOptions(
     const selectedWebcamId = config.webcam.deviceId;
 
     if (!isMenuActive || !isWebcamPreviewVisible || !selectedWebcamId) {
-      setWebcamPreviewStream((previousStream) => {
-        if (previousStream) {
-          for (const track of previousStream.getTracks()) {
-            track.stop();
+      queueMicrotask(() => {
+        setWebcamPreviewStream((previousStream) => {
+          if (previousStream) {
+            for (const track of previousStream.getTracks()) {
+              track.stop();
+            }
           }
-        }
 
-        return null;
+          return null;
+        });
       });
       return;
     }
@@ -405,14 +350,16 @@ export function useCaptureOptions(
     const selectedDisplayId = config.display.displayId;
 
     if (!isMenuActive || !isDesktopPreviewVisible || !selectedDisplayId) {
-      setDesktopPreviewStream((previousStream) => {
-        if (previousStream) {
-          for (const track of previousStream.getTracks()) {
-            track.stop();
+      queueMicrotask(() => {
+        setDesktopPreviewStream((previousStream) => {
+          if (previousStream) {
+            for (const track of previousStream.getTracks()) {
+              track.stop();
+            }
           }
-        }
 
-        return null;
+          return null;
+        });
       });
       return;
     }

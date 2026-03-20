@@ -1,51 +1,66 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 
-import type { WindowSizePreset } from "@/shared/window-controls";
+import { useAppDispatch, useAppSelector } from "../store/hooks";
+import {
+  RESIZE_PRESET_OPTIONS,
+  VIEW_OPTIONS,
+  closeView,
+  openView,
+  setActiveView,
+  toggleView,
+  type CardWindowId,
+  type ViewOption,
+  type WindowSizePresetOption,
+} from "../store/slices/viewsSlice";
 
-export const VIEW_OPTIONS = {
-  controls: "controls",
-  options: "options",
-} as const;
-
-export type ViewOption = (typeof VIEW_OPTIONS)[keyof typeof VIEW_OPTIONS];
-
-export type WindowSizePresetOption = {
-  readonly preset: WindowSizePreset;
-  readonly label: string;
-  readonly description: string;
-};
+export { VIEW_OPTIONS };
+export type { ViewOption, WindowSizePresetOption, CardWindowId };
 
 export function useViews() {
-  const [activeView, setActiveView] = useState<ViewOption>(VIEW_OPTIONS.controls);
+  const dispatch = useAppDispatch();
+  const activeView = useAppSelector((state) => state.views.activeView);
+  const openWindowIds = useAppSelector((state) => state.views.openWindowIds);
 
-  const handleSetActiveView = useCallback((newView: ViewOption) => {
-    setActiveView(newView);
-  }, []);
+  const handleSetActiveView = useCallback(
+    (newView: ViewOption) => {
+      dispatch(setActiveView(newView));
+    },
+    [dispatch],
+  );
 
-  const resizePresetOptions = useMemo<readonly WindowSizePresetOption[]>(
-    () => [
-      {
-        preset: "half",
-        label: "1/2 Screen",
-        description: "900 x 700",
-      },
-      {
-        preset: "three-quarters",
-        label: "3/4 Screen",
-        description: "75% of display",
-      },
-      {
-        preset: "full",
-        label: "Full",
-        description: "Display size minus 100px",
-      },
-    ],
+  const handleOpenView = useCallback(
+    (id: CardWindowId) => {
+      dispatch(openView(id));
+    },
+    [dispatch],
+  );
+
+  const handleCloseView = useCallback(
+    (id: CardWindowId) => {
+      dispatch(closeView(id));
+    },
+    [dispatch],
+  );
+
+  const handleToggleView = useCallback(
+    (id: CardWindowId) => {
+      dispatch(toggleView(id));
+    },
+    [dispatch],
+  );
+
+  const resizePresetOptions = useMemo(
+    () => RESIZE_PRESET_OPTIONS,
     [],
   );
 
   return {
     activeView,
+    openWindowIds,
     handleSetActiveView,
+    handleOpenView,
+    handleCloseView,
+    handleToggleView,
     resizePresetOptions,
   };
 }
