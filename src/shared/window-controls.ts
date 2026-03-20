@@ -38,10 +38,10 @@ export type SetWindowSizeRequest = {
   readonly height: number;
 };
 
-export type WindowSizePreset = "half" | "three-quarters" | "full";
+export type WindowSizePreset = "50%" | "75%" | "90%";
 
 export type SetWindowSizePresetRequest = {
-  readonly preset: WindowSizePreset;
+  preset: WindowSizePreset | string
 };
 
 export type WindowControlsBridge = {

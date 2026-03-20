@@ -7,21 +7,8 @@ import type {
 } from "@/shared/recording";
 import type { CaptureOptionsConfig } from "@/shared/capture-options";
 import type { MediaChunkSource } from "@/shared/session-lifecycle";
+import { AUDIO_MIME_CANDIDATES, VIDEO_MIME_CANDIDATES, DEFAULT_CHUNK_INTERVAL_MS, DEFAULT_SCREENSHOT_INTERVAL_MS } from "./constants";
 
-const DEFAULT_CHUNK_INTERVAL_MS = 15_000;
-const DEFAULT_SCREENSHOT_INTERVAL_MS = 10_000;
-
-const AUDIO_MIME_CANDIDATES = [
-  "audio/webm;codecs=opus",
-  "audio/webm",
-  "audio/ogg;codecs=opus",
-];
-
-const VIDEO_MIME_CANDIDATES = [
-  "video/webm;codecs=vp9,opus",
-  "video/webm;codecs=vp8,opus",
-  "video/webm",
-];
 
 function pickSupportedMimeType(candidates: string[]): string | undefined {
   if (typeof MediaRecorder === "undefined") {
@@ -254,8 +241,8 @@ export class CaptureManager {
     await this.startUserMediaRecorder(sessionId, "microphone", {
       audio: captureOptions.microphone.deviceId
         ? {
-            deviceId: { exact: captureOptions.microphone.deviceId },
-          }
+          deviceId: { exact: captureOptions.microphone.deviceId },
+        }
         : true,
       video: false,
     });
@@ -269,8 +256,8 @@ export class CaptureManager {
       audio: false,
       video: captureOptions.webcam.deviceId
         ? {
-            deviceId: { exact: captureOptions.webcam.deviceId },
-          }
+          deviceId: { exact: captureOptions.webcam.deviceId },
+        }
         : true,
     });
   }

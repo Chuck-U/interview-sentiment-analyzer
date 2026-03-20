@@ -18,7 +18,6 @@ import { RiExpandDiagonalLine } from "@remixicon/react";
 type WindowResizePresetOption = {
   readonly preset: WindowSizePreset;
   readonly label: string;
-  readonly description: string;
 };
 
 type WindowResizeControlProps = {
@@ -46,9 +45,9 @@ export function WindowResizeControl({
   };
 
   return (
-    <div style={{ WebkitAppRegion: "no-drag" } as CSSProperties}>
+    <div>
       <DropdownMenu>
-        <DropdownMenuTrigger asChild>
+        <DropdownMenuTrigger asChild style={{ WebkitAppRegion: "no-drag" } as CSSProperties}>
           <Button
             type="button"
             variant="outline"
@@ -56,17 +55,16 @@ export function WindowResizeControl({
             disabled={isResizing}
             aria-label="Resize window"
             title="Resize window"
+            className="bg-transparent hover:bg-yellow-contrast"
           >
-            <RiExpandDiagonalLine data-icon="inline-start" />
-            Resize
+            <RiExpandDiagonalLine data-icon="inline-start hover:text-yellow-8" />
           </Button>
         </DropdownMenuTrigger>
 
         <DropdownMenuContent align="end" className="min-w-56">
-          <DropdownMenuLabel>Resize presets</DropdownMenuLabel>
           {windowBounds ? (
             <DropdownMenuLabel className="pt-0 text-[11px]">
-              Current: {windowBounds.width} x {windowBounds.height}
+              Current: {windowBounds.width}px x {windowBounds.height}px
             </DropdownMenuLabel>
           ) : null}
           <DropdownMenuSeparator />
@@ -80,17 +78,8 @@ export function WindowResizeControl({
               >
                 <div className="flex min-w-0 flex-col gap-0.5">
                   <span>{option.label}</span>
-                  <span className="text-[11px] text-muted-foreground">
-                    {option.description}
-                  </span>
                 </div>
-                <DropdownMenuShortcut>
-                  {option.preset === "half"
-                    ? "50%"
-                    : option.preset === "three-quarters"
-                      ? "75%"
-                      : "100%"}
-                </DropdownMenuShortcut>
+                <DropdownMenuShortcut>{option.preset}</DropdownMenuShortcut>
               </DropdownMenuItem>
             ))}
           </DropdownMenuGroup>

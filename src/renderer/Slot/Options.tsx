@@ -128,8 +128,8 @@ export function Options({
 }: OptionsProps) {
   const [showPermissions, setShowPermissions] = useState(false);
   const optionsCard = (
-    <Card className="flex h-full w-full flex-1 flex-col overflow-y-scroll relative">
-      <CardHeader className="flex shrink-0 flex-col gap-1 sticky top-0 bg-background/35">
+    <Card className="relative flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
+      <CardHeader className="flex shrink-0 flex-col gap-1">
         <CardTitle>Options</CardTitle>
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant={statusVariant}>{statusLabel}</Badge>
@@ -139,7 +139,7 @@ export function Options({
           <Badge variant="outline">{windowSizeLabel}</Badge>
         </div>
       </CardHeader>
-      <CardContent className="flex min-h-0 flex-1 flex-col gap-3">
+      <CardContent className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
         <div className="flex flex-col gap-2">
           <p className="text-sm font-medium">Keyboard shortcuts</p>
           <div className="flex items-center justify-between gap-3 rounded-md border border-border/50 bg-background/35 p-3">
@@ -204,7 +204,7 @@ export function Options({
   );
 
   const controlsCard = (
-    <Card className="flex h-full min-h-0 w-full flex-col overflow-y-scroll min-h-80vh">
+    <Card className="flex h-full min-h-0 w-full flex-col overflow-y-scroll min-h-80vh" style={{ WebkitAppRegion: "drag" } as CSSProperties}>
       <CardHeader className="flex shrink-0 flex-col gap-1">
         <CardTitle>Controls</CardTitle>
         <div className="flex flex-wrap items-center gap-2">
@@ -218,7 +218,7 @@ export function Options({
           ) : null}
         </div>
       </CardHeader>
-      <CardContent className="flex min-h-0 flex-1 flex-col gap-3">
+      <CardContent className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto " style={{ WebkitAppRegion: "no-drag" } as CSSProperties}>
         <div className="rounded-md border border-border/50 bg-background/35 p-3">
           <div className="flex items-center justify-between gap-3">
             <div className="flex flex-col gap-1">
@@ -226,7 +226,7 @@ export function Options({
               <p className="text-sm text-muted-foreground">{feedbackMessage}</p>
             </div>
             <div style={{ WebkitAppRegion: "no-drag" } as CSSProperties}>
-           {/* change this button style, it's bad. */}
+              {/* change this button style, it's bad. */}
               <Switch
                 checked={isRecording}
                 aria-label="Start or stop recording"
@@ -242,7 +242,7 @@ export function Options({
             </div>
           ) : null}
         </div>
-{/* add this to debug view */}
+        {/* add this to debug view */}
         {recordingState && recordingState.sources.length > 0 ? (
           <div className="flex flex-col gap-2 rounded-md border border-border/50 bg-background/35 p-3">
             <p className="text-sm font-medium">Capture sources</p>

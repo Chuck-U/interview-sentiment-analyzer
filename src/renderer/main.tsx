@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import type { CSSProperties } from "react";
 
 import { AgentNavigationMenu } from "@/components/ui/navigation-menu";
@@ -21,7 +21,11 @@ import { parseWindowRoleFromLocation } from "./parseWindowRole";
 import { useAppDispatch, useAppSelector } from "./store/hooks";
 import { setFeedbackMessage } from "./store/slices/sessionRecordingSlice";
 import { setShortcutEnabled } from "./store/slices/shortcutsWindowSlice";
-import { RESIZE_PRESET_OPTIONS } from "./store/slices/viewsSlice";
+import {
+  pickFirstOpenCardView,
+  setActiveView,
+} from "./store/slices/viewsSlice";
+import { RiCloseFill } from "@remixicon/react";
 
 function getStatusCopy(session: SessionSnapshot | null): {
   readonly label: string;
@@ -91,6 +95,19 @@ function LauncherMain() {
   );
 
   const { activeView, handleSetActiveView, resizePresetOptions } = useViews();
+  const openWindowIds = useAppSelector((state) => state.views.openWindowIds);
+
+  useEffect(() => {
+    if (
+      activeView === VIEW_OPTIONS.controls ||
+      activeView === VIEW_OPTIONS.options ||
+      activeView === VIEW_OPTIONS.sandbox
+    ) {
+      if (!openWindowIds[activeView]) {
+        dispatch(setActiveView(pickFirstOpenCardView(openWindowIds)));
+      }
+    }
+  }, [activeView, dispatch, openWindowIds]);
 
   const handleResizePreset = useCallback(
     async (preset: WindowSizePreset) => {
@@ -146,7 +163,7 @@ function LauncherMain() {
   );
 
   return (
-    <div className="size-full bg-transparent">
+    <div className="flex h-full min-h-0 w-full flex-1 flex-col bg-transparent">
       <nav
         className="sticky top-0 z-[70] flex w-full shrink-0 flex-col gap-3 bg-background/15"
         style={{ WebkitAppRegion: "drag" } as CSSProperties}
@@ -196,38 +213,43 @@ function LauncherMain() {
         className="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden bg-transparent px-10 pb-6"
         style={{ WebkitAppRegion: "no-drag" } as CSSProperties}
       >
-        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto rounded-md border border-border/40 bg-background/20 p-4">
-          <p className="text-sm text-muted-foreground">
-            Open Controls, Options, or Sandbox from the menu. Each panel runs in
-            its own window so you can resize and position them independently.
-          </p>
-          <div className="rounded-md border border-border/50 bg-background/35 p-3 text-sm">
-            <p className="font-medium">Session</p>
-            <p className="mt-1 text-muted-foreground">{feedbackMessage}</p>
-            {recordingState && recordingState.sources.length > 0 ? (
-              <p className="mt-2 text-muted-foreground">
-                {recordingState.totalChunkCount} chunks captured
-              </p>
-            ) : null}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <p className="text-xs text-muted-foreground">
-              Shortcut: {shortcutLabel} —{" "}
-              <button
-                type="button"
-                className="underline"
-                style={{ WebkitAppRegion: "no-drag" } as CSSProperties}
-                onClick={() => {
-                  void handleSetShortcutEnabled(!isShortcutEnabled);
-                }}
-              >
-                {isShortcutEnabled ? "enabled" : "disabled"}
-              </button>
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border border-border/40 bg-background/20">
+          <div className="shrink-0 border-b border-border/40 px-4 pt-4">
+            <p className="text-sm font-medium text-foreground">Launcher</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Open Controls, Options, or Sandbox from the menu. Each panel runs in
+              its own window so you can resize and position them independently.
             </p>
-            <span className="text-xs text-muted-foreground">
-              Status: {statusCopy.label} ({windowSizeLabel}
-              {windowBoundsLabel ? `, ${windowBoundsLabel}` : ""})
-            </span>
+          </div>
+          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 py-4">
+            <div className="rounded-md border border-border/50 bg-background/35 p-3 text-sm">
+              <p className="font-medium">Session</p>
+              <p className="mt-1 text-muted-foreground">{feedbackMessage}</p>
+              {recordingState && recordingState.sources.length > 0 ? (
+                <p className="mt-2 text-muted-foreground">
+                  {recordingState.totalChunkCount} chunks captured
+                </p>
+              ) : null}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <p className="text-xs text-muted-foreground">
+                Shortcut: {shortcutLabel} —{" "}
+                <button
+                  type="button"
+                  className="underline"
+                  style={{ WebkitAppRegion: "no-drag" } as CSSProperties}
+                  onClick={() => {
+                    void handleSetShortcutEnabled(!isShortcutEnabled);
+                  }}
+                >
+                  {isShortcutEnabled ? "enabled" : "disabled"}
+                </button>
+              </p>
+              <span className="text-xs text-muted-foreground">
+                Status: {statusCopy.label} ({windowSizeLabel}
+                {windowBoundsLabel ? `, ${windowBoundsLabel}` : ""})
+              </span>
+            </div>
           </div>
         </div>
       </main>
@@ -237,6 +259,7 @@ function LauncherMain() {
 
 function CardWindowMain({ layout }: { readonly layout: OptionsCardLayout }) {
   const dispatch = useAppDispatch();
+  // const openWindowIds = useAppSelector((state) => state.views.openWindowIds);
   useShortcutsWindowEffects();
   const {
     handleToggleRecording,
@@ -282,14 +305,14 @@ function CardWindowMain({ layout }: { readonly layout: OptionsCardLayout }) {
     onError: handleCaptureOptionsError,
   });
 
-  const handleResizePreset = useCallback(
-    async (preset: WindowSizePreset) => {
-      return window.electronApp.windowControls.setWindowSizePreset({
-        preset,
-      });
-    },
-    [],
-  );
+  // const handleResizePreset = useCallback(
+  //   async (preset: WindowSizePreset) => {
+  //     return window.electronApp.windowControls.setWindowSizePreset({
+  //       preset,
+  //     });
+  //   },
+  //   [],
+  // );
 
   const handleSetShortcutEnabled = useCallback(
     (enabled: boolean) => {
@@ -336,70 +359,30 @@ function CardWindowMain({ layout }: { readonly layout: OptionsCardLayout }) {
   );
 
   return (
-    <div className="size-full bg-transparent">
+    <div className="flex h-full min-h-0 w-full  flex-1 flex-col bg-transparent items-start">
       <nav
-        className="sticky top-0 z-[70] flex w-full shrink-0 flex-col gap-2 bg-background/15 px-2 pt-2"
+        className="relative z-[70] flex w-full max-w-md mx-auto items-end justify-baseline shrink-0 flex-col border rounded-r-md rounded-bl-md group-hover:border-yellow-a10 active:bg-yellow-a10/70 transition-colors duration-200 ease-in-out pointer-drag"
         style={{ WebkitAppRegion: "drag" } as CSSProperties}
       >
         <div
-          className="flex items-center justify-between gap-2 text-xs text-muted-foreground"
-          style={{ WebkitAppRegion: "no-drag" } as CSSProperties}
+          className="flex items-center justify-end leading-7"
         >
-          <span className="capitalize">{layout} window</span>
           <button
             type="button"
-            className="rounded border border-border/60 px-2 py-1 hover:bg-muted/50"
+            className="rounded-full p-2 hover:bg-red-900/5 text-muted-foreground hover:text-red-500/50 transition-colors duration-200 ease-in-out cursor-pointer"
             onClick={() => {
               void window.electronApp.windowRegistry.closeWindow(layout);
             }}
+            style={{ WebkitAppRegion: "no-drag" } as CSSProperties}
+            aria-label={`Close ${layout} window`}
           >
-            Close window
+            <RiCloseFill className="size-6" />
           </button>
         </div>
-        <AgentNavigationMenu
-          items={[
-            { id: "controls", label: "Controls", group: "menuGroup" },
-            { id: "options", label: "Options", group: "menuGroup" },
-            { id: "sandbox", label: "Sandbox", group: "menuGroup" },
-            { id: "start-recording", label: "Start Recording" },
-            { id: "resize-window", label: "Resize Window" },
-            { id: "toggle-visibility", label: "Toggle Visibility" },
-            { id: "close", label: "Close App" },
-          ]}
-          value={layout}
-          onValueChange={(value) => {
-            if (
-              value === VIEW_OPTIONS.controls ||
-              value === VIEW_OPTIONS.options ||
-              value === VIEW_OPTIONS.sandbox
-            ) {
-              void window.electronApp.windowRegistry.openWindow(value);
-              void window.electronApp.windowRegistry.focusWindow(value);
-            }
-          }}
-          isRecording={isRecording}
-          isBusy={isBusy}
-          onRecordingToggle={(start) => {
-            void handleToggleRecording(start);
-          }}
-          onToggleVisibility={() => {
-            void window.electronApp.appControls.toggleVisibility();
-          }}
-          resizeControl={(
-            <WindowResizeControl
-              windowBounds={windowBounds}
-              presetOptions={RESIZE_PRESET_OPTIONS}
-              onSelectPreset={handleResizePreset}
-            />
-          )}
-          onClose={() => {
-            void handleCloseApplication();
-          }}
-        />
       </nav>
       <main
         className="flex min-h-0 flex-1 flex-col overflow-hidden bg-transparent px-4 pb-4 pt-2"
-        style={{ WebkitAppRegion: "no-drag" } as CSSProperties}
+        style={{ WebkitAppRegion: "drag" } as CSSProperties}
       >
         <Options
           layout={layout}

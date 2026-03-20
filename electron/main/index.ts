@@ -13,6 +13,7 @@ import {
   Tray,
 } from "electron";
 
+import { Log } from "../../src/lib/utils";
 import { createSessionLifecycleBackend } from "../../src/backend";
 import { registerSessionLifecycleIpc } from "../../src/backend/infrastructure/ipc/register-session-lifecycle-ipc";
 import { registerRecordingIpc } from "../../src/backend/infrastructure/ipc/register-recording-ipc";
@@ -34,16 +35,15 @@ import {
 import { SESSION_LIFECYCLE_EVENT_CHANNELS } from "../../src/backend/infrastructure/ipc/session-lifecycle-channels";
 import { RECORDING_CHANNELS, RECORDING_EVENT_CHANNELS } from "../../src/backend/infrastructure/ipc/recording-channels";
 import {
-  applyResizeWindowByRequest,
   clampWindowSize,
   parseMoveWindowByRequest,
-  parseResizeWindowByRequest,
   parseSetWindowSizePresetRequest,
   parseSetWindowSizeRequest,
   WINDOW_CONTROL_CHANNELS,
   WINDOW_CONTROL_EVENT_CHANNELS,
   type WindowSizePreset,
   type WindowBoundsSnapshot,
+  parseResizeWindowByRequest,
 } from "../../src/shared/window-controls";
 import type { MediaChunkSource, SessionSnapshot } from "../../src/shared/session-lifecycle";
 import {
@@ -70,6 +70,7 @@ const MAIN_WINDOW_MIN_WIDTH = 460;
 const MAIN_WINDOW_MIN_HEIGHT = 320;
 const MAIN_WINDOW_DEFAULT_WIDTH = 560;
 const MAIN_WINDOW_DEFAULT_HEIGHT = 360;
+const log = Log.getInstance().forSource(path.basename(__filename))
 
 function buildCaptureSourcesFromConfig(
   config: CaptureOptionsConfig,
@@ -101,7 +102,18 @@ function buildCaptureSourcesFromConfig(
 
 function publishToAllWindows(channel: string, payload: unknown): void {
   for (const window of BrowserWindow.getAllWindows()) {
-    window.webContents.send(channel, payload);
+    if (window.isDestroyed()) {
+      continue;
+    }
+    const contents = window.webContents;
+    if (contents.isDestroyed()) {
+      continue;
+    }
+    try {
+      contents.send(channel, payload);
+    } catch {
+      // Window may be closing; ignore send failures.
+    }
   }
 }
 
@@ -146,7 +158,7 @@ function getWindowSizeForPreset(
   const { width: workAreaWidth, height: workAreaHeight } = display.workAreaSize;
 
   switch (preset) {
-    case "half":
+    case "50%":
       return clampWindowSize(
         {
           width: 900,
@@ -154,7 +166,7 @@ function getWindowSizeForPreset(
         },
         getMinimumWindowSize(window),
       );
-    case "three-quarters":
+    case "75%":
       return clampWindowSize(
         {
           width: Math.round(workAreaWidth * 0.75),
@@ -162,11 +174,11 @@ function getWindowSizeForPreset(
         },
         getMinimumWindowSize(window),
       );
-    case "full":
+    case "90%":
       return clampWindowSize(
         {
-          width: Math.max(workAreaWidth - 100, 0),
-          height: Math.max(workAreaHeight - 100, 0),
+          width: Math.round(workAreaWidth * 0.9),
+          height: Math.round(workAreaHeight * 0.9),
         },
         getMinimumWindowSize(window),
       );
@@ -174,10 +186,21 @@ function getWindowSizeForPreset(
 }
 
 function publishWindowBounds(window: BrowserWindow): void {
-  window.webContents.send(
-    WINDOW_CONTROL_EVENT_CHANNELS.boundsChanged,
-    createWindowBoundsSnapshot(window),
-  );
+  if (window.isDestroyed()) {
+    return;
+  }
+  const contents = window.webContents;
+  if (contents.isDestroyed()) {
+    return;
+  }
+  try {
+    contents.send(
+      WINDOW_CONTROL_EVENT_CHANNELS.boundsChanged,
+      createWindowBoundsSnapshot(window),
+    );
+  } catch {
+    // Ignore if the window is tearing down.
+  }
 }
 
 const roleByWebContentsId = new Map<number, string>();
@@ -229,6 +252,7 @@ function createWindow(role: typeof WINDOW_ROLES[keyof typeof WINDOW_ROLES]): Bro
     resizable: true,
     show: false,
     fullscreenable: false,
+    skipTaskbar: true,
     hasShadow: true,
     focusable: true,
     movable: true,
@@ -386,20 +410,17 @@ function createTrayMenu(args: {
 async function initializeApp() {
   app.whenReady().then(async () => {
     const mainWindow = createWindow(WINDOW_ROLES.launcher);
-    console.log('[app createWindow]')
-    console.log('[mainWindow]', mainWindow)
-    console.log('[app createWindow]')
-    console.log('[mainWindow]', mainWindow)
+    log.ger({ type: "info", message: "[app createWindow]", data: mainWindow })
     mainWindow.focus();
 
     let tray: Tray | null = null;
 
     const toggleVisibility = () => {
       if (mainWindow.isVisible()) {
-        console.log('[app toggleVisibility] hide')
+        log.ger({ type: "info", message: "[app toggleVisibility] hide" })
         mainWindow.hide();
       } else {
-        console.log('[app toggleVisibility] show')
+        log.ger({ type: "info", message: "[app toggleVisibility] show" })
         mainWindow.show();
         mainWindow.focus();
       }
@@ -460,6 +481,7 @@ async function initializeApp() {
     ipcMain.handle(WINDOW_REGISTRY_CHANNELS.getContext, (event) => {
       const role = roleByWebContentsId.get(event.sender.id);
       if (!role) {
+        log.ger({ type: "error", message: "[app WINDOW_REGISTRY_CHANNELS.getContext] Unable to resolve window role." })
         throw new Error("Unable to resolve window role.");
       }
       return { role };
@@ -558,6 +580,7 @@ async function initializeApp() {
         let selectedDisplayId: string | undefined;
         if (typeof input === "object" && input !== null) {
           const candidate = (input as Record<string, unknown>).selectedDisplayId;
+          log.ger({ type: "debug", message: "[app CAPTURE_OPTIONS_CHANNELS.openMonitorPicker] candidate", data: candidate })
           if (typeof candidate === "string" && candidate.trim().length > 0) {
             selectedDisplayId = candidate.trim();
           }
@@ -626,16 +649,7 @@ async function initializeApp() {
 
       const request = parseResizeWindowByRequest(input);
       const [currentWidth, currentHeight] = targetWindow.getSize();
-      const nextSize = applyResizeWindowByRequest(
-        {
-          width: currentWidth,
-          height: currentHeight,
-        },
-        getMinimumWindowSize(targetWindow),
-        request,
-      );
-
-      targetWindow.setSize(nextSize.width, nextSize.height);
+      targetWindow.setSize(currentWidth + request.deltaWidth, currentHeight + request.deltaHeight);
     });
     ipcMain.handle(WINDOW_CONTROL_CHANNELS.setWindowSize, (event, input) => {
       const targetWindow = BrowserWindow.fromWebContents(event.sender);
@@ -656,15 +670,15 @@ async function initializeApp() {
       targetWindow.setSize(nextSize.width, nextSize.height);
       return createWindowBoundsSnapshot(targetWindow);
     });
-    ipcMain.handle(WINDOW_CONTROL_CHANNELS.setWindowSizePreset, (event, input) => {
+    ipcMain.handle(WINDOW_CONTROL_CHANNELS.setWindowSizePreset, async (event, input) => {
       const targetWindow = BrowserWindow.fromWebContents(event.sender);
-
+      log.ger({ type: "info", message: "[app WINDOW_CONTROL_CHANNELS.setWindowSizePreset] targetWindow", data: { targetWindow, input, event } })
       if (!targetWindow) {
         throw new Error("Unable to resolve target window");
       }
 
       const request = parseSetWindowSizePresetRequest(input);
-      const nextSize = getWindowSizeForPreset(targetWindow, request.preset);
+      const nextSize = getWindowSizeForPreset(targetWindow, request.preset as WindowSizePreset);
 
       targetWindow.setSize(nextSize.width, nextSize.height);
       return createWindowBoundsSnapshot(targetWindow);

@@ -106,12 +106,21 @@ body {
 }
 
 html,
-body,
+body {
+  height: 100%;
+  min-height: 100%;
+  overflow: hidden;
+  background: transparent;
+}
+
 #root {
   height: 100%;
   min-height: 100%;
   overflow: hidden;
   background: transparent;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 * {

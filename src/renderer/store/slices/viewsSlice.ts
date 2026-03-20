@@ -12,6 +12,25 @@ export type ViewOption = (typeof VIEW_OPTIONS)[keyof typeof VIEW_OPTIONS];
 
 export type CardWindowId = "controls" | "options" | "sandbox";
 
+const CARD_TAB_ORDER: readonly CardWindowId[] = [
+  "controls",
+  "options",
+  "sandbox",
+];
+
+/** Picks the first card tab that is open, or defaults to Controls. */
+export function pickFirstOpenCardView(
+  openIds: Record<CardWindowId, boolean>,
+): ViewOption {
+  for (const id of CARD_TAB_ORDER) {
+    if (openIds[id]) {
+      return id;
+    }
+  }
+
+  return VIEW_OPTIONS.controls;
+}
+
 type ViewsState = {
   readonly activeView: ViewOption;
   readonly openWindowIds: Record<CardWindowId, boolean>;
@@ -62,24 +81,20 @@ export const {
 export type WindowSizePresetOption = {
   readonly preset: WindowSizePreset;
   readonly label: string;
-  readonly description: string;
 };
 
 export const RESIZE_PRESET_OPTIONS: readonly WindowSizePresetOption[] = [
   {
-    preset: "half",
-    label: "1/2 Screen",
-    description: "900 x 700",
+    preset: "50%",
+    label: "50%",
   },
   {
-    preset: "three-quarters",
-    label: "3/4 Screen",
-    description: "75% of display",
+    preset: "75%",
+    label: "75%",
   },
   {
-    preset: "full",
+    preset: "90%",
     label: "Full",
-    description: "Display size minus 100px",
   },
 ];
 

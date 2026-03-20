@@ -127,6 +127,7 @@ export function CaptureOptionsPanel({
         </Badge>
       </div>
 
+      {/* add sidebar item tab for microphone */}
       <div className="flex flex-col gap-2 rounded-md border border-border/50 p-3">
         <div className="flex items-center justify-between gap-3">
           <div className="flex flex-col gap-1">
@@ -172,8 +173,11 @@ export function CaptureOptionsPanel({
         </div>
       </div>
 
+      {/* add accordion tab for webcam */}
       <div className="flex flex-col gap-2 rounded-md border border-border/50 bg-background/35 p-3">
         <div className="flex items-center justify-between gap-3">
+
+
           <div className="flex flex-col gap-1">
             <label htmlFor="webcam-select" id="webcam-select">Webcam</label>
 
@@ -224,7 +228,9 @@ export function CaptureOptionsPanel({
         </div>
       </div>
 
+      {/* add sidebar item tab for display capture */}
       <div className="flex flex-col gap-3 rounded-md border border-border/50 bg-background/35 p-3">
+
         <div className="flex items-center justify-between gap-3">
           <div className="flex flex-col gap-1">
             <p className="text-sm font-medium">Display capture</p>
@@ -302,7 +308,7 @@ export function CaptureOptionsPanel({
         </div>
 
         <Separator />
-
+        {/* Add seperate sidebar item for system options, collapsed by default */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div className="flex items-center justify-between gap-3 rounded-md border border-border/50 bg-background/40 p-2">
             <Label htmlFor="system-audio-switch">System audio</Label>
