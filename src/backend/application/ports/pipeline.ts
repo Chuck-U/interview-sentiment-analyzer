@@ -11,6 +11,12 @@ import type {
   MediaChunkRepository,
   SessionRepository,
 } from "./session-lifecycle";
+import type {
+  ParticipantBaselineRepository,
+  ParticipantPresenceRepository,
+  ParticipantRepository,
+} from "./participant-repository";
+import type { QuestionAnnotationRepository } from "./question-annotation-repository";
 
 export type PipelineEventRepository = {
   append(event: PipelineEventEnvelope): Promise<void>;
@@ -37,8 +43,12 @@ export type PipelineStageRunRepository = {
 
 export type PipelineTransactionScope = {
   readonly mediaChunkRepository: MediaChunkRepository;
+  readonly participantBaselineRepository: ParticipantBaselineRepository;
+  readonly participantPresenceRepository: ParticipantPresenceRepository;
+  readonly participantRepository: ParticipantRepository;
   readonly pipelineEventRepository: PipelineEventRepository;
   readonly pipelineStageRunRepository: PipelineStageRunRepository;
+  readonly questionAnnotationRepository: QuestionAnnotationRepository;
   readonly sessionRepository: SessionRepository;
 };
 

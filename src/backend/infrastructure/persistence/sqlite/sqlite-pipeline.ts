@@ -12,6 +12,12 @@ import type {
   SessionRepository,
 } from "../../../application/ports/session-lifecycle";
 import type {
+  ParticipantBaselineRepository,
+  ParticipantPresenceRepository,
+  ParticipantRepository,
+} from "../../../application/ports/participant-repository";
+import type { QuestionAnnotationRepository } from "../../../application/ports/question-annotation-repository";
+import type {
   PipelineEventEnvelope,
   PipelineEventType,
   PipelineStageRunRecord,
@@ -541,8 +547,12 @@ export class SqlitePipelineAggregateWriter implements PipelineAggregateWriter {
 
 export type SqlitePipelineScope = {
   readonly mediaChunkRepository: MediaChunkRepository;
+  readonly participantBaselineRepository: ParticipantBaselineRepository;
+  readonly participantPresenceRepository: ParticipantPresenceRepository;
+  readonly participantRepository: ParticipantRepository;
   readonly pipelineEventRepository: PipelineEventRepository;
   readonly pipelineStageRunRepository: PipelineStageRunRepository;
+  readonly questionAnnotationRepository: QuestionAnnotationRepository;
   readonly sessionRepository: SessionRepository;
 };
 

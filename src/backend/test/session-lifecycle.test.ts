@@ -24,6 +24,12 @@ import {
   SqlitePipelineStageRunRepository,
 } from "../infrastructure/persistence/sqlite/sqlite-pipeline";
 import {
+  SqliteParticipantBaselineRepository,
+  SqliteParticipantPresenceRepository,
+  SqliteParticipantRepository,
+  SqliteQuestionAnnotationRepository,
+} from "../infrastructure/persistence/sqlite/sqlite-participant-modeling";
+import {
   SqliteMediaChunkRepository,
   SqliteSessionRepository,
 } from "../infrastructure/persistence/sqlite/sqlite-session-lifecycle";
@@ -31,8 +37,12 @@ import {
   initializeSessionLifecycleDatabase,
   SESSION_LIFECYCLE_SCHEMA_VERSION,
 } from "../infrastructure/persistence/sqlite/sqlite-database";
+import { GoogleHostedAnalysisAdapter } from "../infrastructure/providers/google/google-hosted-analysis-adapter";
+import { StaticHostedAnalysisStageRouter } from "../infrastructure/providers/hosted-analysis-stage-router";
 import { LocalPipelineAnalysisProvider } from "../infrastructure/providers/local-pipeline-analysis";
+import { OpenAIHostedAnalysisAdapter } from "../infrastructure/providers/openai/openai-hosted-analysis-adapter";
 import { createSessionStorageLayoutResolver } from "../infrastructure/storage/session-storage-layout";
+import type { PipelineEventEnvelope } from "../../shared";
 
 type TestContext = {
   readonly appDataRoot: string;
@@ -41,6 +51,9 @@ type TestContext = {
   readonly eventPublisher: SessionLifecycleEventPublisher;
   readonly fileSystem: FileSystemAccess;
   readonly mediaChunkRepository: SqliteMediaChunkRepository;
+  readonly participantBaselineRepository: SqliteParticipantBaselineRepository;
+  readonly participantPresenceRepository: SqliteParticipantPresenceRepository;
+  readonly participantRepository: SqliteParticipantRepository;
   readonly pipelineAggregateWriter: ReturnType<
     typeof createSqlitePipelineScope
   >["aggregateWriter"];
@@ -49,6 +62,7 @@ type TestContext = {
   readonly pipelineTransactionManager: ReturnType<
     typeof createSqlitePipelineScope
   >["transactionManager"];
+  readonly questionAnnotationRepository: SqliteQuestionAnnotationRepository;
   readonly sqlite: DatabaseSync;
   readonly sessionRepository: SqliteSessionRepository;
   readonly storageLayoutResolver: ReturnType<typeof createSessionStorageLayoutResolver>;
@@ -66,14 +80,28 @@ async function createTestContext(): Promise<TestContext> {
     storageLayoutResolver,
   );
   const mediaChunkRepository = new SqliteMediaChunkRepository(database);
+  const participantRepository = new SqliteParticipantRepository(database);
+  const participantPresenceRepository = new SqliteParticipantPresenceRepository(
+    database,
+  );
+  const questionAnnotationRepository = new SqliteQuestionAnnotationRepository(
+    database,
+  );
+  const participantBaselineRepository = new SqliteParticipantBaselineRepository(
+    database,
+  );
   const pipelineEventRepository = new SqlitePipelineEventRepository(database);
   const pipelineStageRunRepository = new SqlitePipelineStageRunRepository(
     database,
   );
   const pipelineScope = createSqlitePipelineScope(database, {
     mediaChunkRepository,
+    participantBaselineRepository,
+    participantPresenceRepository,
+    participantRepository,
     pipelineEventRepository,
     pipelineStageRunRepository,
+    questionAnnotationRepository,
     sessionRepository,
   });
   const eventPublisher: SessionLifecycleEventPublisher = {
@@ -129,10 +157,14 @@ async function createTestContext(): Promise<TestContext> {
     eventPublisher,
     fileSystem,
     mediaChunkRepository,
+    participantBaselineRepository,
+    participantPresenceRepository,
+    participantRepository,
     pipelineAggregateWriter: pipelineScope.aggregateWriter,
     pipelineEventRepository,
     pipelineStageRunRepository,
     pipelineTransactionManager: pipelineScope.transactionManager,
+    questionAnnotationRepository,
     sqlite,
     sessionRepository,
     storageLayoutResolver,
@@ -155,6 +187,15 @@ function createFixedIdGenerator() {
       return nextId === 1 ? "generated-session-id" : `generated-id-${nextId}`;
     },
   };
+}
+
+function createHostedStageRouter() {
+  return new StaticHostedAnalysisStageRouter({
+    defaultAdapter: new OpenAIHostedAnalysisAdapter(),
+    stageAdapters: {
+      "condense_context.requested": new GoogleHostedAnalysisAdapter(),
+    },
+  });
 }
 
 test("database bootstrap adopts the legacy schema into versioned migrations", async () => {
@@ -429,6 +470,7 @@ test("session lifecycle use cases enforce idempotency and file-first registratio
     const pipelineOrchestrator = new BuiltInPipelineOrchestrator({
       analysisProvider: new LocalPipelineAnalysisProvider({
         clock: fixedClock,
+        hostedStageRouter: createHostedStageRouter(),
         idGenerator,
         storageLayoutResolver: context.storageLayoutResolver,
       }),
@@ -499,8 +541,46 @@ test("session lifecycle use cases enforce idempotency and file-first registratio
     const completedSession = await context.sessionRepository.findById(
       startedSession.session.id,
     );
+    const persistedEvents = await context.pipelineEventRepository.listBySessionId(
+      startedSession.session.id,
+    );
+    const persistedEventTypes = persistedEvents.map((event) => event.eventType);
+    const chunkAnalysisReadyEvent = persistedEvents.find(
+      (event) => event.eventType === "chunk.analysis.ready",
+    ) as PipelineEventEnvelope<"chunk.analysis.ready"> | undefined;
+    const contextReadyEvent = persistedEvents.find(
+      (event) => event.eventType === "context.ready",
+    ) as PipelineEventEnvelope<"context.ready"> | undefined;
+    const sessionSummaryReadyEvent = persistedEvents.find(
+      (event) => event.eventType === "session.summary.ready",
+    ) as PipelineEventEnvelope<"session.summary.ready"> | undefined;
+    const coachingReadyEvent = persistedEvents.find(
+      (event) => event.eventType === "coaching.ready",
+    ) as PipelineEventEnvelope<"coaching.ready"> | undefined;
 
     assert.equal(completedSession?.status, "completed");
+    assert.ok(persistedEventTypes.includes("resolve_participants.requested"));
+    assert.ok(persistedEventTypes.includes("participants.ready"));
+    assert.ok(persistedEventTypes.includes("annotate_questions.requested"));
+    assert.ok(persistedEventTypes.includes("questions.ready"));
+    assert.ok(persistedEventTypes.includes("score_interaction.requested"));
+    assert.ok(persistedEventTypes.includes("interaction.metrics.ready"));
+    assert.ok(persistedEventTypes.includes("update_baselines.requested"));
+    assert.ok(persistedEventTypes.includes("baselines.ready"));
+    assert.ok(persistedEventTypes.includes("session.finalization.requested"));
+    assert.ok(persistedEventTypes.includes("session.summary.requested"));
+    assert.ok(persistedEventTypes.includes("session.summary.ready"));
+    assert.ok(persistedEventTypes.includes("coaching.requested"));
+    assert.ok(persistedEventTypes.includes("coaching.ready"));
+    assert.equal(chunkAnalysisReadyEvent?.payload.outputArtifacts[0]?.metadata?.provider, "openai");
+    assert.equal(contextReadyEvent?.payload.outputArtifacts[0]?.metadata?.provider, "google");
+    assert.equal(
+      sessionSummaryReadyEvent?.payload.outputArtifacts[0]?.metadata?.provider,
+      "openai",
+    );
+    assert.equal(coachingReadyEvent?.payload.outputArtifacts[0]?.metadata?.provider, "openai");
+    assert.equal(sessionSummaryReadyEvent?.payload.summaryFormat, "json");
+    assert.equal(coachingReadyEvent?.payload.coachingFormat, "json");
   } finally {
     await context.cleanup();
   }
@@ -581,6 +661,7 @@ test("recovery resumes finalizing sessions and reports integrity issues", async 
     const pipelineOrchestrator = new BuiltInPipelineOrchestrator({
       analysisProvider: new LocalPipelineAnalysisProvider({
         clock: fixedClock,
+        hostedStageRouter: createHostedStageRouter(),
         idGenerator,
         storageLayoutResolver: context.storageLayoutResolver,
       }),
@@ -605,8 +686,8 @@ test("recovery resumes finalizing sessions and reports integrity issues", async 
     assert.ok(publishedIssues.includes("missing-chunk-file"));
     assert.ok(publishedIssues.includes("orphaned-artifact"));
     assert.ok(publishedIssues.includes("finalization-interrupted"));
-    assert.equal(recoveredSession?.status, "finalizing");
-    assert.deepEqual(publishedSessions, ["session-2", "session-2"]);
+    assert.equal(recoveredSession?.status, "completed");
+    assert.deepEqual(publishedSessions, ["session-2"]);
     assert.ok(finalizedSessions.length <= 1);
   } finally {
     await context.cleanup();

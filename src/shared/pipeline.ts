@@ -14,14 +14,24 @@ export const PIPELINE_STAGE_NAMES = [
   "chunk.registered",
   "transcribe_chunk.requested",
   "transcript.ready",
+  "resolve_participants.requested",
+  "participants.ready",
   "derive_signals.requested",
   "signals.ready",
+  "annotate_questions.requested",
+  "questions.ready",
+  "score_interaction.requested",
+  "interaction.metrics.ready",
+  "update_baselines.requested",
+  "baselines.ready",
   "analyze_chunk.requested",
   "chunk.analysis.ready",
   "condense_context.requested",
   "context.ready",
   "session.finalization.requested",
+  "session.summary.requested",
   "session.summary.ready",
+  "coaching.requested",
   "coaching.ready",
   "pipeline.failed",
 ] as const;
@@ -29,10 +39,15 @@ export const PIPELINE_STAGE_NAMES = [
 export const PIPELINE_EVENT_TYPES = PIPELINE_STAGE_NAMES;
 export const PIPELINE_EXECUTABLE_STAGE_NAMES = [
   "transcribe_chunk.requested",
+  "resolve_participants.requested",
   "derive_signals.requested",
+  "annotate_questions.requested",
+  "score_interaction.requested",
+  "update_baselines.requested",
   "analyze_chunk.requested",
   "condense_context.requested",
-  "session.finalization.requested",
+  "session.summary.requested",
+  "coaching.requested",
 ] as const;
 export const PIPELINE_STAGE_RUN_STATUSES = [
   "queued",
@@ -45,7 +60,11 @@ export const PIPELINE_STAGE_RUN_STATUSES = [
 export const PIPELINE_ARTIFACT_KINDS = [
   "media-chunk",
   "transcript",
+  "participant-set",
   "signal-set",
+  "question-set",
+  "interaction-metrics",
+  "participant-baseline",
   "chunk-analysis",
   "context-summary",
   "session-summary",
@@ -185,6 +204,29 @@ const transcriptReadyPayloadSchema = pipelineArtifactPayloadSchema.extend({
   ),
 });
 
+const resolveParticipantsRequestedPayloadSchema =
+  pipelineArtifactPayloadSchema.extend({
+    chunkId: nonEmptyTrimmedStringSchema(
+      "resolve_participants.requested payload requires chunkId",
+    ),
+    requestedAt: nonEmptyTrimmedStringSchema(
+      "resolve_participants.requested payload requires requestedAt",
+    ),
+  });
+
+const participantsReadyPayloadSchema = pipelineArtifactPayloadSchema.extend({
+  chunkId: nonEmptyTrimmedStringSchema("participants.ready payload requires chunkId"),
+  completedAt: nonEmptyTrimmedStringSchema(
+    "participants.ready payload requires completedAt",
+  ),
+  participantCount: z
+    .number()
+    .int("participants.ready payload requires an integer participantCount")
+    .nonnegative(
+      "participants.ready payload requires a non-negative participantCount",
+    ),
+});
+
 const deriveSignalsRequestedPayloadSchema = pipelineArtifactPayloadSchema.extend({
   chunkId: nonEmptyTrimmedStringSchema(
     "derive_signals.requested payload requires chunkId",
@@ -204,6 +246,66 @@ const signalsReadyPayloadSchema = pipelineArtifactPayloadSchema.extend({
       "signals.ready payload requires non-empty signal category names",
     ),
   ),
+});
+
+const annotateQuestionsRequestedPayloadSchema = pipelineArtifactPayloadSchema.extend({
+  chunkId: nonEmptyTrimmedStringSchema(
+    "annotate_questions.requested payload requires chunkId",
+  ),
+  requestedAt: nonEmptyTrimmedStringSchema(
+    "annotate_questions.requested payload requires requestedAt",
+  ),
+});
+
+const questionsReadyPayloadSchema = pipelineArtifactPayloadSchema.extend({
+  chunkId: nonEmptyTrimmedStringSchema("questions.ready payload requires chunkId"),
+  completedAt: nonEmptyTrimmedStringSchema(
+    "questions.ready payload requires completedAt",
+  ),
+  questionCount: z
+    .number()
+    .int("questions.ready payload requires an integer questionCount")
+    .nonnegative("questions.ready payload requires a non-negative questionCount"),
+});
+
+const scoreInteractionRequestedPayloadSchema = pipelineArtifactPayloadSchema.extend({
+  chunkId: nonEmptyTrimmedStringSchema(
+    "score_interaction.requested payload requires chunkId",
+  ),
+  requestedAt: nonEmptyTrimmedStringSchema(
+    "score_interaction.requested payload requires requestedAt",
+  ),
+});
+
+const interactionMetricsReadyPayloadSchema = pipelineArtifactPayloadSchema.extend({
+  chunkId: nonEmptyTrimmedStringSchema(
+    "interaction.metrics.ready payload requires chunkId",
+  ),
+  completedAt: nonEmptyTrimmedStringSchema(
+    "interaction.metrics.ready payload requires completedAt",
+  ),
+  metricFamilies: z.array(
+    nonEmptyTrimmedStringSchema(
+      "interaction.metrics.ready payload requires non-empty metric family names",
+    ),
+  ),
+});
+
+const updateBaselinesRequestedPayloadSchema = pipelineArtifactPayloadSchema.extend({
+  chunkId: nonEmptyTrimmedStringSchema(
+    "update_baselines.requested payload requires chunkId",
+  ),
+  requestedAt: nonEmptyTrimmedStringSchema(
+    "update_baselines.requested payload requires requestedAt",
+  ),
+});
+
+const baselinesReadyPayloadSchema = pipelineArtifactPayloadSchema.extend({
+  chunkId: nonEmptyTrimmedStringSchema("baselines.ready payload requires chunkId"),
+  completedAt: nonEmptyTrimmedStringSchema(
+    "baselines.ready payload requires completedAt",
+  ),
+  baselineScope: z.enum(["rolling-session", "session"]),
 });
 
 const analyzeChunkRequestedPayloadSchema = pipelineArtifactPayloadSchema.extend({
@@ -255,11 +357,23 @@ const sessionFinalizationRequestedPayloadSchema =
     requestedBy: z.enum(["user", "recovery"]),
   });
 
+const sessionSummaryRequestedPayloadSchema = pipelineArtifactPayloadSchema.extend({
+  requestedAt: nonEmptyTrimmedStringSchema(
+    "session.summary.requested payload requires requestedAt",
+  ),
+});
+
 const sessionSummaryReadyPayloadSchema = pipelineArtifactPayloadSchema.extend({
   completedAt: nonEmptyTrimmedStringSchema(
     "session.summary.ready payload requires completedAt",
   ),
   summaryFormat: z.enum(["markdown", "json"]),
+});
+
+const coachingRequestedPayloadSchema = pipelineArtifactPayloadSchema.extend({
+  requestedAt: nonEmptyTrimmedStringSchema(
+    "coaching.requested payload requires requestedAt",
+  ),
 });
 
 const coachingReadyPayloadSchema = pipelineArtifactPayloadSchema.extend({
@@ -289,10 +403,30 @@ export type TranscribeChunkRequestedPayload = z.infer<
   typeof transcribeChunkRequestedPayloadSchema
 >;
 export type TranscriptReadyPayload = z.infer<typeof transcriptReadyPayloadSchema>;
+export type ResolveParticipantsRequestedPayload = z.infer<
+  typeof resolveParticipantsRequestedPayloadSchema
+>;
+export type ParticipantsReadyPayload = z.infer<
+  typeof participantsReadyPayloadSchema
+>;
 export type DeriveSignalsRequestedPayload = z.infer<
   typeof deriveSignalsRequestedPayloadSchema
 >;
 export type SignalsReadyPayload = z.infer<typeof signalsReadyPayloadSchema>;
+export type AnnotateQuestionsRequestedPayload = z.infer<
+  typeof annotateQuestionsRequestedPayloadSchema
+>;
+export type QuestionsReadyPayload = z.infer<typeof questionsReadyPayloadSchema>;
+export type ScoreInteractionRequestedPayload = z.infer<
+  typeof scoreInteractionRequestedPayloadSchema
+>;
+export type InteractionMetricsReadyPayload = z.infer<
+  typeof interactionMetricsReadyPayloadSchema
+>;
+export type UpdateBaselinesRequestedPayload = z.infer<
+  typeof updateBaselinesRequestedPayloadSchema
+>;
+export type BaselinesReadyPayload = z.infer<typeof baselinesReadyPayloadSchema>;
 export type AnalyzeChunkRequestedPayload = z.infer<
   typeof analyzeChunkRequestedPayloadSchema
 >;
@@ -306,8 +440,14 @@ export type ContextReadyPayload = z.infer<typeof contextReadyPayloadSchema>;
 export type SessionFinalizationRequestedPayload = z.infer<
   typeof sessionFinalizationRequestedPayloadSchema
 >;
+export type SessionSummaryRequestedPayload = z.infer<
+  typeof sessionSummaryRequestedPayloadSchema
+>;
 export type SessionSummaryReadyPayload = z.infer<
   typeof sessionSummaryReadyPayloadSchema
+>;
+export type CoachingRequestedPayload = z.infer<
+  typeof coachingRequestedPayloadSchema
 >;
 export type CoachingReadyPayload = z.infer<typeof coachingReadyPayloadSchema>;
 export type PipelineFailedPayload = z.infer<typeof pipelineFailedPayloadSchema>;
@@ -316,14 +456,24 @@ export type PipelinePayloadByEventType = {
   readonly "chunk.registered": ChunkRegisteredPayload;
   readonly "transcribe_chunk.requested": TranscribeChunkRequestedPayload;
   readonly "transcript.ready": TranscriptReadyPayload;
+  readonly "resolve_participants.requested": ResolveParticipantsRequestedPayload;
+  readonly "participants.ready": ParticipantsReadyPayload;
   readonly "derive_signals.requested": DeriveSignalsRequestedPayload;
   readonly "signals.ready": SignalsReadyPayload;
+  readonly "annotate_questions.requested": AnnotateQuestionsRequestedPayload;
+  readonly "questions.ready": QuestionsReadyPayload;
+  readonly "score_interaction.requested": ScoreInteractionRequestedPayload;
+  readonly "interaction.metrics.ready": InteractionMetricsReadyPayload;
+  readonly "update_baselines.requested": UpdateBaselinesRequestedPayload;
+  readonly "baselines.ready": BaselinesReadyPayload;
   readonly "analyze_chunk.requested": AnalyzeChunkRequestedPayload;
   readonly "chunk.analysis.ready": ChunkAnalysisReadyPayload;
   readonly "condense_context.requested": CondenseContextRequestedPayload;
   readonly "context.ready": ContextReadyPayload;
   readonly "session.finalization.requested": SessionFinalizationRequestedPayload;
+  readonly "session.summary.requested": SessionSummaryRequestedPayload;
   readonly "session.summary.ready": SessionSummaryReadyPayload;
+  readonly "coaching.requested": CoachingRequestedPayload;
   readonly "coaching.ready": CoachingReadyPayload;
   readonly "pipeline.failed": PipelineFailedPayload;
 };
@@ -435,14 +585,24 @@ export const PIPELINE_PAYLOAD_SCHEMA_VERSIONS: Readonly<
   "chunk.registered": 1,
   "transcribe_chunk.requested": 1,
   "transcript.ready": 1,
+  "resolve_participants.requested": 1,
+  "participants.ready": 1,
   "derive_signals.requested": 1,
   "signals.ready": 1,
+  "annotate_questions.requested": 1,
+  "questions.ready": 1,
+  "score_interaction.requested": 1,
+  "interaction.metrics.ready": 1,
+  "update_baselines.requested": 1,
+  "baselines.ready": 1,
   "analyze_chunk.requested": 1,
   "chunk.analysis.ready": 1,
   "condense_context.requested": 1,
   "context.ready": 1,
   "session.finalization.requested": 1,
+  "session.summary.requested": 1,
   "session.summary.ready": 1,
+  "coaching.requested": 1,
   "coaching.ready": 1,
   "pipeline.failed": 1,
 };
@@ -453,14 +613,24 @@ export const PIPELINE_PAYLOAD_SCHEMAS: {
   "chunk.registered": chunkRegisteredPayloadSchema,
   "transcribe_chunk.requested": transcribeChunkRequestedPayloadSchema,
   "transcript.ready": transcriptReadyPayloadSchema,
+  "resolve_participants.requested": resolveParticipantsRequestedPayloadSchema,
+  "participants.ready": participantsReadyPayloadSchema,
   "derive_signals.requested": deriveSignalsRequestedPayloadSchema,
   "signals.ready": signalsReadyPayloadSchema,
+  "annotate_questions.requested": annotateQuestionsRequestedPayloadSchema,
+  "questions.ready": questionsReadyPayloadSchema,
+  "score_interaction.requested": scoreInteractionRequestedPayloadSchema,
+  "interaction.metrics.ready": interactionMetricsReadyPayloadSchema,
+  "update_baselines.requested": updateBaselinesRequestedPayloadSchema,
+  "baselines.ready": baselinesReadyPayloadSchema,
   "analyze_chunk.requested": analyzeChunkRequestedPayloadSchema,
   "chunk.analysis.ready": chunkAnalysisReadyPayloadSchema,
   "condense_context.requested": condenseContextRequestedPayloadSchema,
   "context.ready": contextReadyPayloadSchema,
   "session.finalization.requested": sessionFinalizationRequestedPayloadSchema,
+  "session.summary.requested": sessionSummaryRequestedPayloadSchema,
   "session.summary.ready": sessionSummaryReadyPayloadSchema,
+  "coaching.requested": coachingRequestedPayloadSchema,
   "coaching.ready": coachingReadyPayloadSchema,
   "pipeline.failed": pipelineFailedPayloadSchema,
 };
@@ -489,40 +659,168 @@ export const PIPELINE_ARTIFACT_HANDOFF_RULES: Readonly<
     requiredOutputKinds: ["transcript"],
     allowedOutputKinds: ["transcript"],
   },
-  "derive_signals.requested": {
+  "resolve_participants.requested": {
     requiresChunkId: true,
     requiredInputKinds: ["transcript"],
     allowedInputKinds: ["transcript"],
+    requiredOutputKinds: [],
+    allowedOutputKinds: [],
+  },
+  "participants.ready": {
+    requiresChunkId: true,
+    requiredInputKinds: ["transcript"],
+    allowedInputKinds: ["transcript"],
+    requiredOutputKinds: ["participant-set"],
+    allowedOutputKinds: ["participant-set"],
+  },
+  "derive_signals.requested": {
+    requiresChunkId: true,
+    requiredInputKinds: ["transcript", "participant-set"],
+    allowedInputKinds: ["transcript", "participant-set"],
     requiredOutputKinds: [],
     allowedOutputKinds: [],
   },
   "signals.ready": {
     requiresChunkId: true,
-    requiredInputKinds: ["transcript"],
-    allowedInputKinds: ["transcript"],
+    requiredInputKinds: ["transcript", "participant-set"],
+    allowedInputKinds: ["transcript", "participant-set"],
     requiredOutputKinds: ["signal-set"],
     allowedOutputKinds: ["signal-set"],
   },
+  "annotate_questions.requested": {
+    requiresChunkId: true,
+    requiredInputKinds: ["transcript", "participant-set", "signal-set"],
+    allowedInputKinds: ["transcript", "participant-set", "signal-set"],
+    requiredOutputKinds: [],
+    allowedOutputKinds: [],
+  },
+  "questions.ready": {
+    requiresChunkId: true,
+    requiredInputKinds: ["transcript", "participant-set", "signal-set"],
+    allowedInputKinds: ["transcript", "participant-set", "signal-set"],
+    requiredOutputKinds: ["question-set"],
+    allowedOutputKinds: ["question-set"],
+  },
+  "score_interaction.requested": {
+    requiresChunkId: true,
+    requiredInputKinds: [
+      "transcript",
+      "participant-set",
+      "signal-set",
+      "question-set",
+    ],
+    allowedInputKinds: [
+      "transcript",
+      "participant-set",
+      "signal-set",
+      "question-set",
+    ],
+    requiredOutputKinds: [],
+    allowedOutputKinds: [],
+  },
+  "interaction.metrics.ready": {
+    requiresChunkId: true,
+    requiredInputKinds: [
+      "transcript",
+      "participant-set",
+      "signal-set",
+      "question-set",
+    ],
+    allowedInputKinds: [
+      "transcript",
+      "participant-set",
+      "signal-set",
+      "question-set",
+    ],
+    requiredOutputKinds: ["interaction-metrics"],
+    allowedOutputKinds: ["interaction-metrics"],
+  },
+  "update_baselines.requested": {
+    requiresChunkId: true,
+    requiredInputKinds: ["participant-set", "question-set", "interaction-metrics"],
+    allowedInputKinds: [
+      "transcript",
+      "participant-set",
+      "signal-set",
+      "question-set",
+      "interaction-metrics",
+    ],
+    requiredOutputKinds: [],
+    allowedOutputKinds: [],
+  },
+  "baselines.ready": {
+    requiresChunkId: true,
+    requiredInputKinds: ["participant-set", "question-set", "interaction-metrics"],
+    allowedInputKinds: [
+      "transcript",
+      "participant-set",
+      "signal-set",
+      "question-set",
+      "interaction-metrics",
+    ],
+    requiredOutputKinds: ["participant-baseline"],
+    allowedOutputKinds: ["participant-baseline"],
+  },
   "analyze_chunk.requested": {
     requiresChunkId: true,
-    requiredInputKinds: ["transcript", "signal-set"],
-    allowedInputKinds: ["transcript", "signal-set"],
+    requiredInputKinds: [
+      "transcript",
+      "participant-set",
+      "signal-set",
+      "question-set",
+      "interaction-metrics",
+      "participant-baseline",
+    ],
+    allowedInputKinds: [
+      "transcript",
+      "participant-set",
+      "signal-set",
+      "question-set",
+      "interaction-metrics",
+      "participant-baseline",
+    ],
     requiredOutputKinds: [],
     allowedOutputKinds: [],
   },
   "chunk.analysis.ready": {
     requiresChunkId: true,
-    requiredInputKinds: ["transcript", "signal-set"],
-    allowedInputKinds: ["transcript", "signal-set"],
+    requiredInputKinds: [
+      "transcript",
+      "participant-set",
+      "signal-set",
+      "question-set",
+      "interaction-metrics",
+      "participant-baseline",
+    ],
+    allowedInputKinds: [
+      "transcript",
+      "participant-set",
+      "signal-set",
+      "question-set",
+      "interaction-metrics",
+      "participant-baseline",
+    ],
     requiredOutputKinds: ["chunk-analysis"],
     allowedOutputKinds: ["chunk-analysis"],
   },
   "condense_context.requested": {
     requiresChunkId: true,
-    requiredInputKinds: ["transcript", "signal-set", "chunk-analysis"],
+    requiredInputKinds: [
+      "transcript",
+      "participant-set",
+      "signal-set",
+      "question-set",
+      "interaction-metrics",
+      "participant-baseline",
+      "chunk-analysis",
+    ],
     allowedInputKinds: [
       "transcript",
+      "participant-set",
       "signal-set",
+      "question-set",
+      "interaction-metrics",
+      "participant-baseline",
       "chunk-analysis",
       "context-summary",
     ],
@@ -531,10 +829,22 @@ export const PIPELINE_ARTIFACT_HANDOFF_RULES: Readonly<
   },
   "context.ready": {
     requiresChunkId: true,
-    requiredInputKinds: ["transcript", "signal-set", "chunk-analysis"],
+    requiredInputKinds: [
+      "transcript",
+      "participant-set",
+      "signal-set",
+      "question-set",
+      "interaction-metrics",
+      "participant-baseline",
+      "chunk-analysis",
+    ],
     allowedInputKinds: [
       "transcript",
+      "participant-set",
       "signal-set",
+      "question-set",
+      "interaction-metrics",
+      "participant-baseline",
       "chunk-analysis",
       "context-summary",
     ],
@@ -544,21 +854,73 @@ export const PIPELINE_ARTIFACT_HANDOFF_RULES: Readonly<
   "session.finalization.requested": {
     requiresChunkId: false,
     requiredInputKinds: [],
-    allowedInputKinds: ["context-summary", "chunk-analysis", "transcript"],
+    allowedInputKinds: [
+      "transcript",
+      "participant-set",
+      "question-set",
+      "interaction-metrics",
+      "participant-baseline",
+      "chunk-analysis",
+      "context-summary",
+    ],
+    requiredOutputKinds: [],
+    allowedOutputKinds: [],
+  },
+  "session.summary.requested": {
+    requiresChunkId: false,
+    requiredInputKinds: [],
+    allowedInputKinds: [
+      "transcript",
+      "participant-set",
+      "question-set",
+      "interaction-metrics",
+      "participant-baseline",
+      "chunk-analysis",
+      "context-summary",
+    ],
     requiredOutputKinds: [],
     allowedOutputKinds: [],
   },
   "session.summary.ready": {
     requiresChunkId: false,
-    requiredInputKinds: ["context-summary"],
-    allowedInputKinds: ["context-summary", "chunk-analysis", "transcript"],
+    requiredInputKinds: [],
+    allowedInputKinds: [
+      "transcript",
+      "participant-set",
+      "question-set",
+      "interaction-metrics",
+      "participant-baseline",
+      "chunk-analysis",
+      "context-summary",
+    ],
     requiredOutputKinds: ["session-summary"],
     allowedOutputKinds: ["session-summary"],
+  },
+  "coaching.requested": {
+    requiresChunkId: false,
+    requiredInputKinds: ["session-summary"],
+    allowedInputKinds: [
+      "session-summary",
+      "context-summary",
+      "interaction-metrics",
+      "participant-baseline",
+      "chunk-analysis",
+      "question-set",
+    ],
+    requiredOutputKinds: [],
+    allowedOutputKinds: [],
   },
   "coaching.ready": {
     requiresChunkId: false,
     requiredInputKinds: ["session-summary"],
-    allowedInputKinds: ["session-summary", "context-summary"],
+    allowedInputKinds: [
+      "session-summary",
+      "context-summary",
+      "interaction-metrics",
+      "participant-baseline",
+      "chunk-analysis",
+      "question-set",
+    ],
     requiredOutputKinds: ["coaching-feedback"],
     allowedOutputKinds: ["coaching-feedback"],
   },

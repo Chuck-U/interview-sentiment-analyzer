@@ -205,7 +205,7 @@ export class BuiltInPipelineOrchestrator implements PipelineOrchestrator {
           await scope.pipelineStageRunRepository.save(stageRun);
         }
 
-        if (claimedRun.stageName === "session.finalization.requested") {
+        if (claimedRun.stageName === "coaching.requested") {
           const session = await scope.sessionRepository.findById(claimedRun.sessionId);
 
           if (session) {
