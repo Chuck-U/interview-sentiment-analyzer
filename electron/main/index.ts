@@ -3,37 +3,64 @@ import path from "node:path";
 import {
   app,
   BrowserWindow,
+  desktopCapturer,
   globalShortcut,
   ipcMain,
   Menu,
   nativeImage,
+  screen,
+  systemPreferences,
   Tray,
 } from "electron";
 
+import { Log } from "../../src/lib/utils";
 import { createSessionLifecycleBackend } from "../../src/backend";
 import { registerSessionLifecycleIpc } from "../../src/backend/infrastructure/ipc/register-session-lifecycle-ipc";
 import { registerRecordingIpc } from "../../src/backend/infrastructure/ipc/register-recording-ipc";
 import { createRecordingPersistenceService } from "../../src/backend/infrastructure/recording/recording-persistence";
-import { createRecordingExportService } from "@backend/infrastructure/recording/recording-export";
+import { createRecordingExportService } from "../../src/backend/infrastructure/recording/recording-export";
+import { createRecordingSandboxPersistenceService } from "../../src/backend/infrastructure/recording/recording-sandbox-persistence";
 import { createSessionStorageLayoutResolver } from "../../src/backend/infrastructure/storage/session-storage-layout";
-import { createShortcutsConfigStore } from "../../src/backend/infrastructure/shortcuts/shortcutsConfigStore";
+import { createAppConfigStore } from "../../src/backend/infrastructure/config/appConfigStore";
 import { registerConfiguredGlobalShortcuts } from "../../src/backend/infrastructure/shortcuts/globalShortcuts.shortcuts";
 import { APP_CONTROL_CHANNELS } from "../../src/shared/app-controls";
+import {
+  CAPTURE_OPTIONS_CHANNELS,
+  CAPTURE_OPTIONS_EVENT_CHANNELS,
+  normalizeCaptureOptionsConfig,
+  type CaptureOptionsConfig,
+  type CaptureDisplaySnapshot,
+  type CapturePermissionSnapshot,
+} from "../../src/shared/capture-options";
 import { SESSION_LIFECYCLE_EVENT_CHANNELS } from "../../src/backend/infrastructure/ipc/session-lifecycle-channels";
 import { RECORDING_CHANNELS, RECORDING_EVENT_CHANNELS } from "../../src/backend/infrastructure/ipc/recording-channels";
 import {
+  clampWindowSize,
   parseMoveWindowByRequest,
-  parseResizeWindowByRequest,
+  parseSetWindowSizePresetRequest,
+  parseSetWindowSizeRequest,
   WINDOW_CONTROL_CHANNELS,
   WINDOW_CONTROL_EVENT_CHANNELS,
+  type WindowSizePreset,
   type WindowBoundsSnapshot,
+  parseResizeWindowByRequest,
 } from "../../src/shared/window-controls";
-import type { SessionSnapshot } from "../../src/shared/session-lifecycle";
+import type { MediaChunkSource, SessionSnapshot } from "../../src/shared/session-lifecycle";
 import {
   SHORTCUTS_IPC_CHANNELS,
+  DEFAULT_RECORDING_CAPTURE_SOURCES,
   normalizeSetShortcutEnabledRequest,
 } from "../../src/shared/shortcuts";
 import type { SessionLifecycleController } from "../../src/backend/interfaces/controllers/session-lifecycle-controller";
+import {
+  WINDOW_REGISTRY_CHANNELS,
+  WINDOW_REGISTRY_EVENT_CHANNELS,
+  WINDOW_ROLES,
+  type CardWindowsOpenState,
+  type CardWindowRole,
+  isCardWindowRole,
+} from "../../src/shared/window-registry";
+import { createMonitorPickerController } from "./monitor-picker";
 
 const devServerUrl = process.env.VITE_DEV_SERVER_URL ?? 'http://localhost:5180';
 
@@ -43,18 +70,60 @@ const MAIN_WINDOW_MIN_WIDTH = 460;
 const MAIN_WINDOW_MIN_HEIGHT = 320;
 const MAIN_WINDOW_DEFAULT_WIDTH = 560;
 const MAIN_WINDOW_DEFAULT_HEIGHT = 360;
+const log = Log.getInstance().forSource(path.basename(__filename))
+
+function buildCaptureSourcesFromConfig(
+  config: CaptureOptionsConfig,
+): readonly MediaChunkSource[] {
+  const sources: MediaChunkSource[] = [];
+
+  if (config.microphone.enabled) {
+    sources.push("microphone");
+  }
+
+  if (config.webcam.enabled) {
+    sources.push("webcam");
+  }
+
+  if (config.systemAudio.enabled) {
+    sources.push("system-audio");
+  }
+
+  if (config.screen.enabled) {
+    sources.push("screen-video");
+  }
+
+  if (config.screenshot.enabled) {
+    sources.push("screenshot");
+  }
+
+  return sources.length > 0 ? sources : DEFAULT_RECORDING_CAPTURE_SOURCES;
+}
 
 function publishToAllWindows(channel: string, payload: unknown): void {
   for (const window of BrowserWindow.getAllWindows()) {
-    window.webContents.send(channel, payload);
+    if (window.isDestroyed()) {
+      continue;
+    }
+    const contents = window.webContents;
+    if (contents.isDestroyed()) {
+      continue;
+    }
+    try {
+      contents.send(channel, payload);
+    } catch {
+      // Window may be closing; ignore send failures.
+    }
   }
 }
 
 function createWindowBoundsSnapshot(
   window: BrowserWindow,
 ): WindowBoundsSnapshot {
-  const [minWidth, minHeight] = window.getMinimumSize();
   const bounds = window.getBounds();
+  const [rawMinWidth, rawMinHeight] = window.getMinimumSize();
+  const minWidth = rawMinWidth > 0 ? rawMinWidth : MAIN_WINDOW_MIN_WIDTH;
+  const minHeight = rawMinHeight > 0 ? rawMinHeight : MAIN_WINDOW_MIN_HEIGHT;
 
   return {
     x: bounds.x,
@@ -66,33 +135,129 @@ function createWindowBoundsSnapshot(
   };
 }
 
+function getMinimumWindowSize(window: BrowserWindow): {
+  readonly width: number;
+  readonly height: number;
+} {
+  const [rawMinWidth, rawMinHeight] = window.getMinimumSize();
+
+  return {
+    width: rawMinWidth > 0 ? rawMinWidth : MAIN_WINDOW_MIN_WIDTH,
+    height: rawMinHeight > 0 ? rawMinHeight : MAIN_WINDOW_MIN_HEIGHT,
+  };
+}
+
+function getWindowSizeForPreset(
+  window: BrowserWindow,
+  preset: WindowSizePreset,
+): {
+  readonly width: number;
+  readonly height: number;
+} {
+  const display = screen.getDisplayMatching(window.getBounds());
+  const { width: workAreaWidth, height: workAreaHeight } = display.workAreaSize;
+
+  switch (preset) {
+    case "50%":
+      return clampWindowSize(
+        {
+          width: 900,
+          height: 700,
+        },
+        getMinimumWindowSize(window),
+      );
+    case "75%":
+      return clampWindowSize(
+        {
+          width: Math.round(workAreaWidth * 0.75),
+          height: Math.round(workAreaHeight * 0.75),
+        },
+        getMinimumWindowSize(window),
+      );
+    case "90%":
+      return clampWindowSize(
+        {
+          width: Math.round(workAreaWidth * 0.9),
+          height: Math.round(workAreaHeight * 0.9),
+        },
+        getMinimumWindowSize(window),
+      );
+  }
+}
+
 function publishWindowBounds(window: BrowserWindow): void {
-  window.webContents.send(
-    WINDOW_CONTROL_EVENT_CHANNELS.boundsChanged,
-    createWindowBoundsSnapshot(window),
+  if (window.isDestroyed()) {
+    return;
+  }
+  const contents = window.webContents;
+  if (contents.isDestroyed()) {
+    return;
+  }
+  try {
+    contents.send(
+      WINDOW_CONTROL_EVENT_CHANNELS.boundsChanged,
+      createWindowBoundsSnapshot(window),
+    );
+  } catch {
+    // Ignore if the window is tearing down.
+  }
+}
+
+const roleByWebContentsId = new Map<number, string>();
+const cardWindows = new Map<CardWindowRole, BrowserWindow>();
+
+function getCardOpenState(): CardWindowsOpenState {
+  return {
+    openIds: {
+      controls: cardWindows.has("controls"),
+      options: cardWindows.has("options"),
+      sandbox: cardWindows.has("sandbox"),
+    },
+  };
+}
+
+function broadcastCardWindowOpenState(): void {
+  publishToAllWindows(
+    WINDOW_REGISTRY_EVENT_CHANNELS.openStateChanged,
+    getCardOpenState(),
   );
 }
 
-function createMainWindow() {
+function registerWindowBoundsListeners(window: BrowserWindow): void {
+  window.on("move", () => {
+    publishWindowBounds(window);
+  });
+  window.on("resize", () => {
+    publishWindowBounds(window);
+  });
+  window.webContents.on("did-finish-load", () => {
+    publishWindowBounds(window);
+  });
+}
+
+function createWindow(role: typeof WINDOW_ROLES[keyof typeof WINDOW_ROLES]): BrowserWindow {
   const preloadPath = path.join(__dirname, "../preload/index.js");
 
-  const mainWindow = new BrowserWindow({
-    width: MAIN_WINDOW_DEFAULT_WIDTH ?? 1800,
-    height: MAIN_WINDOW_DEFAULT_HEIGHT ?? 900,
-    minWidth: MAIN_WINDOW_MIN_WIDTH ?? 1600,
-    minHeight: MAIN_WINDOW_MIN_HEIGHT ?? 900,
+  const isLauncher = role === WINDOW_ROLES.launcher;
+
+  const browserWindow = new BrowserWindow({
+    width: isLauncher ? MAIN_WINDOW_DEFAULT_WIDTH : 520,
+    height: isLauncher ? MAIN_WINDOW_DEFAULT_HEIGHT : 640,
+    minWidth: isLauncher ? MAIN_WINDOW_MIN_WIDTH : 320,
+    minHeight: isLauncher ? MAIN_WINDOW_MIN_HEIGHT : 240,
     alwaysOnTop: true,
     frame: false,
     transparent: true,
     backgroundColor: "#00000000",
     resizable: true,
-    show: false, // Start hidden, then show after setup
+    show: false,
     fullscreenable: false,
+    skipTaskbar: true,
     hasShadow: true,
     focusable: true,
     movable: true,
-    x: 0, // Start at a visible position
-    y: 100,
+    x: isLauncher ? 0 : 40,
+    y: isLauncher ? 100 : 140,
     webPreferences: {
       preload: preloadPath,
       contextIsolation: true,
@@ -101,24 +266,121 @@ function createMainWindow() {
     },
   });
 
-  mainWindow.on("move", () => {
-    publishWindowBounds(mainWindow);
-  });
-  mainWindow.on("resize", () => {
-    publishWindowBounds(mainWindow);
-  });
-  mainWindow.webContents.on("did-finish-load", () => {
-    publishWindowBounds(mainWindow);
+  roleByWebContentsId.set(browserWindow.webContents.id, role);
+
+  browserWindow.on("closed", () => {
+    roleByWebContentsId.delete(browserWindow.webContents.id);
+    if (!isLauncher) {
+      cardWindows.delete(role as CardWindowRole);
+    }
+    broadcastCardWindowOpenState();
   });
 
-  if (devServerUrl) {
-    void mainWindow.loadURL(devServerUrl);
-    mainWindow.webContents.openDevTools({ mode: "detach" });
-    return mainWindow;
+  registerWindowBoundsListeners(browserWindow);
+
+  if (!isLauncher) {
+    cardWindows.set(role as CardWindowRole, browserWindow);
   }
 
-  void mainWindow.loadFile(path.join(__dirname, "../../../dist/index.html"));
-  return mainWindow;
+  const hash = role;
+  if (devServerUrl) {
+    void browserWindow.loadURL(`${devServerUrl}#${hash}`);
+    if (isLauncher) {
+      browserWindow.webContents.openDevTools({ mode: "detach" });
+    }
+  } else {
+    void browserWindow.loadFile(path.join(__dirname, "../../../dist/index.html"), {
+      hash,
+    });
+  }
+
+  browserWindow.once("ready-to-show", () => {
+    browserWindow.show();
+    broadcastCardWindowOpenState();
+  });
+
+  return browserWindow;
+}
+
+async function listCaptureDisplays(): Promise<readonly CaptureDisplaySnapshot[]> {
+  const sources = await desktopCapturer.getSources({
+    types: ["screen"],
+    thumbnailSize: { width: 0, height: 0 },
+  });
+
+  const sourceByDisplayId = new Map(
+    sources
+      .filter((source) => source.display_id)
+      .map((source) => [source.display_id, source]),
+  );
+  const primaryDisplayId = String(screen.getPrimaryDisplay().id);
+
+  return screen.getAllDisplays().map((display) => {
+    const displayId = String(display.id);
+    const source = sourceByDisplayId.get(displayId);
+
+    return {
+      displayId,
+      label: display.label || source?.name || `Display ${displayId}`,
+      isPrimary: displayId === primaryDisplayId,
+      bounds: {
+        x: display.bounds.x,
+        y: display.bounds.y,
+        width: display.bounds.width,
+        height: display.bounds.height,
+      },
+      sourceId: source?.id,
+    };
+  });
+}
+
+function getPermissionStatus(kind: "microphone" | "camera" | "screen"): string {
+  if (process.platform !== "darwin" && process.platform !== "win32") {
+    return "unsupported";
+  }
+
+  try {
+    return systemPreferences.getMediaAccessStatus(kind);
+  } catch {
+    return "unsupported";
+  }
+}
+
+function getCapturePermissions(): CapturePermissionSnapshot {
+  const microphone = getPermissionStatus("microphone");
+  const camera = getPermissionStatus("camera");
+  const screenPermission = getPermissionStatus("screen");
+
+  return {
+    microphone:
+      microphone === "granted" ||
+        microphone === "denied" ||
+        microphone === "restricted" ||
+        microphone === "not-determined"
+        ? microphone
+        : "unsupported",
+    camera:
+      camera === "granted" ||
+        camera === "denied" ||
+        camera === "restricted" ||
+        camera === "not-determined"
+        ? camera
+        : "unsupported",
+    screen:
+      screenPermission === "granted" ||
+        screenPermission === "denied" ||
+        screenPermission === "restricted" ||
+        screenPermission === "not-determined"
+        ? screenPermission
+        : "unsupported",
+    systemAudio:
+      screenPermission === "granted" ||
+        screenPermission === "denied" ||
+        screenPermission === "restricted" ||
+        screenPermission === "not-determined"
+        ? screenPermission
+        : "unsupported",
+  };
 }
 
 function createEmptyTrayIcon(): Electron.NativeImage {
@@ -147,20 +409,18 @@ function createTrayMenu(args: {
 }
 async function initializeApp() {
   app.whenReady().then(async () => {
-    const mainWindow = createMainWindow();
-    console.log('[app createWindow]')
-    console.log('[mainWindow]', mainWindow)
-    console.log('[app createWindow]')
-    console.log('[mainWindow]', mainWindow)
-    mainWindow.show();
+    const mainWindow = createWindow(WINDOW_ROLES.launcher);
+    log.ger({ type: "info", message: "[app createWindow]", data: mainWindow })
     mainWindow.focus();
 
     let tray: Tray | null = null;
 
     const toggleVisibility = () => {
       if (mainWindow.isVisible()) {
+        log.ger({ type: "info", message: "[app toggleVisibility] hide" })
         mainWindow.hide();
       } else {
+        log.ger({ type: "info", message: "[app toggleVisibility] show" })
         mainWindow.show();
         mainWindow.focus();
       }
@@ -173,8 +433,8 @@ async function initializeApp() {
       }
 
       const label = mainWindow.isVisible()
-        ? "Hide agent controls"
-        : "Show agent controls";
+        ? "Hide overlay"
+        : "Show overlay";
 
       tray.setContextMenu(
         createTrayMenu({
@@ -198,31 +458,89 @@ async function initializeApp() {
 
     let currentSession: SessionSnapshot | null = null;
     let sessionLifecycleController: SessionLifecycleController | null = null;
-
-    const shortcutsConfigStore = createShortcutsConfigStore(app);
+    const appConfigStore = createAppConfigStore(app);
+    const monitorPicker = createMonitorPickerController({
+      onSelectionChanged(displayId) {
+        publishToAllWindows(
+          CAPTURE_OPTIONS_EVENT_CHANNELS.selectedDisplayChanged,
+          { displayId },
+        );
+      },
+    });
 
     ipcMain.handle(APP_CONTROL_CHANNELS.closeApplication, () => {
+      monitorPicker.close();
       app.quit();
     });
 
+
+    ipcMain.handle(APP_CONTROL_CHANNELS.toggleVisibility, async () => {
+      toggleVisibility();
+    });
+
+    ipcMain.handle(WINDOW_REGISTRY_CHANNELS.getContext, (event) => {
+      const role = roleByWebContentsId.get(event.sender.id);
+      if (!role) {
+        log.ger({ type: "error", message: "[app WINDOW_REGISTRY_CHANNELS.getContext] Unable to resolve window role." })
+        throw new Error("Unable to resolve window role.");
+      }
+      return { role };
+    });
+
+    ipcMain.handle(WINDOW_REGISTRY_CHANNELS.getOpenState, () => {
+      return getCardOpenState();
+    });
+
+    ipcMain.handle(WINDOW_REGISTRY_CHANNELS.openWindow, (_event, input: unknown) => {
+      if (typeof input !== "string" || !isCardWindowRole(input)) {
+        throw new Error("Invalid card window role.");
+      }
+      const existing = cardWindows.get(input);
+      if (existing && !existing.isDestroyed()) {
+        existing.show();
+        existing.focus();
+        broadcastCardWindowOpenState();
+        return;
+      }
+      createWindow(input);
+    });
+
+    ipcMain.handle(WINDOW_REGISTRY_CHANNELS.closeWindow, (_event, input: unknown) => {
+      if (typeof input !== "string" || !isCardWindowRole(input)) {
+        throw new Error("Invalid card window role.");
+      }
+      const target = cardWindows.get(input);
+      target?.close();
+    });
+
+    ipcMain.handle(WINDOW_REGISTRY_CHANNELS.focusWindow, (_event, input: unknown) => {
+      if (typeof input !== "string" || !isCardWindowRole(input)) {
+        throw new Error("Invalid card window role.");
+      }
+      const target = cardWindows.get(input);
+      if (target && !target.isDestroyed()) {
+        target.focus();
+      }
+    });
+
     ipcMain.handle(SHORTCUTS_IPC_CHANNELS.ensureConfig, async () => {
-      await shortcutsConfigStore.ensureConfigExists();
+      await appConfigStore.ensureConfigExists();
     });
 
     ipcMain.handle(SHORTCUTS_IPC_CHANNELS.getConfig, async () => {
-      return shortcutsConfigStore.loadConfig();
+      return appConfigStore.loadShortcutsConfig();
     });
 
     ipcMain.handle(
       SHORTCUTS_IPC_CHANNELS.setShortcutEnabled,
       async (_event, input: unknown) => {
         const request = normalizeSetShortcutEnabledRequest(input);
-        await shortcutsConfigStore.updateShortcutEnabled({
+        await appConfigStore.updateShortcutEnabled({
           shortcutId: request.shortcutId,
           enabled: request.enabled,
         });
 
-        const updatedConfig = await shortcutsConfigStore.loadConfig();
+        const updatedConfig = await appConfigStore.loadShortcutsConfig();
 
         if (sessionLifecycleController) {
           await registerConfiguredGlobalShortcuts({
@@ -230,12 +548,80 @@ async function initializeApp() {
             mainWindow,
             controller: sessionLifecycleController,
             getCurrentSession: () => currentSession,
+            getCaptureSources: async () => {
+              const captureOptions = await appConfigStore.loadCaptureOptionsConfig();
+              return buildCaptureSourcesFromConfig(captureOptions);
+            },
           });
         }
       },
     );
 
+    ipcMain.handle(CAPTURE_OPTIONS_CHANNELS.getConfig, async () => {
+      return appConfigStore.loadCaptureOptionsConfig();
+    });
+
+    ipcMain.handle(CAPTURE_OPTIONS_CHANNELS.setConfig, async (_event, input) => {
+      const config = normalizeCaptureOptionsConfig(input);
+      return appConfigStore.saveCaptureOptionsConfig(config);
+    });
+
+    ipcMain.handle(CAPTURE_OPTIONS_CHANNELS.listDisplays, async () => {
+      return listCaptureDisplays();
+    });
+
+    ipcMain.handle(CAPTURE_OPTIONS_CHANNELS.getPermissions, async () => {
+      return getCapturePermissions();
+    });
+
+    ipcMain.handle(
+      CAPTURE_OPTIONS_CHANNELS.openMonitorPicker,
+      async (_event, input) => {
+        let selectedDisplayId: string | undefined;
+        if (typeof input === "object" && input !== null) {
+          const candidate = (input as Record<string, unknown>).selectedDisplayId;
+          log.ger({ type: "debug", message: "[app CAPTURE_OPTIONS_CHANNELS.openMonitorPicker] candidate", data: candidate })
+          if (typeof candidate === "string" && candidate.trim().length > 0) {
+            selectedDisplayId = candidate.trim();
+          }
+        }
+
+        const resolvedDisplayId = monitorPicker.open({ selectedDisplayId });
+        return { displayId: resolvedDisplayId };
+      },
+    );
+
+    ipcMain.handle(CAPTURE_OPTIONS_CHANNELS.closeMonitorPicker, async () => {
+      monitorPicker.close();
+    });
+
+    mainWindow.webContents.session.setDisplayMediaRequestHandler(
+      async (_request, callback) => {
+        const captureOptions = await appConfigStore.loadCaptureOptionsConfig();
+        const sources = await desktopCapturer.getSources({
+          types: ["screen"],
+          thumbnailSize: { width: 0, height: 0 },
+        });
+        const selectedSource =
+          sources.find(
+            (source) => source.display_id === captureOptions.display.displayId,
+          ) ?? sources[0];
+
+        if (!selectedSource) {
+          callback({});
+          return;
+        }
+
+        callback({
+          video: selectedSource,
+          audio: captureOptions.systemAudio.enabled ? "loopback" : undefined,
+        });
+      },
+      { useSystemPicker: false },
+    );
+
     app.on("will-quit", () => {
+      monitorPicker.close();
       globalShortcut.unregisterAll();
     });
 
@@ -263,10 +649,39 @@ async function initializeApp() {
 
       const request = parseResizeWindowByRequest(input);
       const [currentWidth, currentHeight] = targetWindow.getSize();
-      targetWindow.setSize(
-        currentWidth + request.deltaWidth,
-        currentHeight + request.deltaHeight,
+      targetWindow.setSize(currentWidth + request.deltaWidth, currentHeight + request.deltaHeight);
+    });
+    ipcMain.handle(WINDOW_CONTROL_CHANNELS.setWindowSize, (event, input) => {
+      const targetWindow = BrowserWindow.fromWebContents(event.sender);
+
+      if (!targetWindow) {
+        throw new Error("Unable to resolve target window");
+      }
+
+      const request = parseSetWindowSizeRequest(input);
+      const nextSize = clampWindowSize(
+        {
+          width: request.width,
+          height: request.height,
+        },
+        getMinimumWindowSize(targetWindow),
       );
+
+      targetWindow.setSize(nextSize.width, nextSize.height);
+      return createWindowBoundsSnapshot(targetWindow);
+    });
+    ipcMain.handle(WINDOW_CONTROL_CHANNELS.setWindowSizePreset, async (event, input) => {
+      const targetWindow = BrowserWindow.fromWebContents(event.sender);
+      log.ger({ type: "info", message: "[app WINDOW_CONTROL_CHANNELS.setWindowSizePreset] targetWindow", data: { targetWindow, input, event } })
+      if (!targetWindow) {
+        throw new Error("Unable to resolve target window");
+      }
+
+      const request = parseSetWindowSizePresetRequest(input);
+      const nextSize = getWindowSizeForPreset(targetWindow, request.preset as WindowSizePreset);
+
+      targetWindow.setSize(nextSize.width, nextSize.height);
+      return createWindowBoundsSnapshot(targetWindow);
     });
     ipcMain.handle(WINDOW_CONTROL_CHANNELS.getWindowBounds, (event) => {
       const targetWindow = BrowserWindow.fromWebContents(event.sender);
@@ -322,8 +737,20 @@ async function initializeApp() {
     const storageLayoutResolver = createSessionStorageLayoutResolver(appDataRoot);
     const recordingPersistence = createRecordingPersistenceService(storageLayoutResolver);
     const recordingExport = createRecordingExportService(storageLayoutResolver);
+    const sandboxRecordingPersistence = createRecordingSandboxPersistenceService(
+      path.join(
+        app.getPath("videos"),
+        "Interview Sentiment Analyzer",
+        "sandbox-captures",
+      ),
+    );
 
-    registerRecordingIpc(ipcMain, recordingPersistence, sessionLifecycleBackend.controller);
+    registerRecordingIpc(
+      ipcMain,
+      recordingPersistence,
+      sandboxRecordingPersistence,
+      sessionLifecycleBackend.controller,
+    );
 
     ipcMain.handle(
       RECORDING_CHANNELS.exportRecording,
@@ -362,19 +789,22 @@ async function initializeApp() {
 
     sessionLifecycleController = sessionLifecycleBackend.controller;
 
-    const shortcutsConfig = await shortcutsConfigStore.loadConfig();
+    const shortcutsConfig = await appConfigStore.loadShortcutsConfig();
     await registerConfiguredGlobalShortcuts({
       config: shortcutsConfig,
       mainWindow,
       controller: sessionLifecycleController,
       getCurrentSession: () => currentSession,
+      getCaptureSources: async () => {
+        const captureOptions = await appConfigStore.loadCaptureOptionsConfig();
+        return buildCaptureSourcesFromConfig(captureOptions);
+      },
     });
 
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) {
-        const browserWindow = createMainWindow();
+        const browserWindow = createWindow(WINDOW_ROLES.launcher);
         console.log('[browserWindow show]', browserWindow)
-        browserWindow.show();
         browserWindow.setMovable(true);
         console.log('[app activate], browserWindow movable set to true')
       }

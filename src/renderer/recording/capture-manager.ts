@@ -5,22 +5,10 @@ import type {
   RecordingStateSnapshot,
   RecordingExportStatus,
 } from "@/shared/recording";
+import type { CaptureOptionsConfig } from "@/shared/capture-options";
 import type { MediaChunkSource } from "@/shared/session-lifecycle";
+import { AUDIO_MIME_CANDIDATES, VIDEO_MIME_CANDIDATES, DEFAULT_CHUNK_INTERVAL_MS, DEFAULT_SCREENSHOT_INTERVAL_MS } from "./constants";
 
-const DEFAULT_CHUNK_INTERVAL_MS = 15_000;
-const DEFAULT_SCREENSHOT_INTERVAL_MS = 10_000;
-
-const AUDIO_MIME_CANDIDATES = [
-  "audio/webm;codecs=opus",
-  "audio/webm",
-  "audio/ogg;codecs=opus",
-];
-
-const VIDEO_MIME_CANDIDATES = [
-  "video/webm;codecs=vp9,opus",
-  "video/webm;codecs=vp8,opus",
-  "video/webm",
-];
 
 function pickSupportedMimeType(candidates: string[]): string | undefined {
   if (typeof MediaRecorder === "undefined") {
@@ -34,6 +22,8 @@ type SourceRecorder = {
   readonly source: MediaChunkSource;
   readonly mediaRecorder: MediaRecorder;
   readonly stream: MediaStream;
+  activeDeviceId?: string;
+  activeDisplayId?: string;
   sequenceNumber: number;
   chunkCount: number;
   latestChunkPath?: string;
@@ -47,6 +37,7 @@ type ScreenshotCapture = {
   readonly videoElement: HTMLVideoElement;
   readonly canvas: OffscreenCanvas;
   readonly stream: MediaStream;
+  activeDisplayId?: string;
   sequenceNumber: number;
   chunkCount: number;
   latestChunkPath?: string;
@@ -85,6 +76,7 @@ export class CaptureManager {
   private sessionId: string | null = null;
   private recorders = new Map<MediaChunkSource, SourceRecorder>();
   private screenshotCapture: ScreenshotCapture | null = null;
+  private displayStream: MediaStream | null = null;
   private exportStatus: RecordingExportStatus = "idle";
   private exportFilePath?: string;
   private exportErrorMessage?: string;
@@ -97,6 +89,7 @@ export class CaptureManager {
   async startCapture(
     sessionId: string,
     sources: readonly MediaChunkSource[],
+    captureOptions: CaptureOptionsConfig,
   ): Promise<void> {
     this.sessionId = sessionId;
     this.exportStatus = "idle";
@@ -105,22 +98,23 @@ export class CaptureManager {
 
     const startPromises: Promise<void>[] = [];
 
-    for (const source of sources) {
-      if (source === "screenshot") {
-        continue;
-      }
-      startPromises.push(this.startSourceRecorder(sessionId, source));
+    if (sources.some((source) => this.isDisplaySource(source))) {
+      startPromises.push(
+        this.startDisplayCapture(sessionId, sources, captureOptions),
+      );
+    }
+
+    if (sources.includes("microphone")) {
+      startPromises.push(
+        this.startMicrophoneRecorder(sessionId, captureOptions),
+      );
+    }
+
+    if (sources.includes("webcam")) {
+      startPromises.push(this.startWebcamRecorder(sessionId, captureOptions));
     }
 
     await Promise.allSettled(startPromises);
-
-    if (sources.includes("screenshot") || sources.includes("screen-video")) {
-      const screenRecorder = this.recorders.get("screen-video");
-      if (screenRecorder) {
-        this.startScreenshotCapture(sessionId, screenRecorder.stream);
-      }
-    }
-
     this.publishState();
   }
 
@@ -136,6 +130,14 @@ export class CaptureManager {
     }
 
     await Promise.allSettled(flushPromises);
+
+    if (this.displayStream) {
+      for (const track of this.displayStream.getTracks()) {
+        track.stop();
+      }
+      this.displayStream = null;
+    }
+
     this.publishState();
   }
 
@@ -148,6 +150,8 @@ export class CaptureManager {
         state: recorder.state,
         chunkCount: recorder.chunkCount,
         latestChunkPath: recorder.latestChunkPath,
+        activeDeviceId: recorder.activeDeviceId,
+        activeDisplayId: recorder.activeDisplayId,
         errorCode: recorder.errorCode,
         errorMessage: recorder.errorMessage,
       });
@@ -159,6 +163,7 @@ export class CaptureManager {
         state: this.screenshotCapture.state,
         chunkCount: this.screenshotCapture.chunkCount,
         latestChunkPath: this.screenshotCapture.latestChunkPath,
+        activeDisplayId: this.screenshotCapture.activeDisplayId,
         errorCode: this.screenshotCapture.errorCode,
         errorMessage: this.screenshotCapture.errorMessage,
       });
@@ -212,59 +217,60 @@ export class CaptureManager {
       }
       this.screenshotCapture = null;
     }
+
+    if (this.displayStream) {
+      for (const track of this.displayStream.getTracks()) {
+        track.stop();
+      }
+      this.displayStream = null;
+    }
   }
 
-  private async startSourceRecorder(
-    sessionId: string,
-    source: MediaChunkSource,
-  ): Promise<void> {
-    const initial: Omit<SourceRecorder, "mediaRecorder" | "stream"> = {
-      source,
-      sequenceNumber: 0,
-      chunkCount: 0,
-      state: "requesting-permission",
-    };
+  private isDisplaySource(source: MediaChunkSource): boolean {
+    return (
+      source === "screen-video" ||
+      source === "system-audio" ||
+      source === "screenshot"
+    );
+  }
 
+  private async startMicrophoneRecorder(
+    sessionId: string,
+    captureOptions: CaptureOptionsConfig,
+  ): Promise<void> {
+    await this.startUserMediaRecorder(sessionId, "microphone", {
+      audio: captureOptions.microphone.deviceId
+        ? {
+          deviceId: { exact: captureOptions.microphone.deviceId },
+        }
+        : true,
+      video: false,
+    });
+  }
+
+  private async startWebcamRecorder(
+    sessionId: string,
+    captureOptions: CaptureOptionsConfig,
+  ): Promise<void> {
+    await this.startUserMediaRecorder(sessionId, "webcam", {
+      audio: false,
+      video: captureOptions.webcam.deviceId
+        ? {
+          deviceId: { exact: captureOptions.webcam.deviceId },
+        }
+        : true,
+    });
+  }
+
+  private async startUserMediaRecorder(
+    sessionId: string,
+    source: "microphone" | "webcam",
+    constraints: MediaStreamConstraints,
+  ): Promise<void> {
     let stream: MediaStream;
-    let mimeType: string;
 
     try {
-      if (source === "microphone") {
-        const supported = pickSupportedMimeType(AUDIO_MIME_CANDIDATES);
-        if (!supported) {
-          this.handleSourceError(sessionId, source, "not-supported", "No supported audio MIME type");
-          return;
-        }
-        mimeType = supported;
-        stream = await navigator.mediaDevices.getUserMedia({
-          audio: true,
-          video: false,
-        });
-      } else if (source === "screen-video") {
-        const supported = pickSupportedMimeType(VIDEO_MIME_CANDIDATES);
-        if (!supported) {
-          this.handleSourceError(sessionId, source, "not-supported", "No supported video MIME type");
-          return;
-        }
-        mimeType = supported;
-        stream = await navigator.mediaDevices.getDisplayMedia({
-          video: true,
-          audio: true,
-        });
-      } else if (source === "system-audio") {
-        const supported = pickSupportedMimeType(AUDIO_MIME_CANDIDATES);
-        if (!supported) {
-          this.handleSourceError(sessionId, source, "not-supported", "No supported audio MIME type");
-          return;
-        }
-        mimeType = supported;
-        stream = await navigator.mediaDevices.getDisplayMedia({
-          video: false,
-          audio: true,
-        });
-      } else {
-        return;
-      }
+      stream = await navigator.mediaDevices.getUserMedia(constraints);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       const code: CaptureErrorCode = errorMessage.includes("Permission")
@@ -274,23 +280,153 @@ export class CaptureManager {
       return;
     }
 
-    const mediaRecorder = new MediaRecorder(stream, { mimeType });
-    const recorder: SourceRecorder = {
-      ...initial,
-      mediaRecorder,
+    const activeDeviceId =
+      source === "microphone"
+        ? stream.getAudioTracks()[0]?.getSettings().deviceId
+        : stream.getVideoTracks()[0]?.getSettings().deviceId;
+
+    await this.startRecorderForStream(
+      sessionId,
+      source,
       stream,
+      source === "microphone" ? AUDIO_MIME_CANDIDATES : VIDEO_MIME_CANDIDATES,
+      {
+        activeDeviceId,
+      },
+    );
+  }
+
+  private async startDisplayCapture(
+    sessionId: string,
+    sources: readonly MediaChunkSource[],
+    captureOptions: CaptureOptionsConfig,
+  ): Promise<void> {
+    let stream: MediaStream;
+
+    try {
+      stream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: sources.includes("system-audio"),
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const code: CaptureErrorCode = errorMessage.includes("Permission")
+        ? "permission-denied"
+        : "device-unavailable";
+
+      if (sources.includes("screen-video")) {
+        this.handleSourceError(sessionId, "screen-video", code, errorMessage);
+      }
+      if (sources.includes("system-audio")) {
+        this.handleSourceError(sessionId, "system-audio", code, errorMessage);
+      }
+      if (sources.includes("screenshot")) {
+        this.handleSourceError(sessionId, "screenshot", code, errorMessage);
+      }
+      return;
+    }
+
+    this.displayStream = stream;
+
+    const activeDisplayId = captureOptions.display.displayId;
+    const videoTrack = stream.getVideoTracks()[0];
+    const audioTracks = stream.getAudioTracks();
+
+    if (sources.includes("screen-video")) {
+      if (!videoTrack) {
+        this.handleSourceError(
+          sessionId,
+          "screen-video",
+          "device-unavailable",
+          "No display video track is available",
+        );
+      } else {
+        await this.startRecorderForStream(
+          sessionId,
+          "screen-video",
+          new MediaStream([videoTrack.clone()]),
+          VIDEO_MIME_CANDIDATES,
+          {
+            activeDisplayId,
+          },
+        );
+      }
+    }
+
+    if (sources.includes("system-audio")) {
+      if (audioTracks.length === 0) {
+        this.handleSourceError(
+          sessionId,
+          "system-audio",
+          "device-unavailable",
+          "System audio is unavailable for the selected display",
+        );
+      } else {
+        await this.startRecorderForStream(
+          sessionId,
+          "system-audio",
+          new MediaStream(audioTracks.map((track) => track.clone())),
+          AUDIO_MIME_CANDIDATES,
+          {
+            activeDisplayId,
+          },
+        );
+      }
+    }
+
+    if ((sources.includes("screenshot") || sources.includes("screen-video")) && videoTrack) {
+      this.startScreenshotCapture(
+        sessionId,
+        new MediaStream([videoTrack.clone()]),
+        activeDisplayId,
+      );
+    }
+  }
+
+  private async startRecorderForStream(
+    sessionId: string,
+    source: MediaChunkSource,
+    stream: MediaStream,
+    mimeCandidates: readonly string[],
+    activeSelection: {
+      readonly activeDeviceId?: string;
+      readonly activeDisplayId?: string;
+    },
+  ): Promise<void> {
+    const supported = pickSupportedMimeType([...mimeCandidates]);
+    if (!supported) {
+      this.handleSourceError(
+        sessionId,
+        source,
+        "not-supported",
+        `No supported MIME type is available for ${source}`,
+      );
+      for (const track of stream.getTracks()) {
+        track.stop();
+      }
+      return;
+    }
+
+    const recorder: SourceRecorder = {
+      source,
+      mediaRecorder: new MediaRecorder(stream, { mimeType: supported }),
+      stream,
+      activeDeviceId: activeSelection.activeDeviceId,
+      activeDisplayId: activeSelection.activeDisplayId,
+      sequenceNumber: 0,
+      chunkCount: 0,
       state: "capturing",
     };
 
     this.recorders.set(source, recorder);
 
-    mediaRecorder.ondataavailable = (event) => {
+    recorder.mediaRecorder.ondataavailable = (event) => {
       if (event.data.size > 0) {
-        void this.handleChunkData(sessionId, recorder, mimeType, event.data);
+        void this.handleChunkData(sessionId, recorder, supported, event.data);
       }
     };
 
-    mediaRecorder.onerror = () => {
+    recorder.mediaRecorder.onerror = () => {
       recorder.state = "error";
       recorder.errorCode = "recorder-failed";
       recorder.errorMessage = "MediaRecorder encountered an error";
@@ -323,11 +459,11 @@ export class CaptureManager {
       };
     });
 
-    mediaRecorder.start();
+    recorder.mediaRecorder.start();
 
     recorder.chunkIntervalId = setInterval(() => {
-      if (mediaRecorder.state === "recording") {
-        mediaRecorder.requestData();
+      if (recorder.mediaRecorder.state === "recording") {
+        recorder.mediaRecorder.requestData();
       }
     }, DEFAULT_CHUNK_INTERVAL_MS);
 
@@ -372,6 +508,7 @@ export class CaptureManager {
   private startScreenshotCapture(
     sessionId: string,
     screenStream: MediaStream,
+    activeDisplayId?: string,
   ): void {
     const videoTrack = screenStream.getVideoTracks()[0];
     if (!videoTrack) {
@@ -393,6 +530,7 @@ export class CaptureManager {
       videoElement,
       canvas,
       stream: screenStream,
+      activeDisplayId,
       sequenceNumber: 0,
       chunkCount: 0,
       state: "capturing",

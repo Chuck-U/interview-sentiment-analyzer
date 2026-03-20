@@ -2,7 +2,9 @@ import type { IpcMain } from "electron";
 
 import type { SessionLifecycleController } from "../../interfaces/controllers/session-lifecycle-controller";
 import type { RecordingPersistenceService } from "../recording/recording-persistence";
+import type { RecordingSandboxPersistenceService } from "../recording/recording-sandbox-persistence";
 import type { MediaChunkSource } from "../../../shared/session-lifecycle";
+import type { SandboxRecordingKind } from "../../../shared/recording";
 import { RECORDING_CHANNELS } from "./recording-channels";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -24,6 +26,7 @@ function parseNumberArray(value: unknown): number[] {
 export function registerRecordingIpc(
   ipcMain: IpcMain,
   persistence: RecordingPersistenceService,
+  sandboxPersistence: RecordingSandboxPersistenceService,
   controller: SessionLifecycleController,
 ): void {
   ipcMain.handle(
@@ -95,6 +98,44 @@ export function registerRecordingIpc(
       });
 
       return result;
+    },
+  );
+
+  ipcMain.handle(
+    RECORDING_CHANNELS.beginSandboxRecording,
+    async (_event, input: unknown) => {
+      if (!isRecord(input)) {
+        throw new Error("beginSandboxRecording request must be an object");
+      }
+
+      const kind = input.kind as SandboxRecordingKind;
+      return sandboxPersistence.beginRecording({
+        kind,
+      });
+    },
+  );
+
+  ipcMain.handle(
+    RECORDING_CHANNELS.saveSandboxRecording,
+    async (_event, input: unknown) => {
+      if (!isRecord(input)) {
+        throw new Error("saveSandboxRecording request must be an object");
+      }
+
+      const kind = input.kind as SandboxRecordingKind;
+      const mimeType = input.mimeType as string;
+      const startedAt = input.startedAt as string;
+      const stoppedAt = input.stoppedAt as string;
+      const bufferArray = parseNumberArray(input.buffer);
+      const buffer = Buffer.from(bufferArray);
+
+      return sandboxPersistence.saveRecording({
+        kind,
+        mimeType,
+        startedAt,
+        stoppedAt,
+        buffer,
+      });
     },
   );
 }

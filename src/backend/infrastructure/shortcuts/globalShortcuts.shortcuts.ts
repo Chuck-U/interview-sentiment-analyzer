@@ -2,12 +2,12 @@ import { globalShortcut, type BrowserWindow } from "electron";
 
 import type { SessionLifecycleController } from "../../interfaces/controllers/session-lifecycle-controller";
 import {
-  DEFAULT_RECORDING_CAPTURE_SOURCES,
   type ShortcutAction,
   type ShortcutActionContext,
   SHORTCUT_ACTIONS,
   type ShortcutsConfig,
 } from "../../../shared/shortcuts";
+import type { MediaChunkSource } from "../../../shared/session-lifecycle";
 
 function isShortcutAction(value: unknown): value is ShortcutAction {
   return typeof value === "string" && SHORTCUT_ACTIONS.includes(value as ShortcutAction);
@@ -25,12 +25,14 @@ async function focusWindow(args: {
 async function toggleRecording(args: {
   readonly controller: SessionLifecycleController;
   readonly currentSession: ShortcutActionContext["currentSession"];
+  readonly getCaptureSources: () => Promise<readonly MediaChunkSource[]>;
 }): Promise<void> {
   const { currentSession } = args;
+  const captureSources = await args.getCaptureSources();
 
   if (!currentSession) {
     await args.controller.startSession({
-      captureSources: DEFAULT_RECORDING_CAPTURE_SOURCES,
+      captureSources,
     });
     return;
   }
@@ -48,7 +50,7 @@ async function toggleRecording(args: {
   }
 
   await args.controller.startSession({
-    captureSources: DEFAULT_RECORDING_CAPTURE_SOURCES,
+    captureSources,
   });
 }
 
@@ -66,13 +68,21 @@ export type RegisterConfiguredGlobalShortcutsArgs = {
   readonly mainWindow: BrowserWindow;
   readonly controller: SessionLifecycleController;
   readonly getCurrentSession: () => ShortcutActionContext["currentSession"];
+  readonly getCaptureSources: () => Promise<readonly MediaChunkSource[]>;
   readonly onActionError?: (error: unknown) => void;
 };
 
 export async function registerConfiguredGlobalShortcuts(
   args: RegisterConfiguredGlobalShortcutsArgs,
 ): Promise<void> {
-  const { config, mainWindow, controller, getCurrentSession, onActionError } =
+  const {
+    config,
+    mainWindow,
+    controller,
+    getCurrentSession,
+    getCaptureSources,
+    onActionError,
+  } =
     args;
 
   // Re-register cleanly on startup/config changes so we don't accumulate handlers.
@@ -106,6 +116,7 @@ export async function registerConfiguredGlobalShortcuts(
               await toggleRecording({
                 controller,
                 currentSession: context.currentSession,
+                getCaptureSources,
               });
               return;
             }

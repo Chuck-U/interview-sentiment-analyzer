@@ -26,6 +26,7 @@ function extensionForMime(mimeType: string): string {
 
 const SOURCE_DIRECTORY: Record<MediaChunkSource, string> = {
   microphone: "chunks/audio",
+  webcam: "chunks/webcam",
   "system-audio": "chunks/system-audio",
   "screen-video": "chunks/screen-video",
   screenshot: "chunks/screenshots",

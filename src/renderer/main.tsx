@@ -1,34 +1,31 @@
-import { useEffect, useState, useRef, useCallback, useMemo } from "react";
-import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useMemo } from "react";
+import type { CSSProperties } from "react";
+
 import { AgentNavigationMenu } from "@/components/ui/navigation-menu";
+import type { WindowSizePreset } from "@/shared/window-controls";
+import { WINDOW_ROLES } from "@/shared/window-registry";
 import { Options } from "./Slot/Options";
-import type {
-  MediaChunkSource,
-  SessionSnapshot,
-} from "@/shared/session-lifecycle";
-import type { RecordingStateSnapshot } from "@/shared/recording";
-import type { WindowBoundsSnapshot } from "@/shared/window-controls";
+import type { OptionsCardLayout } from "./Slot/Options";
+import type { SessionSnapshot } from "@/shared/session-lifecycle";
 import {
   DEFAULT_SHORTCUT_ID_RECORDING_TOGGLE,
   formatElectronAcceleratorLabel,
 } from "@/shared/shortcuts";
-import { CaptureManager } from "./recording/capture-manager";
-
-const DEFAULT_CAPTURE_SOURCES: readonly MediaChunkSource[] = [
-  "microphone",
-  "screen-video",
-  "screenshot",
-];
-
-
-type InteractionMode = "move" | "resize";
-
-type ActivePointerGesture = {
-  readonly pointerId: number;
-  readonly mode: InteractionMode;
-  readonly screenX: number;
-  readonly screenY: number;
-};
+import { useCaptureOptions } from "./capture-options/useCaptureOptions";
+import { WindowResizeControl } from "./window-controls/window-resize-control";
+import { useRecordingSession } from "./hooks/useRecordingSession";
+import { useShortcutsWindowEffects } from "./hooks/useShortcutsWindowEffects";
+import { useViews, VIEW_OPTIONS } from "./hooks/useViews";
+import { useWindowRegistrySync } from "./hooks/useWindowRegistrySync";
+import { parseWindowRoleFromLocation } from "./parseWindowRole";
+import { useAppDispatch, useAppSelector } from "./store/hooks";
+import { setFeedbackMessage } from "./store/slices/sessionRecordingSlice";
+import { setShortcutEnabled } from "./store/slices/shortcutsWindowSlice";
+import {
+  pickFirstOpenCardView,
+  setActiveView,
+} from "./store/slices/viewsSlice";
+import { RiCloseFill } from "@remixicon/react";
 
 function getStatusCopy(session: SessionSnapshot | null): {
   readonly label: string;
@@ -61,78 +58,92 @@ function getStatusCopy(session: SessionSnapshot | null): {
   };
 }
 
- function Main() {
-  const currentSessionRef = useRef<SessionSnapshot | null>(null);
-  const pointerGestureRef = useRef<ActivePointerGesture | null>(null);
-  const captureManagerRef = useRef<CaptureManager | null>(null);
+function LauncherMain() {
+  const dispatch = useAppDispatch();
+  useShortcutsWindowEffects();
+  useWindowRegistrySync();
+  const {
+    handleToggleRecording,
+    handleExportRecording: _handleExportRecording,
+    handleCloseApplication,
+  } = useRecordingSession();
+
   const platformLabel = useMemo(() => window.electronApp.platform, []);
-  const [recordingShortcutAccelerator, setRecordingShortcutAccelerator] =
-    useState<string>("CommandOrControl+Shift+R");
-  const shortcutLabel = useMemo(
-    () =>
-      formatElectronAcceleratorLabel(
-        recordingShortcutAccelerator,
-        platformLabel,
-      ),
-    [platformLabel, recordingShortcutAccelerator],
+  const currentSession = useAppSelector(
+    (state) => state.sessionRecording.currentSession,
   );
-  const [activeInteraction, setActiveInteraction] =
-    useState<InteractionMode | null>(null);
-  const [currentSession, setCurrentSession] = useState<SessionSnapshot | null>(
-    null,
+  const feedbackMessage = useAppSelector(
+    (state) => state.sessionRecording.feedbackMessage,
   );
-  const [feedbackMessage, setFeedbackMessage] = useState(
-    "Ready to start a local recording session.",
+  const isStarting = useAppSelector(
+    (state) => state.sessionRecording.isStarting,
   );
-  const [isShortcutEnabled, setIsShortcutEnabled] = useState(true);
-  const [isStarting, setIsStarting] = useState(false);
-  const [isStopping, setIsStopping] = useState(false);
-  const [windowBounds, setWindowBounds] = useState<WindowBoundsSnapshot | null>(
-    null,
+  const isStopping = useAppSelector(
+    (state) => state.sessionRecording.isStopping,
+  );
+  const recordingState = useAppSelector(
+    (state) => state.sessionRecording.recordingState,
+  );
+  const recordingShortcutAccelerator = useAppSelector(
+    (state) => state.shortcutsWindow.recordingShortcutAccelerator,
+  );
+  const isShortcutEnabled = useAppSelector(
+    (state) => state.shortcutsWindow.isShortcutEnabled,
+  );
+  const windowBounds = useAppSelector(
+    (state) => state.shortcutsWindow.windowBounds,
   );
   const [recordingState, setRecordingState] =
     useState<RecordingStateSnapshot | null>(null);
 
-  currentSessionRef.current = currentSession;
+  const { activeView, handleSetActiveView, resizePresetOptions } = useViews();
+  const openWindowIds = useAppSelector((state) => state.views.openWindowIds);
 
-  const syncIncomingSession = useCallback((session: SessionSnapshot) => {
-    setCurrentSession((previousSession) => {
-      if (
-        previousSession &&
-        previousSession.id !== session.id &&
-        session.status !== "active"
-      ) {
-        return previousSession;
+  useEffect(() => {
+    if (
+      activeView === VIEW_OPTIONS.controls ||
+      activeView === VIEW_OPTIONS.options ||
+      activeView === VIEW_OPTIONS.sandbox
+    ) {
+      if (!openWindowIds[activeView]) {
+        dispatch(setActiveView(pickFirstOpenCardView(openWindowIds)));
       }
+    }
+  }, [activeView, dispatch, openWindowIds]);
 
-      return session;
-    });
-  }, []);
-
-  const beginPointerGesture = useCallback(
-    (mode: InteractionMode, event: ReactPointerEvent<HTMLButtonElement>) => {
-      if (event.button !== 0) {
-        return;
-      }
-
-      pointerGestureRef.current = {
-        pointerId: event.pointerId,
-        mode,
-        screenX: event.screenX,
-        screenY: event.screenY,
-      };
-      setActiveInteraction(mode);
-      event.currentTarget.setPointerCapture(event.pointerId);
+  const handleResizePreset = useCallback(
+    async (preset: WindowSizePreset) => {
+      return window.electronApp.windowControls.setWindowSizePreset({
+        preset,
+      });
     },
     [],
   );
 
-  const handleResizeStart = useCallback(
-    (event: ReactPointerEvent<HTMLButtonElement>) => {
-      beginPointerGesture("resize", event);
+  const handleSetShortcutEnabled = useCallback(
+    (enabled: boolean) => {
+      const previous = isShortcutEnabled;
+      dispatch(setShortcutEnabled(enabled));
+
+      void window.electronApp.shortcuts
+        .setShortcutEnabled({
+          shortcutId: DEFAULT_SHORTCUT_ID_RECORDING_TOGGLE,
+          enabled,
+        })
+        .catch((error: unknown) => {
+          dispatch(setShortcutEnabled(previous));
+          dispatch(
+            setFeedbackMessage(
+              error instanceof Error
+                ? error.message
+                : "Unable to update shortcut.",
+            ),
+          );
+        });
     },
-    [beginPointerGesture],
+    [dispatch, isShortcutEnabled],
   );
+
   const isRecording = currentSession?.status === "active";
   const statusCopy = getStatusCopy(currentSession);
   const isBusy = isStarting || isStopping;
@@ -144,163 +155,171 @@ function getStatusCopy(session: SessionSnapshot | null): {
     ? `Position ${windowBounds.x}, ${windowBounds.y}`
     : undefined;
 
-  const handleStartRecording = useCallback(async () => {
-    if (isBusy || currentSessionRef.current?.status === "active") {
-      return;
-    }
-
-    setIsStarting(true);
-    setFeedbackMessage("Starting recording session.");
-
-    try {
-      const response = await window.electronApp.sessionLifecycle.startSession({
-        captureSources: DEFAULT_CAPTURE_SOURCES,
-      });
-
-      syncIncomingSession(response.session);
-      setFeedbackMessage(
-        `Recording started for session ${response.session.id.slice(0, 8)}.`,
-      );
-
-      if (captureManagerRef.current) {
-        captureManagerRef.current.destroy();
-      }
-
-      const manager = new CaptureManager({
-        onChunkAvailable(sessionId, source, sequenceNumber, mimeType, recordedAt, buffer) {
-          return window.electronApp.recording.persistChunk({
-            sessionId,
-            source,
-            sequenceNumber,
-            mimeType,
-            recordedAt,
-            buffer,
-          });
-        },
-        onScreenshotAvailable(sessionId, sequenceNumber, mimeType, capturedAt, buffer) {
-          return window.electronApp.recording.persistScreenshot({
-            sessionId,
-            sequenceNumber,
-            mimeType,
-            capturedAt,
-            buffer,
-          });
-        },
-        onStateChanged(state) {
-          setRecordingState(state);
-        },
-        onCaptureError(_sessionId, source, _errorCode, errorMessage) {
-          setFeedbackMessage(`Capture error (${source}): ${errorMessage}`);
-        },
-      });
-
-      captureManagerRef.current = manager;
-      await manager.startCapture(response.session.id, DEFAULT_CAPTURE_SOURCES);
-    } catch (error) {
-      setFeedbackMessage(
-        error instanceof Error ? error.message : "Unable to start recording.",
-      );
-    } finally {
-      setIsStarting(false);
-    }
-  }, [isBusy, syncIncomingSession]);
-
-  const handleStopRecording = useCallback(async () => {
-    const session = currentSessionRef.current;
-
-    if (isBusy || session?.status !== "active") {
-      return;
-    }
-
-    setIsStopping(true);
-    setFeedbackMessage("Stopping recording session.");
-
-    try {
-      if (captureManagerRef.current) {
-        await captureManagerRef.current.stopCapture();
-      }
-
-      const response =
-        await window.electronApp.sessionLifecycle.finalizeSession({
-          sessionId: session.id,
-        });
-
-      syncIncomingSession(response.session);
-      setFeedbackMessage(
-        `Recording stopped. Session ${session.id.slice(0, 8)} is finalizing.`,
-      );
-    } catch (error) {
-      setFeedbackMessage(
-        error instanceof Error ? error.message : "Unable to stop recording.",
-      );
-    } finally {
-      setIsStopping(false);
-    }
-  }, [isBusy, syncIncomingSession]);
-
-  const handleExportRecording = useCallback(async () => {
-    const session = currentSessionRef.current;
-    if (!session) {
-      return;
-    }
-
-    if (captureManagerRef.current) {
-      captureManagerRef.current.setExportStatus("assembling");
-    }
-
-    try {
-      
-      const result = await window.electronApp.recording.exportRecording({
-        sessionId: session.id,
-      });
-
-      if (captureManagerRef.current) {
-        captureManagerRef.current.setExportStatus(
-          result.exportStatus as "completed" | "failed",
-          result.exportFilePath,
-        );
-      }
-
-      if (result.exportStatus === "completed") {
-        setFeedbackMessage("Recording exported successfully.");
-      } else {
-        setFeedbackMessage("Recording export failed.");
-      }
-    } catch (error) {
-      if (captureManagerRef.current) {
-        captureManagerRef.current.setExportStatus(
-          "failed",
-          undefined,
-          error instanceof Error ? error.message : "Export failed",
-        );
-      }
-      setFeedbackMessage(
-        error instanceof Error ? error.message : "Unable to export recording.",
-      );
-    }
-  }, []);
-
-  const handleCloseApplication = useCallback(async () => {
-    setFeedbackMessage("Closing application.");
-    await window.electronApp.appControls.closeApplication();
-  }, []);
-
-  const handleToggleRecording = useCallback(
-    async (enabled: boolean) => {
-      if (enabled) {
-        await handleStartRecording();
-        return;
-      }
-
-      await handleStopRecording();
-    },
-    [handleStartRecording, handleStopRecording],
+  const shortcutLabel = useMemo(
+    () =>
+      formatElectronAcceleratorLabel(
+        recordingShortcutAccelerator,
+        platformLabel,
+      ),
+    [platformLabel, recordingShortcutAccelerator],
   );
+
+  return (
+    <div className="flex h-full min-h-0 w-full flex-1 flex-col bg-transparent">
+      <nav
+        className="sticky top-0 z-[70] flex w-full shrink-0 flex-col gap-3 bg-background/15"
+        style={{ WebkitAppRegion: "drag" } as CSSProperties}
+      >
+        <AgentNavigationMenu
+          items={[
+            { id: "controls", label: "Controls", group: "menuGroup" },
+            { id: "options", label: "Options", group: "menuGroup" },
+            { id: "sandbox", label: "Sandbox", group: "menuGroup" },
+            { id: "start-recording", label: "Start Recording" },
+            { id: "resize-window", label: "Resize Window" },
+            { id: "toggle-visibility", label: "Toggle Visibility" },
+            { id: "close", label: "Close App" },
+          ]}
+          value={activeView}
+          onValueChange={(value) => {
+            if (
+              value === VIEW_OPTIONS.controls ||
+              value === VIEW_OPTIONS.options ||
+              value === VIEW_OPTIONS.sandbox
+            ) {
+              handleSetActiveView(value);
+              void window.electronApp.windowRegistry.openWindow(value);
+            }
+          }}
+          isRecording={isRecording}
+          isBusy={isBusy}
+          onRecordingToggle={(start) => {
+            void handleToggleRecording(start);
+          }}
+          onToggleVisibility={() => {
+            void window.electronApp.appControls.toggleVisibility();
+          }}
+          resizeControl={(
+            <WindowResizeControl
+              windowBounds={windowBounds}
+              presetOptions={resizePresetOptions}
+              onSelectPreset={handleResizePreset}
+            />
+          )}
+          onClose={() => {
+            void handleCloseApplication();
+          }}
+        />
+      </nav>
+      <main
+        className="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden bg-transparent px-10 pb-6"
+        style={{ WebkitAppRegion: "no-drag" } as CSSProperties}
+      >
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border border-border/40 bg-background/20">
+          <div className="shrink-0 border-b border-border/40 px-4 pt-4">
+            <p className="text-sm font-medium text-foreground">Launcher</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Open Controls, Options, or Sandbox from the menu. Each panel runs in
+              its own window so you can resize and position them independently.
+            </p>
+          </div>
+          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 py-4">
+            <div className="rounded-md border border-border/50 bg-background/35 p-3 text-sm">
+              <p className="font-medium">Session</p>
+              <p className="mt-1 text-muted-foreground">{feedbackMessage}</p>
+              {recordingState && recordingState.sources.length > 0 ? (
+                <p className="mt-2 text-muted-foreground">
+                  {recordingState.totalChunkCount} chunks captured
+                </p>
+              ) : null}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <p className="text-xs text-muted-foreground">
+                Shortcut: {shortcutLabel} —{" "}
+                <button
+                  type="button"
+                  className="underline"
+                  style={{ WebkitAppRegion: "no-drag" } as CSSProperties}
+                  onClick={() => {
+                    void handleSetShortcutEnabled(!isShortcutEnabled);
+                  }}
+                >
+                  {isShortcutEnabled ? "enabled" : "disabled"}
+                </button>
+              </p>
+              <span className="text-xs text-muted-foreground">
+                Status: {statusCopy.label} ({windowSizeLabel}
+                {windowBoundsLabel ? `, ${windowBoundsLabel}` : ""})
+              </span>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function CardWindowMain({ layout }: { readonly layout: OptionsCardLayout }) {
+  const dispatch = useAppDispatch();
+  // const openWindowIds = useAppSelector((state) => state.views.openWindowIds);
+  useShortcutsWindowEffects();
+  const {
+    handleToggleRecording,
+    handleExportRecording,
+    handleCloseApplication,
+  } = useRecordingSession();
+
+  const platformLabel = useMemo(() => window.electronApp.platform, []);
+  const currentSession = useAppSelector(
+    (state) => state.sessionRecording.currentSession,
+  );
+  const feedbackMessage = useAppSelector(
+    (state) => state.sessionRecording.feedbackMessage,
+  );
+  const isStarting = useAppSelector(
+    (state) => state.sessionRecording.isStarting,
+  );
+  const isStopping = useAppSelector(
+    (state) => state.sessionRecording.isStopping,
+  );
+  const recordingState = useAppSelector(
+    (state) => state.sessionRecording.recordingState,
+  );
+  const recordingShortcutAccelerator = useAppSelector(
+    (state) => state.shortcutsWindow.recordingShortcutAccelerator,
+  );
+  const isShortcutEnabled = useAppSelector(
+    (state) => state.shortcutsWindow.isShortcutEnabled,
+  );
+  const windowBounds = useAppSelector(
+    (state) => state.shortcutsWindow.windowBounds,
+  );
+
+  const handleCaptureOptionsError = useCallback(
+    (message: string) => {
+      dispatch(setFeedbackMessage(message));
+    },
+    [dispatch],
+  );
+
+  const captureOptions = useCaptureOptions({
+    isMenuActive: layout === "options",
+    onError: handleCaptureOptionsError,
+  });
+
+  // const handleResizePreset = useCallback(
+  //   async (preset: WindowSizePreset) => {
+  //     return window.electronApp.windowControls.setWindowSizePreset({
+  //       preset,
+  //     });
+  //   },
+  //   [],
+  // );
 
   const handleSetShortcutEnabled = useCallback(
     (enabled: boolean) => {
       const previous = isShortcutEnabled;
-      setIsShortcutEnabled(enabled);
+      dispatch(setShortcutEnabled(enabled));
 
       void window.electronApp.shortcuts
         .setShortcutEnabled({
@@ -308,477 +327,138 @@ function getStatusCopy(session: SessionSnapshot | null): {
           enabled,
         })
         .catch((error: unknown) => {
-          setIsShortcutEnabled(previous);
-          setFeedbackMessage(
-            error instanceof Error ? error.message : "Unable to update shortcut.",
+          dispatch(setShortcutEnabled(previous));
+          dispatch(
+            setFeedbackMessage(
+              error instanceof Error
+                ? error.message
+                : "Unable to update shortcut.",
+            ),
           );
         });
     },
-    [isShortcutEnabled],
+    [dispatch, isShortcutEnabled],
   );
 
-  useEffect(() => {
-    let isSubscribed = true;
+  const isRecording = currentSession?.status === "active";
+  const statusCopy = getStatusCopy(currentSession);
+  const isBusy = isStarting || isStopping;
+  const windowSizeLabel = windowBounds
+    ? `${windowBounds.width} x ${windowBounds.height}`
+    : "Syncing window";
 
-    void window.electronApp.shortcuts
-      .getConfig()
-      .then((config) => {
-        if (!isSubscribed) {
-          return;
-        }
+  const windowBoundsLabel = windowBounds
+    ? `Position ${windowBounds.x}, ${windowBounds.y}`
+    : undefined;
 
-        const entry =
-          config.shortcuts[DEFAULT_SHORTCUT_ID_RECORDING_TOGGLE];
-
-        if (!entry) {
-          return;
-        }
-
-        setIsShortcutEnabled(entry.enabled);
-        setRecordingShortcutAccelerator(entry.accelerator);
-      })
-      .catch((error: unknown) => {
-        if (!isSubscribed) {
-          return;
-        }
-
-        setFeedbackMessage(
-          error instanceof Error ? error.message : "Unable to load shortcuts.",
-        );
-      });
-
-    return () => {
-      isSubscribed = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    const unsubscribeSessionChanged =
-      window.electronApp.sessionLifecycleEvents.onSessionChanged((session) => {
-        syncIncomingSession(session);
-
-        if (session.status === "active") {
-          setFeedbackMessage(
-            `Recording started for session ${session.id.slice(0, 8)}.`,
-          );
-        }
-
-        if (session.status === "finalizing") {
-          setFeedbackMessage(
-            `Recording stopped. Session ${session.id.slice(0, 8)} is finalizing.`,
-          );
-        }
-      });
-    const unsubscribeSessionFinalized =
-      window.electronApp.sessionLifecycleEvents.onSessionFinalized(
-        (session) => {
-          syncIncomingSession(session);
-          setFeedbackMessage(`Session ${session.id.slice(0, 8)} finalized.`);
-        },
-      );
-    const unsubscribeRecoveryIssue =
-      window.electronApp.sessionLifecycleEvents.onRecoveryIssue((issue) => {
-        setFeedbackMessage(issue.message);
-      });
-
-    return () => {
-      unsubscribeSessionChanged();
-      unsubscribeSessionFinalized();
-      unsubscribeRecoveryIssue();
-    };
-  }, [syncIncomingSession]);
-
-  useEffect(() => {
-    const unsubscribeRecordingState =
-      window.electronApp.recordingEvents.onRecordingStateChanged((state) => {
-        setRecordingState(state);
-      });
-    const unsubscribeExportProgress =
-      window.electronApp.recordingEvents.onExportProgress((progress) => {
-        if (progress.exportStatus === "completed" && progress.exportFilePath) {
-          setFeedbackMessage("Recording exported successfully.");
-        } else if (progress.exportStatus === "failed") {
-          setFeedbackMessage(
-            progress.errorMessage ?? "Recording export failed.",
-          );
-        }
-      });
-
-    return () => {
-      unsubscribeRecordingState();
-      unsubscribeExportProgress();
-    };
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (captureManagerRef.current) {
-        captureManagerRef.current.destroy();
-        captureManagerRef.current = null;
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    let isSubscribed = true;
-
-    void window.electronApp.windowControls
-      .getWindowBounds()
-      .then((bounds: WindowBoundsSnapshot) => {
-        if (isSubscribed) {
-          setWindowBounds(bounds);
-        }
-      })
-      .catch((error: unknown) => {
-        if (isSubscribed) {
-          setFeedbackMessage(
-            error instanceof Error
-              ? error.message
-              : "Unable to sync overlay window size.",
-          );
-        }
-      });
-
-    const unsubscribe =
-      window.electronApp.windowControls.onWindowBoundsChanged(setWindowBounds);
-
-    return () => {
-      isSubscribed = false;
-      unsubscribe();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!activeInteraction) {
-      return;
-    }
-
-    const handlePointerMove = (event: PointerEvent) => {
-      const gesture = pointerGestureRef.current;
-
-      if (!gesture || event.pointerId !== gesture.pointerId) {
-        return;
-      }
-
-      const deltaX = Math.round(event.screenX - gesture.screenX);
-      const deltaY = Math.round(event.screenY - gesture.screenY);
-
-      if (deltaX === 0 && deltaY === 0) {
-        return;
-      }
-
-      pointerGestureRef.current = {
-        ...gesture,
-        screenX: event.screenX,
-        screenY: event.screenY,
-      };
-
-      if (gesture.mode === "move") {
-        window.electronApp.windowControls.moveWindowBy({
-          deltaX,
-          deltaY,
-        });
-        return;
-      }
-      window.electronApp.windowControls.resizeWindowBy({
-        deltaWidth: deltaX,
-        deltaHeight: deltaY,
-      });
-    };
-
-    const stopPointerGesture = (event: PointerEvent) => {
-      const gesture = pointerGestureRef.current;
-
-      if (!gesture || event.pointerId !== gesture.pointerId) {
-        return;
-      }
-
-      pointerGestureRef.current = null;
-      setActiveInteraction(null);
-    };
-
-    window.addEventListener("pointermove", handlePointerMove);
-    window.addEventListener("pointerup", stopPointerGesture);
-    window.addEventListener("pointercancel", stopPointerGesture);
-
-    return () => {
-      window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("pointerup", stopPointerGesture);
-      window.removeEventListener("pointercancel", stopPointerGesture);
-    };
-  }, [activeInteraction]);
-
-  const [activeView, setActiveView] = useState<"controls" | "options">(
-    "controls",
+  const shortcutLabel = useMemo(
+    () =>
+      formatElectronAcceleratorLabel(
+        recordingShortcutAccelerator,
+        platformLabel,
+      ),
+    [platformLabel, recordingShortcutAccelerator],
   );
 
-  // Render the refactored agent UI first; the legacy UI below is kept for
-  // now to minimize risky deletions during the refactor.
-  if (activeView === "controls" || activeView === "options") {
-    return (
-      <main
-        className="bg-transparent"
+  return (
+    <div className="flex h-full min-h-0 w-full  flex-1 flex-col bg-transparent items-start">
+      <nav
+        className="relative z-[70] flex w-full max-w-md mx-auto items-end justify-baseline shrink-0 flex-col border rounded-r-md rounded-bl-md group-hover:border-yellow-a10 active:bg-yellow-a10/70 transition-colors duration-200 ease-in-out pointer-drag"
         style={{ WebkitAppRegion: "drag" } as CSSProperties}
       >
-        <nav className="flex flex-col gap-3 p-3 relative">
-          <AgentNavigationMenu
-            items={[
-              { id: "controls", label: "Controls", group: "menuGroup" },
-              { id: "options", label: "Options", group: "menuGroup" },
-              { id: "start-recording", label: "Start Recording" },
-              { id: "close", label: "Close App" },
-            ]}
-            value={activeView}
-            onValueChange={(value) => {
-              if (value === "controls" || value === "options") {
-                setActiveView(value);
-              }
+        <div
+          className="flex items-center justify-end leading-7"
+        >
+          <button
+            type="button"
+            className="rounded-full p-2 hover:bg-red-900/5 text-muted-foreground hover:text-red-500/50 transition-colors duration-200 ease-in-out cursor-pointer"
+            onClick={() => {
+              void window.electronApp.windowRegistry.closeWindow(layout);
             }}
-            isRecording={isRecording}
-            isBusy={isBusy}
-            onRecordingToggle={(start) => {
-              void handleToggleRecording(start);
-            }}
-            onClose={() => {
-              void handleCloseApplication();
-            }}
-          />
-        </nav>
-          <div className="flex-1 min-h-0 size-full relative bg-transparent">
-            <Options
-              view={activeView}
-              statusLabel={statusCopy.label}
-              statusVariant={statusCopy.variant}
-              platformLabel={platformLabel}
-              windowSizeLabel={windowSizeLabel}
-              windowBoundsLabel={windowBoundsLabel}
-              currentSessionId={currentSession?.id.slice(0, 8)}
-              feedbackMessage={feedbackMessage}
-              isRecording={isRecording}
-              isBusy={isBusy}
-              onToggleRecording={(enabled) => {
-                void handleToggleRecording(enabled);
-              }}
-              shortcutLabel={shortcutLabel}
-              isShortcutEnabled={isShortcutEnabled}
-              onSetShortcutEnabled={handleSetShortcutEnabled}
-              recordingState={recordingState}
-              onExportRecording={() => {
-                void handleExportRecording();
-              }}
-              onResizeStart={handleResizeStart}
-              activeInteraction={activeInteraction}
-              onQuit={() => {
-                void handleCloseApplication();
-              }}
-            />
-          </div>
+            style={{ WebkitAppRegion: "no-drag" } as CSSProperties}
+            aria-label={`Close ${layout} window`}
+          >
+            <RiCloseFill className="size-6" />
+          </button>
+        </div>
+      </nav>
+      <main
+        className="flex min-h-0 flex-1 flex-col overflow-hidden bg-transparent px-4 pb-4 pt-2"
+        style={{ WebkitAppRegion: "drag" } as CSSProperties}
+      >
+        <Options
+          layout={layout}
+          statusLabel={statusCopy.label}
+          statusVariant={statusCopy.variant}
+          platformLabel={platformLabel}
+          windowSizeLabel={windowSizeLabel}
+          windowBoundsLabel={windowBoundsLabel}
+          currentSessionId={currentSession?.id.slice(0, 8)}
+          feedbackMessage={feedbackMessage}
+          isRecording={isRecording}
+          isBusy={isBusy}
+          onToggleRecording={(enabled) => {
+            void handleToggleRecording(enabled);
+          }}
+          shortcutLabel={shortcutLabel}
+          isShortcutEnabled={isShortcutEnabled}
+          onSetShortcutEnabled={handleSetShortcutEnabled}
+          recordingState={recordingState}
+          onExportRecording={() => {
+            void handleExportRecording();
+          }}
+          permissions={captureOptions.permissions}
+          microphoneDevices={captureOptions.microphoneDevices}
+          webcamDevices={captureOptions.webcamDevices}
+          displays={captureOptions.displays}
+          microphoneEnabled={captureOptions.config.microphone.enabled}
+          webcamEnabled={captureOptions.config.webcam.enabled}
+          screenEnabled={captureOptions.config.screen.enabled}
+          systemAudioEnabled={captureOptions.config.systemAudio.enabled}
+          screenshotEnabled={captureOptions.config.screenshot.enabled}
+          microphoneLevel={captureOptions.microphoneLevel}
+          isWebcamPreviewVisible={captureOptions.isWebcamPreviewVisible}
+          webcamPreviewStream={captureOptions.webcamPreviewStream}
+          isDesktopPreviewVisible={captureOptions.isDesktopPreviewVisible}
+          desktopPreviewStream={captureOptions.desktopPreviewStream}
+          hasCaptureSourceEnabled={captureOptions.hasCaptureSourceEnabled}
+          onSetMicrophoneEnabled={captureOptions.setMicrophoneEnabled}
+          onSetWebcamEnabled={captureOptions.setWebcamEnabled}
+          onSetScreenEnabled={captureOptions.setScreenEnabled}
+          onSetSystemAudioEnabled={captureOptions.setSystemAudioEnabled}
+          onSetScreenshotEnabled={captureOptions.setScreenshotEnabled}
+          onSetMicrophoneDeviceId={captureOptions.setMicrophoneDeviceId}
+          onSetWebcamDeviceId={captureOptions.setWebcamDeviceId}
+          onSetDisplayId={captureOptions.setDisplayId}
+          onSetWebcamPreviewVisible={captureOptions.setWebcamPreviewVisible}
+          onSetDesktopPreviewVisible={captureOptions.setDesktopPreviewVisible}
+          onOpenMonitorPicker={() => {
+            void captureOptions.openMonitorPicker();
+          }}
+          onQuit={() => {
+            void handleCloseApplication();
+          }}
+        />
       </main>
-    );
+    </div>
+  );
+}
+
+function Main() {
+  const role = parseWindowRoleFromLocation();
+
+  if (role === WINDOW_ROLES.launcher) {
+    return <LauncherMain />;
   }
 
-  /* legacy UI
-  return (
-    <main
-      className="dark min-h-screen bg-transparent text-foreground w-full"
-      style={{ WebkitAppRegion: "drag" } as CSSProperties}
-    >
-      <div className="min-h-screen bg-transparent p-3">
-        <Card
-          size="sm"
-          className="min-h-[calc(100vh-1.5rem)] border border-border/60 bg-card/60 shadow-2xl backdrop-blur-xl"
-        >
-          <CardHeader
-            className="border-b border-border/50"
-            style={{ WebkitAppRegion: "drag" } as CSSProperties}
-          >
-            <CardAction className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="xs"
-                className={cn(
-                  "touch-none",
-                  activeInteraction === "move"
-                    ? "cursor-grabbing"
-                    : "cursor-grab",
-                )}
-                style={{ WebkitAppRegion: "no-drag" } as CSSProperties}
-                onPointerDown={handleMoveStart}
-              >
-                Drag window
-              </Button>
-              <Button
-                type="button"
-                variant="destructive"
-                size="xs"
-                style={{ WebkitAppRegion: "no-drag" } as CSSProperties}
-                onClick={() => {
-                  void handleCloseApplication();
-                }}
-              >
-                Close app
-              </Button>
-            </CardAction>
+  const layout: OptionsCardLayout =
+    role === WINDOW_ROLES.controls
+      ? "controls"
+      : role === WINDOW_ROLES.options
+        ? "options"
+        : "sandbox";
 
-            <div className="flex items-center gap-2">
-              <Badge variant={statusCopy.variant}>{statusCopy.label}</Badge>
-              <Badge variant="outline" className="capitalize">
-                {platformLabel}
-              </Badge>
-              <Badge variant="outline">{windowSizeLabel}</Badge>
-            </div>
-
-            <CardTitle>Interview recording overlay</CardTitle>
-            <CardDescription>
-              Drag and resize events are sent through IPC so Electron controls
-              the frameless overlay window directly while the app stays focused.
-            </CardDescription>
-          </CardHeader>
-
-          <CardContent className="flex flex-col gap-4">
-            <div className="flex flex-col gap-3 border border-border/50 bg-background/45 p-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  disabled={isBusy || isRecording}
-                  style={{ WebkitAppRegion: "no-drag" } as CSSProperties}
-                  onClick={() => {
-                    void handleStartRecording();
-                  }}
-                >
-                  Start recording
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={isBusy || !isRecording}
-                  style={{ WebkitAppRegion: "no-drag" } as CSSProperties}
-                  onClick={() => {
-                    void handleStopRecording();
-                  }}
-                >
-                  Stop recording
-                </Button>
-                {currentSession ? (
-                  <Badge variant="outline">
-                    Session {currentSession!.id.slice(0, 8)}
-                  </Badge>
-                ) : null}
-              </div>
-
-              <p className="text-sm text-muted-foreground">{feedbackMessage}</p>
-            </div>
-
-            <div className="flex flex-col gap-3 border border-border/50 bg-background/35 p-3">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex flex-col gap-1">
-                  <p className="text-sm font-medium">Keyboard shortcut</p>
-                  <p className="text-sm text-muted-foreground">
-                    Toggle start and stop with {shortcutLabel}.
-                  </p>
-                </div>
-                <div style={{ WebkitAppRegion: "no-drag" } as CSSProperties}>
-                  <Switch
-                    checked={isShortcutEnabled}
-                    aria-label="Toggle recording keyboard shortcut"
-                    onCheckedChange={(enabled) => {
-                      const previous = isShortcutEnabled;
-                      setIsShortcutEnabled(enabled);
-
-                      void window.electronApp.shortcuts
-                        .setShortcutEnabled({
-                          shortcutId: DEFAULT_SHORTCUT_ID_RECORDING_TOGGLE,
-                          enabled,
-                        })
-                        .catch((error: unknown) => {
-                          setIsShortcutEnabled(previous);
-                          setFeedbackMessage(
-                            error instanceof Error
-                              ? error.message
-                              : "Unable to update shortcut.",
-                          );
-                        });
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                {DEFAULT_CAPTURE_SOURCES.map((source) => (
-                  <Badge key={source} variant="secondary">
-                    {CAPTURE_SOURCE_LABELS[source]}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-2 border border-border/50 bg-background/35 p-3">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-sm font-medium">Overlay window controls</p>
-                {windowBounds ? (
-                  <p className="text-xs text-muted-foreground">
-                    Position {windowBounds!.x}, {windowBounds!.y}
-                  </p>
-                ) : null}
-              </div>
-              <p className="text-sm text-muted-foreground">
-                Use the drag button in the header to move the overlay and hold
-                the resize handle in the footer to change the Electron window
-                size.
-              </p>
-            </div>
-          </CardContent>
-
-          <CardFooter className="justify-between gap-3 border-border/50">
-            <div className="flex flex-col gap-1 text-xs text-muted-foreground">
-              <p>
-                {isShortcutEnabled
-                  ? `${shortcutLabel} is enabled.`
-                  : `${shortcutLabel} is disabled.`}
-              </p>
-              <p>
-                Minimum size{" "}
-                {windowBounds
-                  ? `${windowBounds!.minWidth} x ${windowBounds!.minHeight}`
-                  : "syncing"}
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <p className="text-xs text-muted-foreground">
-                {activeInteraction === "resize"
-                  ? "Resizing overlay."
-                  : activeInteraction === "move"
-                    ? "Moving overlay."
-                    : "Resize"}
-              </p>
-              <Button
-                type="button"
-                variant="outline"
-                size="xs"
-                className={cn(
-                  "touch-none",
-                  activeInteraction === "resize"
-                    ? "cursor-nwse-resize bg-muted"
-                    : "cursor-nwse-resize",
-                )}
-                style={{ WebkitAppRegion: "no-drag" } as CSSProperties}
-                onPointerDown={handleResizeStart}
-              >
-                Resize window
-              </Button>
-            </div>
-          </CardFooter>
-        </Card>
-      </div>
-    </main>
-  );
-  */
-
-  return null;
+  return <CardWindowMain layout={layout} />;
 }
 
 export default Main;

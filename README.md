@@ -23,3 +23,5 @@ A mix of vibe coding for scaffolding, and manual coding/modification for data, U
 
 
 
+TODOs
+[] fix recording so that audio and video are merged.

@@ -3,6 +3,8 @@ import type { Unsubscribe } from "./session-lifecycle";
 export const WINDOW_CONTROL_CHANNELS = {
   moveWindowBy: "window-controls:move-window-by",
   resizeWindowBy: "window-controls:resize-window-by",
+  setWindowSize: "window-controls:set-window-size",
+  setWindowSizePreset: "window-controls:set-window-size-preset",
   getWindowBounds: "window-controls:get-window-bounds",
   bringToFront: "window-controls:bring-to-front",
   sendToBack: "window-controls:send-to-back",
@@ -31,9 +33,24 @@ export type ResizeWindowByRequest = {
   readonly deltaHeight: number;
 };
 
+export type SetWindowSizeRequest = {
+  readonly width: number;
+  readonly height: number;
+};
+
+export type WindowSizePreset = "50%" | "75%" | "90%";
+
+export type SetWindowSizePresetRequest = {
+  preset: WindowSizePreset | string
+};
+
 export type WindowControlsBridge = {
   moveWindowBy(request: MoveWindowByRequest): void;
   resizeWindowBy(request: ResizeWindowByRequest): void;
+  setWindowSize(request: SetWindowSizeRequest): Promise<WindowBoundsSnapshot>;
+  setWindowSizePreset(
+    request: SetWindowSizePresetRequest,
+  ): Promise<WindowBoundsSnapshot>;
   getWindowBounds(): Promise<WindowBoundsSnapshot>;
   onWindowBoundsChanged(
     listener: (bounds: WindowBoundsSnapshot) => void,
@@ -76,4 +93,65 @@ export function parseResizeWindowByRequest(
     deltaWidth: parseFiniteInteger(input.deltaWidth, "deltaWidth"),
     deltaHeight: parseFiniteInteger(input.deltaHeight, "deltaHeight"),
   };
+}
+
+export function parseSetWindowSizeRequest(
+  input: unknown,
+): SetWindowSizeRequest {
+  if (!isRecord(input)) {
+    throw new Error("setWindowSize request must be an object");
+  }
+
+  return {
+    width: parseFiniteInteger(input.width, "width"),
+    height: parseFiniteInteger(input.height, "height"),
+  };
+}
+
+export function parseSetWindowSizePresetRequest(
+  input: unknown,
+): SetWindowSizePresetRequest {
+  if (!isRecord(input)) {
+    throw new Error("setWindowSizePreset request must be an object");
+  }
+
+  const { preset } = input;
+  if (
+    preset !== "half" &&
+    preset !== "three-quarters" &&
+    preset !== "full"
+  ) {
+    throw new Error("preset must be one of: half, three-quarters, full");
+  }
+
+  return { preset };
+}
+
+type WindowSizeSnapshot = {
+  readonly width: number;
+  readonly height: number;
+};
+
+export function clampWindowSize(
+  size: WindowSizeSnapshot,
+  minimumSize: WindowSizeSnapshot,
+): WindowSizeSnapshot {
+  return {
+    width: Math.max(size.width, minimumSize.width),
+    height: Math.max(size.height, minimumSize.height),
+  };
+}
+
+export function applyResizeWindowByRequest(
+  currentSize: WindowSizeSnapshot,
+  minimumSize: WindowSizeSnapshot,
+  request: ResizeWindowByRequest,
+): WindowSizeSnapshot {
+  return clampWindowSize(
+    {
+      width: currentSize.width + request.deltaWidth,
+      height: currentSize.height + request.deltaHeight,
+    },
+    minimumSize,
+  );
 }

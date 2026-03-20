@@ -1,4 +1,3 @@
-.claude/
 .cursor
 node_modules
 dist
@@ -11,3 +10,6 @@ release
 .env.test.local
 .env.production.local
 .yarn
+business-plan.md
+.agent
+.agents/

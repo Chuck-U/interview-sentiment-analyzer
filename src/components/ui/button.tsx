@@ -48,7 +48,7 @@ function Button({
 }: React.ComponentProps<"button"> &
   VariantProps<typeof buttonVariants> & {
     asChild?: boolean
-  }): Partial<React.JSX.Element> & React.RefAttributes<HTMLElement> {
+  }): React.ReactElement {
   const Comp = asChild ? Slot.Root : "button";
 
   return (

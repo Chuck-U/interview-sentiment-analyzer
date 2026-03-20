@@ -1,26 +1,66 @@
-import { useState, useCallback } from "react";
+import { useCallback, useMemo } from "react";
 
+import { useAppDispatch, useAppSelector } from "../store/hooks";
+import {
+  RESIZE_PRESET_OPTIONS,
+  VIEW_OPTIONS,
+  closeView,
+  openView,
+  setActiveView,
+  toggleView,
+  type CardWindowId,
+  type ViewOption,
+  type WindowSizePresetOption,
+} from "../store/slices/viewsSlice";
 
-
-export const VIEW_OPTIONS = { controls: "controls", options: "options", analysis: "analysis" } as const;
-export type ViewOption = (typeof VIEW_OPTIONS)[keyof typeof VIEW_OPTIONS];
-
-export type ViewsContextType = {
-    activeViews: ViewOption[];
-    handleSetActiveViews: (view: ViewOption) => void;
-};
-
-
-
-
+export { VIEW_OPTIONS };
+export type { ViewOption, WindowSizePresetOption, CardWindowId };
 
 export function useViews() {
-    const [activeViews, setActiveViews] = useState<ViewOption[]>(['controls', 'options']);
+  const dispatch = useAppDispatch();
+  const activeView = useAppSelector((state) => state.views.activeView);
+  const openWindowIds = useAppSelector((state) => state.views.openWindowIds);
 
-    const handleSetActiveViews = useCallback((newView: ViewOption) => {
-        const modifiedViews = activeViews.includes(newView) ? activeViews.filter(view => view !== newView) : [...activeViews, newView];
-        setActiveViews(modifiedViews);
-    }, [activeViews]);
+  const handleSetActiveView = useCallback(
+    (newView: ViewOption) => {
+      dispatch(setActiveView(newView));
+    },
+    [dispatch],
+  );
 
-    return { activeViews, handleSetActiveViews };
+  const handleOpenView = useCallback(
+    (id: CardWindowId) => {
+      dispatch(openView(id));
+    },
+    [dispatch],
+  );
+
+  const handleCloseView = useCallback(
+    (id: CardWindowId) => {
+      dispatch(closeView(id));
+    },
+    [dispatch],
+  );
+
+  const handleToggleView = useCallback(
+    (id: CardWindowId) => {
+      dispatch(toggleView(id));
+    },
+    [dispatch],
+  );
+
+  const resizePresetOptions = useMemo(
+    () => RESIZE_PRESET_OPTIONS,
+    [],
+  );
+
+  return {
+    activeView,
+    openWindowIds,
+    handleSetActiveView,
+    handleOpenView,
+    handleCloseView,
+    handleToggleView,
+    resizePresetOptions,
+  };
 }
