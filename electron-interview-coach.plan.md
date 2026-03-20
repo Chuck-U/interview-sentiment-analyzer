@@ -9,35 +9,43 @@ Current Status
 The repository is no longer a blank slate. Current stage status:
 
 1. Phase 1: Desktop foundation - done
-2. Phase 2: Architectural skeleton - partially done
-3. Phase 3: Persistence and session lifecycle - partially done
-4. Phase 4: Local signal extraction - not started
-5. Phase 5: Hosted analysis and coaching - not started
+2. Phase 2: Architectural skeleton - done
+3. Phase 3: Persistence and session lifecycle - done
+4. Phase 4: Local signal extraction - scaffolded (pipeline contracts and placeholder provider only)
+5. Phase 5: Hosted analysis and coaching - scaffolded (pipeline contracts and placeholder provider only)
+5a. Phase 5a: Recording pipeline and chunking - in progress
 6. Phase 6: Capture and overlay spikes - not started
 
-Evidence for completed Phase 1 work:
+Evidence for Phase 1 (complete):
 
-- [`/home/chuck/interview-sentiment-analyzer/package.json`](/home/chuck/interview-sentiment-analyzer/package.json) contains the Electron, Vite, TypeScript, lint, format, and `electron-builder` scripts and config.
-- [`/home/chuck/interview-sentiment-analyzer/electron/main/index.ts`](/home/chuck/interview-sentiment-analyzer/electron/main/index.ts) and [`/home/chuck/interview-sentiment-analyzer/electron/preload/index.ts`](/home/chuck/interview-sentiment-analyzer/electron/preload/index.ts) provide the desktop shell entrypoints.
-- [`/home/chuck/interview-sentiment-analyzer/src/renderer/main.tsx`](/home/chuck/interview-sentiment-analyzer/src/renderer/main.tsx), [`/home/chuck/interview-sentiment-analyzer/src/renderer/App.tsx`](/home/chuck/interview-sentiment-analyzer/src/renderer/App.tsx), and [`/home/chuck/interview-sentiment-analyzer/src/renderer/styles.css`](/home/chuck/interview-sentiment-analyzer/src/renderer/styles.css) provide the React renderer and Tailwind v4 styling base.
-- [`/home/chuck/interview-sentiment-analyzer/components.json`](/home/chuck/interview-sentiment-analyzer/components.json), [`/home/chuck/interview-sentiment-analyzer/src/components/ui/button.tsx`](/home/chuck/interview-sentiment-analyzer/src/components/ui/button.tsx), and [`/home/chuck/interview-sentiment-analyzer/src/lib/utils.ts`](/home/chuck/interview-sentiment-analyzer/src/lib/utils.ts) show that `shadcn/ui` is initialized.
+- `package.json` has Electron, Vite, TypeScript, lint, format, and `electron-builder` scripts.
+- `electron/main/index.ts` and `electron/preload/index.ts` provide desktop shell entrypoints.
+- `src/renderer/main.tsx`, `src/renderer/App.tsx`, and `src/renderer/styles.css` provide the React renderer with Tailwind v4.
+- `components.json`, `src/components/ui/button.tsx`, and `src/lib/utils.ts` show `shadcn/ui` is initialized.
 
-Evidence for in-progress Phase 2 and 3 work:
+Evidence for Phase 2 (complete):
 
-- [`/home/chuck/interview-sentiment-analyzer/src/shared/session-lifecycle.ts`](/home/chuck/interview-sentiment-analyzer/src/shared/session-lifecycle.ts) defines shared DTOs, status enums, and request validation for `startSession`, `registerMediaChunk`, and `finalizeSession`.
-- [`/home/chuck/interview-sentiment-analyzer/src/backend/domain/session/session.ts`](/home/chuck/interview-sentiment-analyzer/src/backend/domain/session/session.ts) and [`/home/chuck/interview-sentiment-analyzer/src/backend/domain/capture/media-chunk.ts`](/home/chuck/interview-sentiment-analyzer/src/backend/domain/capture/media-chunk.ts) establish initial domain entities.
-- [`/home/chuck/interview-sentiment-analyzer/src/backend/application/ports/session-lifecycle.ts`](/home/chuck/interview-sentiment-analyzer/src/backend/application/ports/session-lifecycle.ts) defines repository and infrastructure ports.
-- [`/home/chuck/interview-sentiment-analyzer/src/backend/application/use-cases/start-session.ts`](/home/chuck/interview-sentiment-analyzer/src/backend/application/use-cases/start-session.ts), [`/home/chuck/interview-sentiment-analyzer/src/backend/application/use-cases/register-media-chunk.ts`](/home/chuck/interview-sentiment-analyzer/src/backend/application/use-cases/register-media-chunk.ts), and [`/home/chuck/interview-sentiment-analyzer/src/backend/application/use-cases/finalize-session.ts`](/home/chuck/interview-sentiment-analyzer/src/backend/application/use-cases/finalize-session.ts) provide the first session lifecycle use cases.
-- [`/home/chuck/interview-sentiment-analyzer/src/backend/interfaces/controllers/session-lifecycle-controller.ts`](/home/chuck/interview-sentiment-analyzer/src/backend/interfaces/controllers/session-lifecycle-controller.ts), [`/home/chuck/interview-sentiment-analyzer/src/backend/infrastructure/ipc/register-session-lifecycle-ipc.ts`](/home/chuck/interview-sentiment-analyzer/src/backend/infrastructure/ipc/register-session-lifecycle-ipc.ts), and [`/home/chuck/interview-sentiment-analyzer/src/backend/index.ts`](/home/chuck/interview-sentiment-analyzer/src/backend/index.ts) show the controller and IPC composition path is scaffolded.
-- [`/home/chuck/interview-sentiment-analyzer/src/backend/infrastructure/storage/session-storage-layout.ts`](/home/chuck/interview-sentiment-analyzer/src/backend/infrastructure/storage/session-storage-layout.ts) and [`/home/chuck/interview-sentiment-analyzer/src/backend/infrastructure/persistence/in-memory-session-lifecycle.ts`](/home/chuck/interview-sentiment-analyzer/src/backend/infrastructure/persistence/in-memory-session-lifecycle.ts) provide temporary storage and persistence scaffolding.
+- `src/shared/session-lifecycle.ts` defines shared DTOs, status enums, and request validation.
+- `src/backend/domain/session/session.ts` and `src/backend/domain/capture/media-chunk.ts` establish domain entities.
+- `src/backend/application/ports/session-lifecycle.ts` defines repository and infrastructure ports.
+- `src/backend/application/use-cases/start-session.ts`, `register-media-chunk.ts`, and `finalize-session.ts` provide session lifecycle use cases.
+- `src/backend/interfaces/controllers/session-lifecycle-controller.ts` and `src/backend/infrastructure/ipc/register-session-lifecycle-ipc.ts` wire IPC.
+- `electron/preload/index.ts` exposes the session lifecycle bridge to the renderer via `contextBridge`.
 
-Remaining gaps before Phase 2 and 3 are considered complete:
+Evidence for Phase 3 (complete):
 
-- preload is not yet exposing the session lifecycle bridge to the renderer
-- Electron main is not yet wiring the backend controller into runtime IPC registration
-- persistence is still in-memory rather than SQLite-backed
-- app restart recovery, repository mapping, and validation coverage are not implemented
-- `analysis`, `coaching`, and `user-profile` modules are not yet meaningfully built out
+- `src/backend/infrastructure/persistence/sqlite/sqlite-database.ts` and `sqlite-session-lifecycle.ts` provide SQLite-backed persistence.
+- `src/backend/infrastructure/storage/session-storage-layout.ts` establishes local app-data file layout.
+- `src/backend/application/services/session-recovery.ts` implements crash recovery for sessions and chunks.
+- `src/backend/test/session-lifecycle.test.ts` and `pipeline-contracts.test.ts` verify persistence, recovery, and pipeline contracts.
+- `electron/main/index.ts` wires the backend controller into runtime IPC and publishes lifecycle events.
+
+Evidence for Phase 4/5 scaffolding:
+
+- `src/shared/pipeline.ts` defines the full pipeline event model, stage names, artifact handoff rules, and validation.
+- `src/backend/infrastructure/providers/local-pipeline-analysis.ts` provides a placeholder analysis provider writing placeholder artifacts.
+- `src/backend/application/services/pipeline-orchestrator.ts` claims, executes, and retries pipeline stage runs.
+- `analysis`, `coaching`, and `user-profile` domain modules are scaffolded but not meaningfully implemented.
 
 Closest Existing Tools
 
@@ -608,6 +616,10 @@ Phase 5: Hosted analysis and coaching
 1. Add provider adapters for hosted multimodal analysis.
 2. Implement chunk analysis, rolling context condensation, and final session synthesis.
 3. Add neurodiversity-aware coaching as an opt-in feedback lens centered on ambiguity, pacing, interruption handling, and cue mismatch.
+
+Phase 5a: 
+1. ensure recording pipeline and chunking.
+
 
 Phase 6: Capture and overlay spikes
 

@@ -1,10 +1,11 @@
 import type { IpcRendererEvent } from "electron";
 import { contextBridge, ipcRenderer } from "electron";
-
+import { z } from "zod/v4";
 import {
   type SessionLifecycleBridge,
   type SessionLifecycleEventsBridge,
 } from "../../src/shared/session-lifecycle";
+import type { RecordingBridge, RecordingEventsBridge } from "../../src/shared/recording";
 import type { AppControlsBridge } from "../../src/shared/app-controls";
 import { APP_CONTROL_CHANNELS } from "../../src/shared/app-controls";
 import type { ElectronAppBridge } from "../../src/shared/electron-app";
@@ -23,6 +24,10 @@ import {
   SESSION_LIFECYCLE_CHANNELS,
   SESSION_LIFECYCLE_EVENT_CHANNELS,
 } from "../../src/backend/infrastructure/ipc/session-lifecycle-channels";
+import {
+  RECORDING_CHANNELS,
+  RECORDING_EVENT_CHANNELS,
+} from "../../src/backend/infrastructure/ipc/recording-channels";
 
 const sessionLifecycleBridge: SessionLifecycleBridge = {
   startSession(request) {
@@ -83,7 +88,6 @@ const sessionLifecycleEventsBridge: SessionLifecycleEventsBridge = {
     );
   },
 };
-
 const appControlsBridge: AppControlsBridge = {
   closeApplication() {
     return ipcRenderer.invoke(APP_CONTROL_CHANNELS.closeApplication);
@@ -133,10 +137,57 @@ const shortcutsBridge: ShortcutsBridge = {
   },
 };
 
+const recordingBridge: RecordingBridge = {
+  persistChunk(request) {
+    return ipcRenderer.invoke(RECORDING_CHANNELS.persistChunk, {
+      ...request,
+      buffer: Array.from(new Uint8Array(request.buffer)),
+    });
+  },
+  persistScreenshot(request) {
+    return ipcRenderer.invoke(RECORDING_CHANNELS.persistScreenshot, {
+      ...request,
+      buffer: Array.from(new Uint8Array(request.buffer)),
+    });
+  },
+  exportRecording(request) {
+    return ipcRenderer.invoke(RECORDING_CHANNELS.exportRecording, request);
+  },
+};
+
+const recordingEventsBridge: RecordingEventsBridge = {
+  onRecordingStateChanged(listener) {
+    return subscribeToChannel(
+      RECORDING_EVENT_CHANNELS.recordingStateChanged,
+      listener,
+    );
+  },
+  onChunkPersisted(listener) {
+    return subscribeToChannel(
+      RECORDING_EVENT_CHANNELS.chunkPersisted,
+      listener,
+    );
+  },
+  onCaptureError(listener) {
+    return subscribeToChannel(
+      RECORDING_EVENT_CHANNELS.captureError,
+      listener,
+    );
+  },
+  onExportProgress(listener) {
+    return subscribeToChannel(
+      RECORDING_EVENT_CHANNELS.exportProgress,
+      listener,
+    );
+  },
+};
+
 const electronAppBridge: ElectronAppBridge = {
   platform: process.platform,
   sessionLifecycle: sessionLifecycleBridge,
   sessionLifecycleEvents: sessionLifecycleEventsBridge,
+  recording: recordingBridge,
+  recordingEvents: recordingEventsBridge,
   appControls: appControlsBridge,
   windowControls: windowControlsBridge,
   shortcuts: shortcutsBridge,

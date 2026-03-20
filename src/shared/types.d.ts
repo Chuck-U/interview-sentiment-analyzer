@@ -1,0 +1,1 @@
+export type { ElectronAppBridge } from "./electron-app";
