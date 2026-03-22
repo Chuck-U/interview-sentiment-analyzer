@@ -96,17 +96,20 @@ function executeRun(
 function mapPipelineEventRowToEnvelope(
   row: PipelineEventRow,
 ): PipelineEventEnvelope {
-  return createPipelineEventEnvelope({
-    eventId: row.event_id,
-    eventType: row.event_type,
-    sessionId: row.session_id,
-    chunkId: row.chunk_id ?? undefined,
-    stageName: row.stage_name ?? undefined,
-    causationId: row.causation_id ?? undefined,
-    correlationId: row.correlation_id,
-    occurredAt: row.occurred_at,
-    payload: JSON.parse(row.payload_json) as PipelineEventEnvelope["payload"],
-  });
+  return createPipelineEventEnvelope(
+    {
+      eventId: row.event_id,
+      eventType: row.event_type,
+      sessionId: row.session_id,
+      chunkId: row.chunk_id ?? undefined,
+      stageName: row.stage_name ?? undefined,
+      causationId: row.causation_id ?? undefined,
+      correlationId: row.correlation_id,
+      occurredAt: row.occurred_at,
+      payload: JSON.parse(row.payload_json) as PipelineEventEnvelope["payload"],
+    },
+    { skipArtifactHandoffValidation: true },
+  );
 }
 
 function mapPipelineStageRunRowToRecord(
