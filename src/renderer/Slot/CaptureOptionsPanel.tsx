@@ -231,8 +231,6 @@ export function CaptureOptionsPanel({
 
       <div className="min-h-0 flex-1 overflow-hidden rounded-md border border-border/50 bg-background/25">
         <SidebarCardShell
-          title="Capture Sources"
-          description="Switch between capture cards without keeping every section mounted at once."
           sections={sections}
           activeSection={activeSection}
           onActiveSectionChange={setActiveSection}

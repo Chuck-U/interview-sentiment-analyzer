@@ -117,8 +117,6 @@ export function AgentControls({
 
       <div className="min-h-0 flex-1 overflow-hidden rounded-md border border-border/50 bg-background/25">
         <SidebarCardShell
-          title="Agent Controls"
-          description="Mount one control surface at a time while keeping debug-only content hidden."
           sections={sections}
           activeSection={activeSection}
           onActiveSectionChange={setActiveSection}

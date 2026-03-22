@@ -1,6 +1,5 @@
 import type { ComponentType, CSSProperties, ReactNode } from "react";
 
-import { CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Sidebar,
   SidebarContent,
@@ -37,6 +36,7 @@ export function SidebarCardShell<TSectionId extends string>({
   onActiveSectionChange,
   className,
 }: SidebarCardShellProps<TSectionId>) {
+  const noDragStyle = { WebkitAppRegion: "no-drag" } as CSSProperties;
   const activeContent =
     sections.find((section) => section.id === activeSection)?.content ??
     sections[0]?.content ??
@@ -45,21 +45,25 @@ export function SidebarCardShell<TSectionId extends string>({
   return (
     <SidebarProvider
       defaultOpen
-      className={cn("h-full !min-h-0 w-full", className)}
+      className={cn("h-full !min-h-0 w-full overflow-hidden", className)}
       style={
         {
-          "--sidebar-width": "13.5rem",
+          "--sidebar-width": "20%",
+          WebkitAppRegion: "no-drag",
         } as CSSProperties
       }
     >
       <Sidebar
         collapsible="none"
-        className="border-r border-sidebar-border/20 bg-sidebar/95"
+        className="min-h-0 border-r border-sidebar-border/20 bg-sidebar/95"
+        style={noDragStyle}
       >
-
-        <SidebarContent>
+        <SidebarContent
+          className="min-h-0 flex-1 overflow-y-auto from-[#fff6c0f4]/60 bg-[#ffe85b70] to-[#d4ba11ff]/40 bg-gradient-to-t"
+          style={noDragStyle}
+        >
           <SidebarGroup>
-            <SidebarGroupLabel>Sections</SidebarGroupLabel>
+            <SidebarGroupLabel className="border-b pb-1 border-b-[#">Sections</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 {sections.map((section) => {
@@ -84,8 +88,14 @@ export function SidebarCardShell<TSectionId extends string>({
           </SidebarGroup>
         </SidebarContent>
       </Sidebar>
-      <SidebarInset className="flex min-h-0 flex-1 bg-transparent p-0">
-        <div className="flex min-h-0 flex-1 flex-col overflow-auto">
+      <SidebarInset
+        className="flex min-h-0 flex-1 overflow-hidden backface-visible p-0"
+        style={noDragStyle}
+      >
+        <div
+          className="flex min-h-0 flex-1 flex-col overflow-y-auto"
+          style={noDragStyle}
+        >
           {activeContent}
         </div>
       </SidebarInset>

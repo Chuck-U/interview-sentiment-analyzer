@@ -21,7 +21,7 @@ export function ExportRecordingCard({
           Persist the most recent finished recording when a completed session is available.
         </CardDescription>
       </CardHeader>
-      <CardContent className="flex flex-1 flex-col justify-between gap-4 py-1">
+      <CardContent className="flex min-h-0 flex-1 flex-col justify-between gap-4 overflow-y-auto py-1">
         <p className="text-sm text-muted-foreground">
           {canExport
             ? "The current recording session is ready to export."

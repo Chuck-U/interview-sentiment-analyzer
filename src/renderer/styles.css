@@ -95,6 +95,36 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* Yellow scale: theme tokens for Tailwind utilities + IDE color preview (see --yellow-* on :root / .light / .dark) */
+  --color-yellow-1: var(--yellow-1);
+  --color-yellow-2: var(--yellow-2);
+  --color-yellow-3: var(--yellow-3);
+  --color-yellow-4: var(--yellow-4);
+  --color-yellow-5: var(--yellow-5);
+  --color-yellow-6: var(--yellow-6);
+  --color-yellow-7: var(--yellow-7);
+  --color-yellow-8: var(--yellow-8);
+  --color-yellow-9: var(--yellow-9);
+  --color-yellow-10: var(--yellow-10);
+  --color-yellow-11: var(--yellow-11);
+  --color-yellow-12: var(--yellow-12);
+  --color-yellow-a1: var(--yellow-a1);
+  --color-yellow-a2: var(--yellow-a2);
+  --color-yellow-a3: var(--yellow-a3);
+  --color-yellow-a4: var(--yellow-a4);
+  --color-yellow-a5: var(--yellow-a5);
+  --color-yellow-a6: var(--yellow-a6);
+  --color-yellow-a7: var(--yellow-a7);
+  --color-yellow-a8: var(--yellow-a8);
+  --color-yellow-a9: var(--yellow-a9);
+  --color-yellow-a10: var(--yellow-a10);
+  --color-yellow-a11: var(--yellow-a11);
+  --color-yellow-a12: var(--yellow-a12);
+  --color-yellow-contrast: var(--yellow-contrast);
+  --color-yellow-surface: var(--yellow-surface);
+  --color-yellow-indicator: var(--yellow-indicator);
+  --color-yellow-track: var(--yellow-track);
 }
 
 body {

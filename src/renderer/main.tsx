@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from "react";
 
-import { RiCloseFill, RiSettings3Line } from "@remixicon/react";
+import { RiCloseFill } from "@remixicon/react";
 
 import { AgentNavigationMenu } from "@/components/ui/navigation-menu";
 import type { SessionSnapshot } from "@/shared/session-lifecycle";
@@ -89,6 +89,12 @@ function LauncherMain() {
   const isRecording = currentSession?.status === "active";
   const isBusy = isStarting || isStopping;
 
+  const platformLabel = useMemo(() => window.electronApp.platform, []);
+  const visibilityShortcutLabel = useMemo(
+    () => formatElectronAcceleratorLabel("CommandOrControl+Shift+V", platformLabel),
+    [platformLabel]
+  );
+
   return (
     <div className="flex h-full min-h-0 w-full flex-col justify-start bg-transparent pb-2" id="main-window">
       <nav
@@ -96,33 +102,6 @@ function LauncherMain() {
         style={dragRegionStyle}
       >
         <AgentNavigationMenu
-          items={[
-            {
-              id: VIEW_OPTIONS.options,
-              label: "Workspace",
-              group: "menuGroup",
-              icon: <RiSettings3Line />,
-            },
-            { id: "start-recording", label: "Start Recording" },
-            { id: "resize-window", label: "Resize Window" },
-            { id: "toggle-visibility", label: "Toggle Visibility" },
-            { id: "close", label: "Close App" },
-          ]}
-          value={openWindowIds.options ? VIEW_OPTIONS.options : ""}
-          onValueChange={(value) => {
-            if (value === VIEW_OPTIONS.options) {
-              handleSetActiveView(VIEW_OPTIONS.options);
-              if (openWindowIds.options) {
-                void window.electronApp.windowRegistry.closeWindow(
-                  VIEW_OPTIONS.options,
-                );
-              } else {
-                void window.electronApp.windowRegistry.openWindow(
-                  VIEW_OPTIONS.options,
-                );
-              }
-            }
-          }}
           isRecording={isRecording}
           isBusy={isBusy}
           onRecordingToggle={(start) => {
@@ -131,16 +110,28 @@ function LauncherMain() {
           onToggleVisibility={() => {
             void window.electronApp.appControls.toggleVisibility();
           }}
-          resizeControl={(
-            <div className="flex items-center gap-2">
-              <WindowPinControl {...pinControlProps} />
-              <WindowResizeControl
-                windowBounds={windowBounds}
-                presetOptions={resizePresetOptions}
-                onSelectPreset={handleResizePreset}
-              />
-            </div>
-          )}
+          visibilityShortcut={visibilityShortcutLabel}
+          pinControl={<WindowPinControl {...pinControlProps} />}
+          resizeControl={
+            <WindowResizeControl
+              windowBounds={windowBounds}
+              presetOptions={resizePresetOptions}
+              onSelectPreset={handleResizePreset}
+            />
+          }
+          isWorkspaceOpen={openWindowIds.options}
+          onWorkspaceToggle={() => {
+            handleSetActiveView(VIEW_OPTIONS.options);
+            if (openWindowIds.options) {
+              void window.electronApp.windowRegistry.closeWindow(
+                VIEW_OPTIONS.options,
+              );
+            } else {
+              void window.electronApp.windowRegistry.openWindow(
+                VIEW_OPTIONS.options,
+              );
+            }
+          }}
           className="w-auto"
           onClose={() => {
             void handleCloseApplication();
@@ -151,7 +142,7 @@ function LauncherMain() {
   );
 }
 
-function CardWindowMain({ layout }: { readonly layout: OptionsCardLayout }) {
+function CardWindowMain({ layout, id }: { readonly layout: OptionsCardLayout, id: string }) {
   const dispatch = useAppDispatch();
   useShortcutsWindowEffects();
   const { resizePresetOptions } = useViews();
@@ -255,9 +246,9 @@ function CardWindowMain({ layout }: { readonly layout: OptionsCardLayout }) {
   );
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-1 flex-col bg-transparent">
+    <div className="flex h-full min-h-0 w-full flex-1 flex-col bg-transparent" id={id}>
       <nav
-        className="relative z-[70] flex w-full max-w-md shrink-0 flex-col items-end justify-baseline rounded-r-md rounded-bl-md border transition-colors duration-200 ease-in-out group-hover:border-yellow-a10 active:bg-yellow-a10/70"
+        className="relative z-[70] flex w-full shrink-0 flex-col items-end justify-baseline rounded-r-md rounded-bl-md border transition-colors duration-200 ease-in-out group-hover:border-yellow-a10 active:bg-yellow-a10/70"
         style={dragRegionStyle}
       >
         <div className="flex w-full items-center justify-between gap-2 leading-7 px-2 py-1">
@@ -283,64 +274,72 @@ function CardWindowMain({ layout }: { readonly layout: OptionsCardLayout }) {
         </div>
       </nav>
       <main
-        className="flex min-h-0 w-full flex-1 flex-col overflow-hidden bg-transparent px-4 pb-4 pt-2"
-        style={dragRegionStyle}
+        className="flex min-h-0 w-full flex-1 flex-col overflow-hidden bg-transparent"
+        style={noDragRegionStyle}
       >
-        <Options
-          layout={layout}
-          statusLabel={statusCopy.label}
-          statusVariant={statusCopy.variant}
-          platformLabel={platformLabel}
-          windowSizeLabel={windowSizeLabel}
-          windowBoundsLabel={windowBoundsLabel}
-          currentSessionId={currentSession?.id.slice(0, 8)}
-          feedbackMessage={feedbackMessage}
-          isRecording={isRecording}
-          isBusy={isBusy}
-          onToggleRecording={(enabled) => {
-            void handleToggleRecording(enabled);
-          }}
-          shortcutLabel={shortcutLabel}
-          isShortcutEnabled={isShortcutEnabled}
-          onSetShortcutEnabled={handleSetShortcutEnabled}
-          recordingState={recordingState}
-          onExportRecording={() => {
-            void handleExportRecording();
-          }}
-          permissions={captureOptions.permissions}
-          microphoneDevices={captureOptions.microphoneDevices}
-          webcamDevices={captureOptions.webcamDevices}
-          displays={captureOptions.displays}
-          microphoneEnabled={captureOptions.config.microphone.enabled}
-          webcamEnabled={captureOptions.config.webcam.enabled}
-          screenEnabled={captureOptions.config.screen.enabled}
-          systemAudioEnabled={captureOptions.config.systemAudio.enabled}
-          screenshotEnabled={captureOptions.config.screenshot.enabled}
-          microphoneLevel={captureOptions.microphoneLevel}
-          isWebcamPreviewVisible={captureOptions.isWebcamPreviewVisible}
-          isWebcamPreviewLoading={captureOptions.isWebcamPreviewLoading}
-          webcamPreviewStream={captureOptions.webcamPreviewStream}
-          isDesktopPreviewVisible={captureOptions.isDesktopPreviewVisible}
-          isDesktopPreviewLoading={captureOptions.isDesktopPreviewLoading}
-          desktopPreviewStream={captureOptions.desktopPreviewStream}
-          hasCaptureSourceEnabled={captureOptions.hasCaptureSourceEnabled}
-          onSetMicrophoneEnabled={captureOptions.setMicrophoneEnabled}
-          onSetWebcamEnabled={captureOptions.setWebcamEnabled}
-          onSetScreenEnabled={captureOptions.setScreenEnabled}
-          onSetSystemAudioEnabled={captureOptions.setSystemAudioEnabled}
-          onSetScreenshotEnabled={captureOptions.setScreenshotEnabled}
-          onSetMicrophoneDeviceId={captureOptions.setMicrophoneDeviceId}
-          onSetWebcamDeviceId={captureOptions.setWebcamDeviceId}
-          onSetDisplayId={captureOptions.setDisplayId}
-          onSetWebcamPreviewVisible={captureOptions.setWebcamPreviewVisible}
-          onSetDesktopPreviewVisible={captureOptions.setDesktopPreviewVisible}
-          onOpenMonitorPicker={() => {
-            void captureOptions.openMonitorPicker();
-          }}
-          onQuit={() => {
-            void handleCloseApplication();
-          }}
-        />
+        <div className="h-2 shrink-0" style={dragRegionStyle} />
+        <div className="flex min-h-0 flex-1">
+          <div className="w-4 shrink-0" style={dragRegionStyle} />
+          <div className="flex min-h-0 flex-1 overflow-hidden" style={noDragRegionStyle}>
+            <Options
+              layout={layout}
+              statusLabel={statusCopy.label}
+              statusVariant={statusCopy.variant}
+              platformLabel={platformLabel}
+              windowSizeLabel={windowSizeLabel}
+              windowBoundsLabel={windowBoundsLabel}
+              currentSessionId={currentSession?.id.slice(0, 8)}
+              feedbackMessage={feedbackMessage}
+              isRecording={isRecording}
+              isBusy={isBusy}
+              onToggleRecording={(enabled) => {
+                void handleToggleRecording(enabled);
+              }}
+              shortcutLabel={shortcutLabel}
+              isShortcutEnabled={isShortcutEnabled}
+              onSetShortcutEnabled={handleSetShortcutEnabled}
+              recordingState={recordingState}
+              onExportRecording={() => {
+                void handleExportRecording();
+              }}
+              permissions={captureOptions.permissions}
+              microphoneDevices={captureOptions.microphoneDevices}
+              webcamDevices={captureOptions.webcamDevices}
+              displays={captureOptions.displays}
+              microphoneEnabled={captureOptions.config.microphone.enabled}
+              webcamEnabled={captureOptions.config.webcam.enabled}
+              screenEnabled={captureOptions.config.screen.enabled}
+              systemAudioEnabled={captureOptions.config.systemAudio.enabled}
+              screenshotEnabled={captureOptions.config.screenshot.enabled}
+              microphoneLevel={captureOptions.microphoneLevel}
+              isWebcamPreviewVisible={captureOptions.isWebcamPreviewVisible}
+              isWebcamPreviewLoading={captureOptions.isWebcamPreviewLoading}
+              webcamPreviewStream={captureOptions.webcamPreviewStream}
+              isDesktopPreviewVisible={captureOptions.isDesktopPreviewVisible}
+              isDesktopPreviewLoading={captureOptions.isDesktopPreviewLoading}
+              desktopPreviewStream={captureOptions.desktopPreviewStream}
+              hasCaptureSourceEnabled={captureOptions.hasCaptureSourceEnabled}
+              onSetMicrophoneEnabled={captureOptions.setMicrophoneEnabled}
+              onSetWebcamEnabled={captureOptions.setWebcamEnabled}
+              onSetScreenEnabled={captureOptions.setScreenEnabled}
+              onSetSystemAudioEnabled={captureOptions.setSystemAudioEnabled}
+              onSetScreenshotEnabled={captureOptions.setScreenshotEnabled}
+              onSetMicrophoneDeviceId={captureOptions.setMicrophoneDeviceId}
+              onSetWebcamDeviceId={captureOptions.setWebcamDeviceId}
+              onSetDisplayId={captureOptions.setDisplayId}
+              onSetWebcamPreviewVisible={captureOptions.setWebcamPreviewVisible}
+              onSetDesktopPreviewVisible={captureOptions.setDesktopPreviewVisible}
+              onOpenMonitorPicker={() => {
+                void captureOptions.openMonitorPicker();
+              }}
+              onQuit={() => {
+                void handleCloseApplication();
+              }}
+            />
+          </div>
+          <div className="w-4 shrink-0" style={dragRegionStyle} />
+        </div>
+        <div className="h-4 shrink-0" style={dragRegionStyle} />
       </main>
     </div>
   );
@@ -360,7 +359,7 @@ function Main() {
         ? "options"
         : "sandbox";
 
-  return <CardWindowMain layout={layout} />;
+  return <CardWindowMain layout={layout} id={role as string} />;
 }
 
 export default Main;

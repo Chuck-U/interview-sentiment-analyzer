@@ -108,7 +108,7 @@ export function Options({
   onQuit,
 }: OptionsProps) {
   const shellClass =
-    "flex h-full w-full min-h-0 flex-1 flex-col overflow-hidden";
+    "flex h-full w-full min-h-0 flex-1 flex-col overflow-hidden from-[#262209] to-[#262209]/30 bg-gradient-to-b  border-2";
 
   if (layout === "options") {
     return (

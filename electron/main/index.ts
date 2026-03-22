@@ -225,6 +225,76 @@ function getClampedWindowPositionForSize(
   };
 }
 
+function getClampedPositionWithinBounds(
+  bounds: {
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+  },
+  size: {
+    readonly width: number;
+    readonly height: number;
+  },
+  preferredPosition: {
+    readonly x: number;
+    readonly y: number;
+  },
+): {
+  readonly x: number;
+  readonly y: number;
+} {
+  const maxX = Math.max(bounds.x, bounds.x + bounds.width - size.width);
+  const maxY = Math.max(bounds.y, bounds.y + bounds.height - size.height);
+
+  return {
+    x: Math.min(Math.max(preferredPosition.x, bounds.x), maxX),
+    y: Math.min(Math.max(preferredPosition.y, bounds.y), maxY),
+  };
+}
+
+function applyOptionsWindowOpenBounds(
+  window: BrowserWindow,
+  anchorBounds?: {
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+  },
+): void {
+  const display = screen.getDisplayMatching(
+    anchorBounds ?? window.getBounds(),
+  );
+  const minimumSize = getMinimumWindowSize(window);
+  const targetSize = clampWindowSize(
+    {
+      width: 560,
+      height: 640,
+    },
+    minimumSize,
+  );
+  const targetPosition = getClampedPositionWithinBounds(
+    display.bounds,
+    targetSize,
+    anchorBounds
+      ? {
+          x: anchorBounds.x,
+          y: anchorBounds.y + 100,
+        }
+      : {
+          x: display.bounds.x,
+          y: display.bounds.y,
+        },
+  );
+
+  window.setBounds({
+    x: targetPosition.x,
+    y: targetPosition.y,
+    width: targetSize.width,
+    height: targetSize.height,
+  });
+}
+
 function publishWindowBounds(window: BrowserWindow): void {
   if (window.isDestroyed()) {
     return;
@@ -341,7 +411,15 @@ function registerWindowBoundsListeners(window: BrowserWindow): void {
   });
 }
 
-function createWindow(role: typeof WINDOW_ROLES[keyof typeof WINDOW_ROLES]): BrowserWindow {
+function createWindow(
+  role: typeof WINDOW_ROLES[keyof typeof WINDOW_ROLES],
+  anchorBounds?: {
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+  },
+): BrowserWindow {
   const preloadPath = path.join(__dirname, "../preload/index.js");
 
   const isLauncher = role === WINDOW_ROLES.launcher;
@@ -420,12 +498,22 @@ function createWindow(role: typeof WINDOW_ROLES[keyof typeof WINDOW_ROLES]): Bro
       broadcastCardWindowOpenState();
     }
 
-    // Add a reference to the launcher window to ensure the options and controls open with an offset of 100px y to the launcher window. 
+    // Keep child windows visually associated with the launcher, but let
+    // the options window expand to the active display when it opens.
     if (!isLauncher) {
-      const launcher = BrowserWindow.getAllWindows().find(w => getWindowRole(w) === WINDOW_ROLES.launcher);
-      if (launcher && !launcher.isDestroyed()) {
-        const [lx, ly] = launcher.getPosition();
-        browserWindow.setPosition(lx, ly + 100);
+      const launcher = BrowserWindow.getAllWindows().find(
+        (window) => getWindowRole(window) === WINDOW_ROLES.launcher,
+      );
+      const launcherBounds =
+        launcher && !launcher.isDestroyed() ? launcher.getBounds() : undefined;
+
+      if (role === WINDOW_ROLES.options) {
+        applyOptionsWindowOpenBounds(
+          browserWindow,
+          anchorBounds ?? launcherBounds,
+        );
+      } else if (launcherBounds) {
+        browserWindow.setPosition(launcherBounds.x, launcherBounds.y + 100);
       }
     }
     // ensure we open the new window with its own developer tools opened.
@@ -844,6 +932,9 @@ async function initializeApp() {
       const existing = cardWindows.get(input);
       if (existing && !existing.isDestroyed()) {
         try {
+          if (input === WINDOW_ROLES.options) {
+            applyOptionsWindowOpenBounds(existing, windowBounds);
+          }
           if (!existing.isVisible()) {
             existing.show();
           }
@@ -858,7 +949,7 @@ async function initializeApp() {
         broadcastCardWindowOpenState();
         return;
       }
-      createWindow(input);
+      createWindow(input, windowBounds);
     });
 
     ipcMain.handle(WINDOW_REGISTRY_CHANNELS.closeWindow, (_event, input: unknown) => {

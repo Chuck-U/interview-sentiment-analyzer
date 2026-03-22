@@ -15,7 +15,7 @@ export function WindowPinControl({
   return (
     <Button
       type="button"
-      variant={isPinned ? "default" : "outline"}
+      variant="ghost"
       size="sm"
       style={{ WebkitAppRegion: "no-drag" } as CSSProperties}
       aria-pressed={isPinned}
@@ -23,11 +23,11 @@ export function WindowPinControl({
       onClick={() => {
         void onToggle(!isPinned);
       }}
-      className="min-w-16 bg-transparent"
+      className={cn("min-w-10 group active:bg-transparent hover:bg-transparent", " ease-in p-0 mx-2")}
     >
       <RiPushpinFill
         data-icon="inline-start hover:text-yellow-8"
-        className={cn("size-5", isPinned ? "text-white" : "text-muted-foreground")}
+        className={cn("size-5", isPinned ? "text-yellow-indicator  shadow-yellow-contrast -translate-x-1 translate-y-1" : "text-muted-foreground", isPinned ? "" : "group-hover:-translate-x-1 group-hover:translate-y-1 transition-transform duration-75 delay-100 ease-in-out")}
       />
     </Button>
   );

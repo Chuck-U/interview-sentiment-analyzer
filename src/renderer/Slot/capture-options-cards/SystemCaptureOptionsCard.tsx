@@ -20,7 +20,7 @@ export function SystemCaptureOptionsCard({
           Configure shared recording behavior that is not tied to a single source card.
         </CardDescription>
       </CardHeader>
-      <CardContent className="flex flex-1 flex-col gap-4 py-1">
+      <CardContent className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto py-1">
         <div className="flex items-center justify-between gap-3 rounded-md border border-border/50 bg-background/40 p-3">
           <div className="flex flex-col gap-1">
             <Label htmlFor="system-audio-switch">System audio</Label>
