@@ -288,6 +288,9 @@ const pinnedByWebContentsId = new Map<number, boolean>();
 const cardWindows = new Map<CardWindowRole, BrowserWindow>();
 let isQuitting = false;
 
+/** Set after tray sync is defined so every app window can refresh the tray menu on show/hide. */
+let syncTrayMenuRef: (() => void) | null = null;
+
 function getWindowRole(window: BrowserWindow): string | undefined {
   return roleByWebContentsId.get(window.webContents.id);
 }
@@ -372,8 +375,26 @@ function createWindow(role: typeof WINDOW_ROLES[keyof typeof WINDOW_ROLES]): Bro
   const webContentsId = browserWindow.webContents.id;
   roleByWebContentsId.set(webContentsId, role);
   pinnedByWebContentsId.set(webContentsId, false);
+  log.ger({
+    type: "debug",
+    message: "[window createWindow] created",
+    data: {
+      role,
+      webContentsId,
+    },
+  });
 
   browserWindow.on("close", (event) => {
+    log.ger({
+      type: "debug",
+      message: "[window close] requested",
+      data: {
+        role,
+        webContentsId,
+        isLauncher,
+        isQuitting,
+      },
+    });
     if (isLauncher || isQuitting) {
       return;
     }
@@ -386,22 +407,63 @@ function createWindow(role: typeof WINDOW_ROLES[keyof typeof WINDOW_ROLES]): Bro
   });
 
   browserWindow.on("show", () => {
+    log.ger({
+      type: "debug",
+      message: "[window show]",
+      data: {
+        role,
+        webContentsId,
+        bounds: browserWindow.getBounds(),
+      },
+    });
     if (!isLauncher) {
       broadcastCardWindowOpenState();
     }
+
+    // Add a reference to the launcher window to ensure the options and controls open with an offset of 100px y to the launcher window. 
+    if (!isLauncher) {
+      const launcher = BrowserWindow.getAllWindows().find(w => getWindowRole(w) === WINDOW_ROLES.launcher);
+      if (launcher && !launcher.isDestroyed()) {
+        const [lx, ly] = launcher.getPosition();
+        browserWindow.setPosition(lx, ly + 100);
+      }
+    }
+    // ensure we open the new window with its own developer tools opened.
+    if (!isLauncher && devServerUrl) {
+      browserWindow.webContents.openDevTools({ mode: "detach" });
+    }
+    
     publishAlwaysOnTop(browserWindow);
     publishPinned(browserWindow);
+    syncTrayMenuRef?.();
   });
 
   browserWindow.on("hide", () => {
+    log.ger({
+      type: "debug",
+      message: "[window hide]",
+      data: {
+        role,
+        webContentsId,
+      },
+    });
     if (!isLauncher) {
       broadcastCardWindowOpenState();
     }
     publishAlwaysOnTop(browserWindow);
     publishPinned(browserWindow);
+    syncTrayMenuRef?.();
   });
 
   browserWindow.on("closed", () => {
+    log.ger({
+      type: "debug",
+      message: "[window closed]",
+      data: {
+        role,
+        webContentsId,
+      },
+    });
     roleByWebContentsId.delete(webContentsId);
     pinnedByWebContentsId.delete(webContentsId);
     if (!isLauncher) {
@@ -433,6 +495,14 @@ function createWindow(role: typeof WINDOW_ROLES[keyof typeof WINDOW_ROLES]): Bro
       return;
     }
 
+    log.ger({
+      type: "debug",
+      message: "[window ready-to-show]",
+      data: {
+        role,
+        webContentsId,
+      },
+    });
     browserWindow.show();
     publishAlwaysOnTop(browserWindow);
     publishPinned(browserWindow);
@@ -582,16 +652,126 @@ async function initializeApp() {
     log.ger({ type: "info", message: "[app createWindow]", data: mainWindow })
     mainWindow.focus();
 
+    let currentSession: SessionSnapshot | null = null;
+    let sessionLifecycleController: SessionLifecycleController | null = null;
+    const appConfigStore = createAppConfigStore(app);
+    const monitorPicker = createMonitorPickerController({
+      onSelectionChanged(displayId) {
+        publishToAllWindows(
+          CAPTURE_OPTIONS_EVENT_CHANNELS.selectedDisplayChanged,
+          { displayId },
+        );
+      },
+    });
+
     let tray: Tray | null = null;
 
+    /** Which card windows were visible before a bulk hide (restore on bulk show). */
+    let cardVisibilityBeforeBulkHide: Partial<
+      Record<CardWindowRole, boolean>
+    > | null = null;
+
+    const collectAppWindows = (): BrowserWindow[] => {
+      const windows: BrowserWindow[] = [];
+      if (!mainWindow.isDestroyed()) {
+        windows.push(mainWindow);
+      }
+      for (const w of cardWindows.values()) {
+        if (!w.isDestroyed()) {
+          windows.push(w);
+        }
+      }
+      return windows;
+    };
+
+    const anyAppWindowVisible = (): boolean =>
+      collectAppWindows().some((w) => w.isVisible());
+
+    const captureCardVisibilitySnapshot = (): Partial<
+      Record<CardWindowRole, boolean>
+    > => {
+      const cards: Partial<Record<CardWindowRole, boolean>> = {};
+      for (const [role, w] of cardWindows) {
+        if (!w.isDestroyed()) {
+          cards[role] = w.isVisible();
+        }
+      }
+      return cards;
+    };
+
     const toggleVisibility = () => {
-      if (mainWindow.isVisible()) {
-        log.ger({ type: "info", message: "[app toggleVisibility] hide" })
-        mainWindow.hide();
+      if (anyAppWindowVisible()) {
+        log.ger({ type: "info", message: "[app toggleVisibility] hide" });
+        cardVisibilityBeforeBulkHide = captureCardVisibilitySnapshot();
+        log.ger({ type: 'debug', message: '[app toggleVisibility] cardVisibilityBeforeBulkHide', data: { cardVisibilityBeforeBulkHide } });
+        if (monitorPicker.isOpen()) {
+          monitorPicker.close();
+        }
+        for (const w of collectAppWindows()) {
+          if (w.isDestroyed()) {
+            continue;
+          }
+          try {
+            if (w.isVisible()) {
+              w.hide();
+            }
+          } catch (error) {
+            log.ger({
+              type: "warn",
+              message: "[app toggleVisibility] hide failed for a window",
+              data: error,
+            });
+          }
+        }
       } else {
-        log.ger({ type: "info", message: "[app toggleVisibility] show" })
-        mainWindow.show();
-        mainWindow.focus();
+        log.ger({ type: "info", message: "[app toggleVisibility] show" });
+        const snapshot = cardVisibilityBeforeBulkHide;
+        cardVisibilityBeforeBulkHide = null;
+        if (snapshot) {
+          for (const [role, w] of cardWindows) {
+            if (w.isDestroyed()) {
+              continue;
+            }
+            if (snapshot[role]) {
+              try {
+                w.show();
+              } catch (error) {
+                log.ger({
+                  type: "warn",
+                  message: `[app toggleVisibility] show card ${role} failed`,
+                  data: error,
+                });
+              }
+            }
+          }
+        } else {
+          for (const w of collectAppWindows()) {
+            if (w.isDestroyed()) {
+              continue;
+            }
+            try {
+              w.show();
+            } catch (error) {
+              log.ger({
+                type: "warn",
+                message: "[app toggleVisibility] show (fallback) failed",
+                data: error,
+              });
+            }
+          }
+        }
+        if (!mainWindow.isDestroyed()) {
+          try {
+            mainWindow.show();
+            mainWindow.focus();
+          } catch (error) {
+            log.ger({
+              type: "warn",
+              message: "[app toggleVisibility] show main failed",
+              data: error,
+            });
+          }
+        }
       }
       syncTrayMenu();
     };
@@ -601,7 +781,7 @@ async function initializeApp() {
         return;
       }
 
-      const label = mainWindow.isVisible()
+      const label = anyAppWindowVisible()
         ? "Hide overlay"
         : "Show overlay";
 
@@ -614,28 +794,11 @@ async function initializeApp() {
       );
     };
 
+    syncTrayMenuRef = syncTrayMenu;
+
     tray = new Tray(createEmptyTrayIcon());
     syncTrayMenu();
     tray.on("click", toggleVisibility);
-
-    mainWindow.on("show", () => {
-      syncTrayMenu();
-    });
-    mainWindow.on("hide", () => {
-      syncTrayMenu();
-    });
-
-    let currentSession: SessionSnapshot | null = null;
-    let sessionLifecycleController: SessionLifecycleController | null = null;
-    const appConfigStore = createAppConfigStore(app);
-    const monitorPicker = createMonitorPickerController({
-      onSelectionChanged(displayId) {
-        publishToAllWindows(
-          CAPTURE_OPTIONS_EVENT_CHANNELS.selectedDisplayChanged,
-          { displayId },
-        );
-      },
-    });
 
     ipcMain.handle(APP_CONTROL_CHANNELS.closeApplication, () => {
       monitorPicker.close();
@@ -664,6 +827,20 @@ async function initializeApp() {
       if (typeof input !== "string" || !isCardWindowRole(input)) {
         throw new Error("Invalid card window role.");
       }
+      const webContents = BrowserWindow.fromWebContents(_event.sender);
+      const windowBounds = webContents?.getBounds();
+      log.ger({
+        type: "debug",
+        message: "[windowRegistry openWindow] requested",
+        data: {
+          role: input,
+          currentlyOpen: isCardWindowOpen(input),
+          event: _event
+        },
+      });
+      log.ger({ type: 'debug', message: '[windowRegistry openWindow] webContents', data: { webContents } });
+      log.ger({ type: 'debug', message: '[windowRegistry openWindow] cardWindows', data: { cardWindows } });
+      log.ger({ type: 'debug', message: '[windowRegistry openWindow] windowBounds', data: { windowBounds } });
       const existing = cardWindows.get(input);
       if (existing && !existing.isDestroyed()) {
         try {
@@ -688,6 +865,14 @@ async function initializeApp() {
       if (typeof input !== "string" || !isCardWindowRole(input)) {
         throw new Error("Invalid card window role.");
       }
+      log.ger({
+        type: "debug",
+        message: "[windowRegistry closeWindow] requested",
+        data: {
+          role: input,
+          currentlyOpen: isCardWindowOpen(input),
+        },
+      });
       const target = cardWindows.get(input);
       if (target && !target.isDestroyed()) {
         try {
@@ -1129,6 +1314,7 @@ async function initializeApp() {
         const captureOptions = await appConfigStore.loadCaptureOptionsConfig();
         return buildCaptureSourcesFromConfig(captureOptions);
       },
+      toggleVisibility,
     });
 
     app.on("activate", () => {

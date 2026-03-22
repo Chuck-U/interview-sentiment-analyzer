@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useMemo } from "react";
 
-import { RiCloseFill } from "@remixicon/react";
+import { RiCloseFill, RiSettings3Line } from "@remixicon/react";
 
 import { AgentNavigationMenu } from "@/components/ui/navigation-menu";
 import type { SessionSnapshot } from "@/shared/session-lifecycle";
@@ -22,10 +22,6 @@ import { parseWindowRoleFromLocation } from "./parseWindowRole";
 import { useAppDispatch, useAppSelector } from "./store/hooks";
 import { setFeedbackMessage } from "./store/slices/sessionRecordingSlice";
 import { setShortcutEnabled } from "./store/slices/shortcutsWindowSlice";
-import {
-  pickFirstOpenCardView,
-  setActiveView,
-} from "./store/slices/viewsSlice";
 import { WindowResizeControl } from "./window-controls/window-resize-control";
 import { WindowPinControl } from "./window-controls/window-pin-control";
 
@@ -61,7 +57,6 @@ function getStatusCopy(session: SessionSnapshot | null): {
 }
 
 function LauncherMain() {
-  const dispatch = useAppDispatch();
   useShortcutsWindowEffects();
   useWindowRegistrySync();
 
@@ -78,21 +73,9 @@ function LauncherMain() {
   const windowBounds = useAppSelector(
     (state) => state.shortcutsWindow.windowBounds,
   );
-  const { activeView, handleSetActiveView, resizePresetOptions } = useViews();
+  const { handleSetActiveView, resizePresetOptions } = useViews();
   const openWindowIds = useAppSelector((state) => state.views.openWindowIds);
   const { dragRegionStyle, pinControlProps } = usePinnedWindowBehavior();
-
-  useEffect(() => {
-    if (
-      activeView === VIEW_OPTIONS.controls ||
-      activeView === VIEW_OPTIONS.options ||
-      activeView === VIEW_OPTIONS.sandbox
-    ) {
-      if (!openWindowIds[activeView]) {
-        dispatch(setActiveView(pickFirstOpenCardView(openWindowIds)));
-      }
-    }
-  }, [activeView, dispatch, openWindowIds]);
 
   const handleResizePreset = useCallback(
     async (preset: WindowSizePreset) => {
@@ -107,33 +90,36 @@ function LauncherMain() {
   const isBusy = isStarting || isStopping;
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-col justify-start bg-transparent pb-2">
+    <div className="flex h-full min-h-0 w-full flex-col justify-start bg-transparent pb-2" id="main-window">
       <nav
         className="z-[70] mx-2 inline-flex max-w-[calc(100vw-16px)] shrink-0 flex-col gap-2 bg-background/15 mt-4"
         style={dragRegionStyle}
       >
         <AgentNavigationMenu
           items={[
-            { id: "controls", label: "Controls", group: "menuGroup" },
-            { id: "options", label: "Options", group: "menuGroup" },
-            { id: "sandbox", label: "Sandbox", group: "menuGroup" },
+            {
+              id: VIEW_OPTIONS.options,
+              label: "Workspace",
+              group: "menuGroup",
+              icon: <RiSettings3Line />,
+            },
             { id: "start-recording", label: "Start Recording" },
             { id: "resize-window", label: "Resize Window" },
             { id: "toggle-visibility", label: "Toggle Visibility" },
             { id: "close", label: "Close App" },
           ]}
-          value={activeView}
+          value={openWindowIds.options ? VIEW_OPTIONS.options : ""}
           onValueChange={(value) => {
-            if (
-              value === VIEW_OPTIONS.controls ||
-              value === VIEW_OPTIONS.options ||
-              value === VIEW_OPTIONS.sandbox
-            ) {
-              handleSetActiveView(value);
-              if (openWindowIds[value]) {
-                void window.electronApp.windowRegistry.closeWindow(value);
+            if (value === VIEW_OPTIONS.options) {
+              handleSetActiveView(VIEW_OPTIONS.options);
+              if (openWindowIds.options) {
+                void window.electronApp.windowRegistry.closeWindow(
+                  VIEW_OPTIONS.options,
+                );
               } else {
-                void window.electronApp.windowRegistry.openWindow(value);
+                void window.electronApp.windowRegistry.openWindow(
+                  VIEW_OPTIONS.options,
+                );
               }
             }
           }}
@@ -269,7 +255,7 @@ function CardWindowMain({ layout }: { readonly layout: OptionsCardLayout }) {
   );
 
   return (
-    <div className="flex max-h-full min-h-0 w-full flex-1 flex-col items-start bg-transparent h-fit justify-start">
+    <div className="flex h-full min-h-0 w-full flex-1 flex-col bg-transparent">
       <nav
         className="relative z-[70] flex w-full max-w-md shrink-0 flex-col items-end justify-baseline rounded-r-md rounded-bl-md border transition-colors duration-200 ease-in-out group-hover:border-yellow-a10 active:bg-yellow-a10/70"
         style={dragRegionStyle}
@@ -297,7 +283,7 @@ function CardWindowMain({ layout }: { readonly layout: OptionsCardLayout }) {
         </div>
       </nav>
       <main
-        className="flex min-h-0 flex-1 flex-col overflow-hidden bg-transparent px-4 pb-4 pt-2"
+        className="flex min-h-0 w-full flex-1 flex-col overflow-hidden bg-transparent px-4 pb-4 pt-2"
         style={dragRegionStyle}
       >
         <Options
@@ -332,8 +318,10 @@ function CardWindowMain({ layout }: { readonly layout: OptionsCardLayout }) {
           screenshotEnabled={captureOptions.config.screenshot.enabled}
           microphoneLevel={captureOptions.microphoneLevel}
           isWebcamPreviewVisible={captureOptions.isWebcamPreviewVisible}
+          isWebcamPreviewLoading={captureOptions.isWebcamPreviewLoading}
           webcamPreviewStream={captureOptions.webcamPreviewStream}
           isDesktopPreviewVisible={captureOptions.isDesktopPreviewVisible}
+          isDesktopPreviewLoading={captureOptions.isDesktopPreviewLoading}
           desktopPreviewStream={captureOptions.desktopPreviewStream}
           hasCaptureSourceEnabled={captureOptions.hasCaptureSourceEnabled}
           onSetMicrophoneEnabled={captureOptions.setMicrophoneEnabled}
@@ -349,7 +337,6 @@ function CardWindowMain({ layout }: { readonly layout: OptionsCardLayout }) {
           onOpenMonitorPicker={() => {
             void captureOptions.openMonitorPicker();
           }}
-          dragRegionStyle={dragRegionStyle}
           onQuit={() => {
             void handleCloseApplication();
           }}

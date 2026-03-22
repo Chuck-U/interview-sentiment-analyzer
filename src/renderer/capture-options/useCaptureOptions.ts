@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import {
   loadCaptureOptions,
@@ -22,6 +22,7 @@ import {
   getActiveWebcamDeviceId,
   reconcileCaptureOptionsConfig,
 } from "./domain";
+import { useCapturePreviewState } from "./useCapturePreviewState";
 
 type UseCaptureOptionsArgs = {
   readonly isMenuActive: boolean;
@@ -36,8 +37,10 @@ type UseCaptureOptionsResult = {
   readonly displays: ReturnType<typeof buildDisplayOptions>;
   readonly microphoneLevel: number;
   readonly isWebcamPreviewVisible: boolean;
+  readonly isWebcamPreviewLoading: boolean;
   readonly webcamPreviewStream: MediaStream | null;
   readonly isDesktopPreviewVisible: boolean;
+  readonly isDesktopPreviewLoading: boolean;
   readonly desktopPreviewStream: MediaStream | null;
   readonly hasCaptureSourceEnabled: boolean;
   readonly refresh: () => Promise<void>;
@@ -68,14 +71,6 @@ export function useCaptureOptions(
   const recordingState = useAppSelector(
     (state) => state.sessionRecording.recordingState,
   );
-
-  const [microphoneLevel, setMicrophoneLevel] = useState(0);
-  const [isWebcamPreviewVisible, setIsWebcamPreviewVisible] = useState(false);
-  const [webcamPreviewStream, setWebcamPreviewStream] =
-    useState<MediaStream | null>(null);
-  const [isDesktopPreviewVisible, setIsDesktopPreviewVisible] = useState(false);
-  const [desktopPreviewStream, setDesktopPreviewStream] =
-    useState<MediaStream | null>(null);
 
   const configRef = useRef(config);
   const devicesRef = useRef(devices);
@@ -182,244 +177,14 @@ export function useCaptureOptions(
     });
   }, [applyConfigUpdate]);
 
-  useEffect(() => {
-    if (!isMenuActive || !config.microphone.enabled) {
-      queueMicrotask(() => {
-        setMicrophoneLevel(0);
-      });
-      return;
-    }
-
-    let cancelled = false;
-    let animationFrameId = 0;
-    let audioContext: AudioContext | null = null;
-    let previewStream: MediaStream | null = null;
-
-    const startMeter = async () => {
-      try {
-        previewStream = await navigator.mediaDevices.getUserMedia({
-          audio: config.microphone.deviceId
-            ? {
-                deviceId: { exact: config.microphone.deviceId },
-              }
-            : true,
-          video: false,
-        });
-
-        if (cancelled) {
-          for (const track of previewStream.getTracks()) {
-            track.stop();
-          }
-          return;
-        }
-
-        audioContext = new AudioContext();
-        const analyser = audioContext.createAnalyser();
-        analyser.fftSize = 256;
-        const source = audioContext.createMediaStreamSource(previewStream);
-        source.connect(analyser);
-
-        const data = new Uint8Array(analyser.frequencyBinCount);
-
-        const tick = () => {
-          analyser.getByteTimeDomainData(data);
-          let sum = 0;
-
-          for (const value of data) {
-            const normalized = (value - 128) / 128;
-            sum += normalized * normalized;
-          }
-
-          const rms = Math.sqrt(sum / data.length);
-          const scaledLevel = Math.min(100, Math.round(rms * 180));
-
-          if (!cancelled) {
-            setMicrophoneLevel(scaledLevel);
-            animationFrameId = window.requestAnimationFrame(tick);
-          }
-        };
-
-        tick();
-      } catch (error) {
-        setMicrophoneLevel(0);
-        onError?.(
-          error instanceof Error
-            ? error.message
-            : "Unable to start microphone level meter.",
-        );
-      }
-    };
-
-    void startMeter();
-
-    return () => {
-      cancelled = true;
-      window.cancelAnimationFrame(animationFrameId);
-      setMicrophoneLevel(0);
-
-      if (previewStream) {
-        for (const track of previewStream.getTracks()) {
-          track.stop();
-        }
-      }
-
-      if (audioContext) {
-        void audioContext.close();
-      }
-    };
-  }, [config.microphone.deviceId, config.microphone.enabled, isMenuActive, onError]);
-
-  useEffect(() => {
-    const selectedWebcamId = config.webcam.deviceId;
-
-    if (!isMenuActive || !isWebcamPreviewVisible || !selectedWebcamId) {
-      queueMicrotask(() => {
-        setWebcamPreviewStream((previousStream) => {
-          if (previousStream) {
-            for (const track of previousStream.getTracks()) {
-              track.stop();
-            }
-          }
-
-          return null;
-        });
-      });
-      return;
-    }
-
-    let cancelled = false;
-    let nextStream: MediaStream | null = null;
-
-    const startPreview = async () => {
-      try {
-        nextStream = await navigator.mediaDevices.getUserMedia({
-          audio: false,
-          video: {
-            deviceId: { exact: selectedWebcamId },
-          },
-        });
-
-        if (cancelled) {
-          for (const track of nextStream.getTracks()) {
-            track.stop();
-          }
-          return;
-        }
-
-        setWebcamPreviewStream((previousStream) => {
-          if (previousStream) {
-            for (const track of previousStream.getTracks()) {
-              track.stop();
-            }
-          }
-
-          return nextStream;
-        });
-      } catch (error) {
-        setWebcamPreviewStream((previousStream) => {
-          if (previousStream) {
-            for (const track of previousStream.getTracks()) {
-              track.stop();
-            }
-          }
-
-          return null;
-        });
-        onError?.(
-          error instanceof Error
-            ? error.message
-            : "Unable to start webcam preview.",
-        );
-      }
-    };
-
-    void startPreview();
-
-    return () => {
-      cancelled = true;
-
-      if (nextStream) {
-        for (const track of nextStream.getTracks()) {
-          track.stop();
-        }
-      }
-    };
-  }, [config.webcam.deviceId, isMenuActive, isWebcamPreviewVisible, onError]);
-
-  useEffect(() => {
-    const selectedDisplayId = config.display.displayId;
-
-    if (!isMenuActive || !isDesktopPreviewVisible || !selectedDisplayId) {
-      queueMicrotask(() => {
-        setDesktopPreviewStream((previousStream) => {
-          if (previousStream) {
-            for (const track of previousStream.getTracks()) {
-              track.stop();
-            }
-          }
-
-          return null;
-        });
-      });
-      return;
-    }
-
-    let cancelled = false;
-    let nextStream: MediaStream | null = null;
-
-    const startPreview = async () => {
-      try {
-        nextStream = await navigator.mediaDevices.getDisplayMedia({
-          audio: false,
-          video: true,
-        });
-
-        if (cancelled) {
-          for (const track of nextStream.getTracks()) {
-            track.stop();
-          }
-          return;
-        }
-
-        setDesktopPreviewStream((previousStream) => {
-          if (previousStream) {
-            for (const track of previousStream.getTracks()) {
-              track.stop();
-            }
-          }
-
-          return nextStream;
-        });
-      } catch (error) {
-        setDesktopPreviewStream((previousStream) => {
-          if (previousStream) {
-            for (const track of previousStream.getTracks()) {
-              track.stop();
-            }
-          }
-
-          return null;
-        });
-        onError?.(
-          error instanceof Error
-            ? error.message
-            : "Unable to start desktop preview.",
-        );
-      }
-    };
-
-    void startPreview();
-
-    return () => {
-      cancelled = true;
-
-      if (nextStream) {
-        for (const track of nextStream.getTracks()) {
-          track.stop();
-        }
-      }
-    };
-  }, [config.display.displayId, isDesktopPreviewVisible, isMenuActive, onError]);
+  const previewState = useCapturePreviewState({
+    isMenuActive,
+    microphoneEnabled: config.microphone.enabled,
+    microphoneDeviceId: config.microphone.deviceId,
+    webcamDeviceId: config.webcam.deviceId,
+    displayId: config.display.displayId,
+    onError,
+  });
 
   const activeMicrophoneDeviceId = getActiveMicrophoneDeviceId(recordingState);
   const activeWebcamDeviceId = getActiveWebcamDeviceId(recordingState);
@@ -468,11 +233,13 @@ export function useCaptureOptions(
     microphoneDevices,
     webcamDevices,
     displays: displayOptions,
-    microphoneLevel,
-    isWebcamPreviewVisible,
-    webcamPreviewStream,
-    isDesktopPreviewVisible,
-    desktopPreviewStream,
+    microphoneLevel: previewState.microphoneLevel,
+    isWebcamPreviewVisible: previewState.isWebcamPreviewVisible,
+    isWebcamPreviewLoading: previewState.isWebcamPreviewLoading,
+    webcamPreviewStream: previewState.webcamPreviewStream,
+    isDesktopPreviewVisible: previewState.isDesktopPreviewVisible,
+    isDesktopPreviewLoading: previewState.isDesktopPreviewLoading,
+    desktopPreviewStream: previewState.desktopPreviewStream,
     hasCaptureSourceEnabled: captureSources.length > 0,
     refresh,
     setMicrophoneEnabled(enabled) {
@@ -550,10 +317,10 @@ export function useCaptureOptions(
       }));
     },
     setWebcamPreviewVisible(visible) {
-      setIsWebcamPreviewVisible(visible);
+      previewState.setWebcamPreviewVisible(visible);
     },
     setDesktopPreviewVisible(visible) {
-      setIsDesktopPreviewVisible(visible);
+      previewState.setDesktopPreviewVisible(visible);
     },
     async openMonitorPicker() {
       try {

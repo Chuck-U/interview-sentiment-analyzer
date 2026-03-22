@@ -1,12 +1,16 @@
 import { useEffect, useRef } from "react";
 
+import { Skeleton } from "@/components/ui/skeleton";
+
 type MediaStreamPreviewProps = {
   readonly stream: MediaStream | null;
+  readonly isLoading?: boolean;
   readonly unavailableLabel: string;
 };
 
 export function MediaStreamPreview({
   stream,
+  isLoading = false,
   unavailableLabel,
 }: MediaStreamPreviewProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -31,6 +35,10 @@ export function MediaStreamPreview({
       }
     };
   }, [stream]);
+
+  if (!stream && isLoading) {
+    return <Skeleton className="aspect-video w-full rounded-md" />;
+  }
 
   if (!stream) {
     return (

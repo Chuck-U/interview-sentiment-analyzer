@@ -1,6 +1,5 @@
 import type { IpcRendererEvent } from "electron";
 import { contextBridge, ipcRenderer } from "electron";
-import { z } from "zod/v4";
 import {
   type SessionLifecycleBridge,
   type SessionLifecycleEventsBridge,

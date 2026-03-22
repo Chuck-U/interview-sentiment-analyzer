@@ -70,6 +70,7 @@ export type RegisterConfiguredGlobalShortcutsArgs = {
   readonly getCurrentSession: () => ShortcutActionContext["currentSession"];
   readonly getCaptureSources: () => Promise<readonly MediaChunkSource[]>;
   readonly onActionError?: (error: unknown) => void;
+  readonly toggleVisibility?: () => void;
 };
 
 export async function registerConfiguredGlobalShortcuts(
@@ -82,11 +83,22 @@ export async function registerConfiguredGlobalShortcuts(
     getCurrentSession,
     getCaptureSources,
     onActionError,
+    toggleVisibility,
   } =
     args;
 
   // Re-register cleanly on startup/config changes so we don't accumulate handlers.
   globalShortcut.unregisterAll();
+
+  if (toggleVisibility) {
+    const ok = globalShortcut.register("CommandOrControl+Shift+V", () => {
+      console.log("CommandOrControl+Shift+V pressed");
+      toggleVisibility();
+    });
+    if (!ok) {
+      console.warn(`[global shortcut 'toggleVisibility'] was not registered`);
+    }
+  }
 
   const entries = Object.entries(config.shortcuts);
 
@@ -102,7 +114,6 @@ export async function registerConfiguredGlobalShortcuts(
     const ok = globalShortcut.register(accelerator, () => {
       const currentSession = getCurrentSession();
       const context: ShortcutActionContext = { currentSession };
-
       void (async () => {
         await executeShortcutActionSequentially({
           actions,

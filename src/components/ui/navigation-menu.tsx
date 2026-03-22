@@ -242,12 +242,13 @@ function AgentNavigationMenu({
         onClick={() => setActiveValue(item.id)}
         style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
         className={cn(
-          "rounded-none px-2 py-1 text-xs transition-colors",
+          "inline-flex items-center gap-1.5 rounded-none px-2 py-1 text-xs transition-colors",
           isActive ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/50",
         )}
         aria-current={isActive ? "page" : undefined}
       >
-        {item.label}
+        {item.icon ? <span className="shrink-0">{item.icon}</span> : null}
+        <span>{item.label}</span>
       </button>
     );
   };
