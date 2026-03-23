@@ -7,6 +7,12 @@ import {
 import type { RecordingBridge, RecordingEventsBridge } from "../../src/shared/recording";
 import type { AppControlsBridge } from "../../src/shared/app-controls";
 import { APP_CONTROL_CHANNELS } from "../../src/shared/app-controls";
+import type { AiProviderBridge } from "../../src/shared/ai-provider";
+import {
+  AI_PROVIDER_CHANNELS,
+  normalizeAiProviderConfig,
+  normalizeAiProviderModels,
+} from "../../src/shared/ai-provider";
 import type { ElectronAppBridge } from "../../src/shared/electron-app";
 import type { CaptureOptionsBridge } from "../../src/shared/capture-options";
 import type { ShortcutsBridge } from "../../src/shared/shortcuts";
@@ -204,6 +210,42 @@ const shortcutsBridge: ShortcutsBridge = {
   },
 };
 
+const aiProviderBridge: AiProviderBridge = {
+  getConfig() {
+    return ipcRenderer
+      .invoke(AI_PROVIDER_CHANNELS.getConfig)
+      .then(normalizeAiProviderConfig);
+  },
+  setConfig(config) {
+    return ipcRenderer
+      .invoke(
+        AI_PROVIDER_CHANNELS.setConfig,
+        normalizeAiProviderConfig(config),
+      )
+      .then(normalizeAiProviderConfig);
+  },
+  getApiKeyStatus(provider) {
+    return ipcRenderer.invoke(AI_PROVIDER_CHANNELS.getApiKey, provider);
+  },
+  setApiKey(provider, key) {
+    return ipcRenderer.invoke(AI_PROVIDER_CHANNELS.setApiKey, {
+      provider,
+      key,
+    }) as Promise<void>;
+  },
+  deleteApiKey(provider) {
+    return ipcRenderer.invoke(
+      AI_PROVIDER_CHANNELS.deleteApiKey,
+      provider,
+    ) as Promise<void>;
+  },
+  listModels(provider) {
+    return ipcRenderer
+      .invoke(AI_PROVIDER_CHANNELS.listModels, provider)
+      .then(normalizeAiProviderModels);
+  },
+};
+
 const captureOptionsBridge: CaptureOptionsBridge = {
   getConfig() {
     return ipcRenderer.invoke(
@@ -324,6 +366,7 @@ const electronAppBridge: ElectronAppBridge = {
   sessionLifecycleEvents: sessionLifecycleEventsBridge,
   recording: recordingBridge,
   recordingEvents: recordingEventsBridge,
+  aiProvider: aiProviderBridge,
   captureOptions: captureOptionsBridge,
   appControls: appControlsBridge,
   windowControls: windowControlsBridge,

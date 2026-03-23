@@ -65,8 +65,10 @@ export type AppConfigStore = {
   saveConfig(config: AppConfig): Promise<void>;
   loadShortcutsConfig(): Promise<ShortcutsConfig>;
   loadCaptureOptionsConfig(): Promise<CaptureOptionsConfig>;
+  loadAiProviderConfig(): Promise<AppConfig["aiProvider"]>;
   updateShortcutEnabled(args: SetShortcutEnabledRequest): Promise<void>;
   saveCaptureOptionsConfig(config: CaptureOptionsConfig): Promise<CaptureOptionsConfig>;
+  saveAiProviderConfig(config: AppConfig["aiProvider"]): Promise<AppConfig["aiProvider"]>;
 };
 
 export function createAppConfigStore(
@@ -151,6 +153,10 @@ export function createAppConfigStore(
       const config = await loadConfig();
       return config.captureOptions;
     },
+    async loadAiProviderConfig() {
+      const config = await loadConfig();
+      return config.aiProvider;
+    },
     async updateShortcutEnabled(args) {
       const current = await loadConfig();
       const existingEntry = current.shortcuts[args.shortcutId];
@@ -181,6 +187,16 @@ export function createAppConfigStore(
 
       await saveConfig(updated);
       return updated.captureOptions;
+    },
+    async saveAiProviderConfig(config) {
+      const current = await loadConfig();
+      const updated: AppConfig = {
+        ...current,
+        aiProvider: config,
+      };
+
+      await saveConfig(updated);
+      return updated.aiProvider;
     },
   };
 }

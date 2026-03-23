@@ -12,9 +12,10 @@ import {
   systemPreferences,
   Tray,
 } from "electron";
-
 import { Log } from "../../src/lib/utils";
 import { createSessionLifecycleBackend } from "../../src/backend";
+import { createListAiProviderModelsUseCase } from "../../src/backend/application/use-cases/list-ai-provider-models";
+import { createSecretStore } from "../../src/backend/infrastructure/config/secretStore";
 import { registerSessionLifecycleIpc } from "../../src/backend/infrastructure/ipc/register-session-lifecycle-ipc";
 import { registerRecordingIpc } from "../../src/backend/infrastructure/ipc/register-recording-ipc";
 import { createRecordingPersistenceService } from "../../src/backend/infrastructure/recording/recording-persistence";
@@ -34,6 +35,12 @@ import {
 } from "../../src/shared/capture-options";
 import { SESSION_LIFECYCLE_EVENT_CHANNELS } from "../../src/backend/infrastructure/ipc/session-lifecycle-channels";
 import { RECORDING_CHANNELS, RECORDING_EVENT_CHANNELS } from "../../src/backend/infrastructure/ipc/recording-channels";
+import {
+  AI_PROVIDER_CHANNELS,
+  normalizeAiProvider,
+  normalizeAiProviderConfig,
+  normalizeSetAiProviderApiKeyRequest,
+} from "../../src/shared/ai-provider";
 import {
   clampWindowSize,
   parseMoveWindowByRequest,
@@ -71,7 +78,10 @@ export const MAIN_WINDOW_MIN_WIDTH = 460;
 export const MAIN_WINDOW_MIN_HEIGHT = 104;
 const MAIN_WINDOW_DEFAULT_WIDTH = 700;
 const MAIN_WINDOW_DEFAULT_HEIGHT = 112;
-const log = Log.getInstance().forSource(path.basename(__filename))
+const log = Log.getInstance().forSource(path.basename(__filename));
+const listAiProviderModels = createListAiProviderModelsUseCase({
+  fetch: globalThis.fetch,
+});
 
 function buildCaptureSourcesFromConfig(
   config: CaptureOptionsConfig,
@@ -140,6 +150,13 @@ function publishAlwaysOnTop(window: BrowserWindow): void {
 
 function publishPinned(window: BrowserWindow): void {
   if (window.isDestroyed()) {
+    log.ger({
+      type: "debug",
+      message: "[window publishPinned] window is destroyed",
+      data: {
+        window,
+      },
+    });
     return;
   }
 
@@ -548,6 +565,7 @@ async function initializeApp() {
     let currentSession: SessionSnapshot | null = null;
     let sessionLifecycleController: SessionLifecycleController | null = null;
     const appConfigStore = createAppConfigStore(app);
+    const secretStore = createSecretStore(app);
     const monitorPicker = createMonitorPickerController({
       onSelectionChanged(displayId) {
         publishToAllWindows(
@@ -840,6 +858,55 @@ async function initializeApp() {
 
     ipcMain.handle(CAPTURE_OPTIONS_CHANNELS.getConfig, async () => {
       return appConfigStore.loadCaptureOptionsConfig();
+    });
+
+    ipcMain.handle(AI_PROVIDER_CHANNELS.getConfig, async () => {
+      return appConfigStore.loadAiProviderConfig();
+    });
+
+    ipcMain.handle(AI_PROVIDER_CHANNELS.setConfig, async (_event, input: unknown) => {
+      const config = normalizeAiProviderConfig(input);
+      return appConfigStore.saveAiProviderConfig(config);
+    });
+
+    ipcMain.handle(AI_PROVIDER_CHANNELS.getApiKey, async (_event, input: unknown) => {
+      const provider = normalizeAiProvider(input);
+      const apiKey = await secretStore.getApiKey(provider);
+
+      return {
+        hasKey: typeof apiKey === "string" && apiKey.trim().length > 0,
+      };
+    });
+
+    ipcMain.handle(AI_PROVIDER_CHANNELS.setApiKey, async (_event, input: unknown) => {
+      const request = normalizeSetAiProviderApiKeyRequest(input);
+      const didStoreApiKey = await secretStore.setApiKey(request.provider, request.key);
+
+      if (!didStoreApiKey) {
+        throw new Error("Secure storage is unavailable; API key could not be saved.");
+      }
+    });
+
+    ipcMain.handle(
+      AI_PROVIDER_CHANNELS.deleteApiKey,
+      async (_event, input: unknown) => {
+        const provider = normalizeAiProvider(input);
+        await secretStore.deleteApiKey(provider);
+      },
+    );
+
+    ipcMain.handle(AI_PROVIDER_CHANNELS.listModels, async (_event, input: unknown) => {
+      const provider = normalizeAiProvider(input);
+      const apiKey = await secretStore.getApiKey(provider);
+
+      if (!apiKey) {
+        throw new Error(`No API key is configured for provider '${provider}'.`);
+      }
+
+      return listAiProviderModels({
+        provider,
+        apiKey,
+      });
     });
 
     ipcMain.handle(CAPTURE_OPTIONS_CHANNELS.setConfig, async (_event, input) => {

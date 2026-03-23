@@ -1,4 +1,5 @@
 import type { AppControlsBridge } from "./app-controls";
+import type { AiProviderBridge } from "./ai-provider";
 import type { CaptureOptionsBridge } from "./capture-options";
 import type { RecordingBridge, RecordingEventsBridge } from "./recording";
 import type {
@@ -15,6 +16,7 @@ export type ElectronAppBridge = {
   readonly sessionLifecycleEvents: SessionLifecycleEventsBridge;
   readonly recording: RecordingBridge;
   readonly recordingEvents: RecordingEventsBridge;
+  readonly aiProvider: AiProviderBridge;
   readonly captureOptions: CaptureOptionsBridge;
   readonly appControls: AppControlsBridge;
   readonly windowControls: WindowControlsBridge;

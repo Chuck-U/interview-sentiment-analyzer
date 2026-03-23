@@ -18,6 +18,11 @@ export type AiProviderApiKeyStatus = {
   readonly hasKey: boolean;
 };
 
+export type SetAiProviderApiKeyRequest = {
+  readonly provider: AiProvider;
+  readonly key: string;
+};
+
 export const DEFAULT_AI_PROVIDER_CONFIG: AiProviderConfig = {
   provider: "openai",
 };
@@ -25,6 +30,11 @@ export const DEFAULT_AI_PROVIDER_CONFIG: AiProviderConfig = {
 export const aiProviderConfigSchema = z.object({
   provider: z.enum(AI_PROVIDERS).default("openai"),
   modelId: z.string().trim().min(1).optional(),
+});
+export const aiProviderSchema = z.enum(AI_PROVIDERS);
+export const setAiProviderApiKeyRequestSchema = z.object({
+  provider: aiProviderSchema,
+  key: z.string().trim().min(1, "API key must be a non-empty string."),
 });
 
 const aiModelSnapshotSchema = z.object({
@@ -54,10 +64,20 @@ export function normalizeAiProviderConfig(input: unknown): AiProviderConfig {
   return aiProviderConfigSchema.parse(input);
 }
 
+export function normalizeAiProvider(input: unknown): AiProvider {
+  return aiProviderSchema.parse(input);
+}
+
 export function safeParseAiProviderConfig(
   input: unknown,
 ): ReturnType<typeof aiProviderConfigSchema.safeParse> {
   return aiProviderConfigSchema.safeParse(input);
+}
+
+export function normalizeSetAiProviderApiKeyRequest(
+  input: unknown,
+): SetAiProviderApiKeyRequest {
+  return setAiProviderApiKeyRequestSchema.parse(input);
 }
 
 export function normalizeAiProviderModels(
