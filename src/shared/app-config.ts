@@ -17,6 +17,8 @@ export const APP_CONFIG_SCHEMA_VERSION = 1 as const;
 export type AppConfig = {
   readonly schemaVersion: typeof APP_CONFIG_SCHEMA_VERSION;
   readonly shortcuts: Record<string, ShortcutConfigEntry>;
+  // Future schema versions can add per-window pin and bounds preferences here
+  // so launcher/card lock state survives reopen without coupling it to capture options.
   readonly captureOptions: CaptureOptionsConfig;
 };
 

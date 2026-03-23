@@ -130,3 +130,57 @@ test("pipeline events default schema versions and enforce artifact handoffs", ()
   assert.equal(coachingRequested.stageName, "coaching.requested");
   assert.equal(coachingRequested.payloadSchemaVersion, 1);
 });
+
+test("persisted pipeline events can skip artifact handoff validation (legacy rows)", () => {
+  assert.throws(
+    () =>
+      createPipelineEventEnvelope({
+        eventId: "legacy-derive",
+        eventType: "derive_signals.requested",
+        sessionId: "session-1",
+        chunkId: "chunk-1",
+        correlationId: "correlation-1",
+        occurredAt: "2026-03-12T12:00:00.000Z",
+        payload: {
+          chunkId: "chunk-1",
+          requestedAt: "2026-03-12T12:00:00.000Z",
+          inputArtifacts: [
+            {
+              artifactId: "t-1",
+              artifactKind: "transcript",
+              relativePath: "transcripts/chunk-1.json",
+            },
+          ],
+          outputArtifacts: [],
+        },
+      }),
+    /inputArtifacts must include artifact kinds: participant-set/,
+  );
+
+  const legacy = createPipelineEventEnvelope(
+    {
+      eventId: "legacy-derive",
+      eventType: "derive_signals.requested",
+      sessionId: "session-1",
+      chunkId: "chunk-1",
+      correlationId: "correlation-1",
+      occurredAt: "2026-03-12T12:00:00.000Z",
+      payload: {
+        chunkId: "chunk-1",
+        requestedAt: "2026-03-12T12:00:00.000Z",
+        inputArtifacts: [
+          {
+            artifactId: "t-1",
+            artifactKind: "transcript",
+            relativePath: "transcripts/chunk-1.json",
+          },
+        ],
+        outputArtifacts: [],
+      },
+    },
+    { skipArtifactHandoffValidation: true },
+  );
+
+  assert.equal(legacy.eventType, "derive_signals.requested");
+  assert.equal(legacy.payload.inputArtifacts.length, 1);
+});

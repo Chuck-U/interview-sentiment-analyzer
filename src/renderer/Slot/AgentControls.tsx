@@ -1,10 +1,31 @@
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
-import { CSSProperties } from "react";
-import type { OptionsProps } from "./Options";
+import type { CSSProperties, ComponentType, ReactNode } from "react";
+import { useMemo, useState } from "react";
 
-export type AgentControlsProps = Omit<OptionsProps, "layout" | "onQuit">;
+import {
+  RiDownloadCloud2Line,
+  RiPlayCircleLine,
+  RiFlaskLine,
+} from "@remixicon/react";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { RecordingSandboxCard } from "@/renderer/recording/recording-sandbox-card";
+
+import type { OptionsProps } from "./Options";
+import { SidebarCardShell } from "./SidebarCardShell";
+import { ExportRecordingCard } from "./agent-controls-cards/ExportRecordingCard";
+import { RecordingControlCard } from "./agent-controls-cards/RecordingControlCard";
+
+type ControlsSectionId = "recording" | "export" | "sandbox";
+
+type ControlsSection = {
+  readonly id: ControlsSectionId;
+  readonly label: string;
+  readonly icon: ComponentType<{ className?: string }>;
+  readonly content: ReactNode;
+};
+
+export type AgentControlsProps = Omit<OptionsProps, "layout" | "dragRegionStyle">;
 
 export function AgentControls({
   statusLabel,
@@ -17,49 +38,101 @@ export function AgentControls({
   isRecording,
   isBusy,
   onToggleRecording,
-}: AgentControlsProps) {
-  return (
-    <div className="flex h-full w-full flex-col gap-3">
-      <Card className="w-full h-full">
-        <CardHeader className="flex flex-col gap-1">
-          <CardTitle>Agent Controls</CardTitle>
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant={statusVariant}>{statusLabel}</Badge>
-            <Badge variant="outline" className="capitalize">
-              {platformLabel}
-            </Badge>
-            <Badge variant="outline">{windowSizeLabel}</Badge>
-            {windowBoundsLabel ? (
-              <Badge variant="outline">{windowBoundsLabel}</Badge>
-            ) : null}
-          </div>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          <div className="rounded-md border border-border/50 bg-transparent p-3">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex flex-col gap-1">
-                <p className="text-sm font-medium">Start / Stop recording</p>
-                <p className="text-sm text-muted-foreground">{feedbackMessage}</p>
-              </div>
-              <div style={{ WebkitAppRegion: "no-drag" } as CSSProperties}>
-                <Switch
-                  checked={isRecording}
-                  aria-label="Start or stop recording"
-                  disabled={isBusy}
-                  onCheckedChange={(enabled) => onToggleRecording(enabled)}
-                />
-              </div>
-            </div>
+  recordingState,
+  onExportRecording,
+  onQuit,
+  showStatusBadges = true,
+  showQuitButton = true,
+}: AgentControlsProps & {
+  readonly showStatusBadges?: boolean;
+  readonly showQuitButton?: boolean;
+}) {
+  const [activeSection, setActiveSection] =
+    useState<ControlsSectionId>("recording");
+  const canExport =
+    !isRecording &&
+    !!recordingState &&
+    recordingState.totalChunkCount > 0 &&
+    recordingState.exportStatus === "idle";
 
-            {currentSessionId ? (
-              <div className="mt-3">
-                <Badge variant="outline">Session {currentSessionId}</Badge>
-              </div>
-            ) : null}
-          </div>
-        </CardContent>
-        <CardFooter className="flex items-center justify-between gap-3" />
-      </Card>
+  const sections = useMemo<readonly ControlsSection[]>(
+    () => [
+      {
+        id: "recording",
+        label: "Recording",
+        icon: RiPlayCircleLine,
+        content: (
+          <RecordingControlCard
+            feedbackMessage={feedbackMessage}
+            currentSessionId={currentSessionId}
+            isRecording={isRecording}
+            isBusy={isBusy}
+            onToggleRecording={onToggleRecording}
+          />
+        ),
+      },
+      {
+        id: "export",
+        label: "Export",
+        icon: RiDownloadCloud2Line,
+        content: (
+          <ExportRecordingCard
+            canExport={canExport}
+            onExportRecording={onExportRecording}
+          />
+        ),
+      },
+      {
+        id: "sandbox",
+        label: "Sandbox",
+        icon: RiFlaskLine,
+        content: <RecordingSandboxCard />,
+      },
+    ],
+    [
+      canExport,
+      currentSessionId,
+      feedbackMessage,
+      isBusy,
+      isRecording,
+      onExportRecording,
+      onToggleRecording,
+    ],
+  );
+
+  return (
+    <div className="flex h-full w-full min-h-0 flex-col gap-3">
+      {showStatusBadges ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant={statusVariant}>{statusLabel}</Badge>
+          <Badge variant="outline" className="capitalize">
+            {platformLabel}
+          </Badge>
+          <Badge variant="outline">{windowSizeLabel}</Badge>
+          {windowBoundsLabel ? (
+            <Badge variant="outline">{windowBoundsLabel}</Badge>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="min-h-0 flex-1 overflow-hidden rounded-md border border-border/50 bg-background/25">
+        <SidebarCardShell
+          sections={sections}
+          activeSection={activeSection}
+          onActiveSectionChange={setActiveSection}
+        />
+      </div>
+
+      {showQuitButton ? (
+        <div
+          className="flex justify-end"
+          style={{ WebkitAppRegion: "no-drag" } as CSSProperties}
+        >
+          <Button type="button" variant="destructive" size="xs" onClick={onQuit}>
+            Quit
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }

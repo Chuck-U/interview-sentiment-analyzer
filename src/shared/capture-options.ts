@@ -35,6 +35,8 @@ export type CaptureOptionsConfig = {
   readonly screen: CaptureToggleConfig;
   readonly systemAudio: CaptureToggleConfig;
   readonly screenshot: CaptureToggleConfig;
+  // Window pin and saved bounds should live in a dedicated config section rather
+  // than piggybacking on capture-options when reopen persistence is added.
   readonly display: CaptureDisplayPreference;
 };
 

@@ -7,10 +7,11 @@ import {
   RiArrowDownSLine,
   RiCloseLine,
   RiEyeLine,
-  RiPlayLine,
-  RiStopLine,
+  RiSettings3Line,
+  RiRecordCircleLine,
+  RiStopCircleLine,
 } from "@remixicon/react";
-import { ButtonGroup } from "./button-group";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./tooltip";
 
 function NavigationMenu({
   className,
@@ -173,180 +174,36 @@ export {
   navigationMenuTriggerStyle,
 };
 
-type AgentNavigationMenuItem = {
-  readonly id: string;
-  readonly label: string;
-  icon?: React.ReactNode;
-  group?: string;
-};
-
 type AgentNavigationMenuProps = {
-  readonly items: readonly AgentNavigationMenuItem[];
-  readonly value?: string;
-  readonly defaultValue?: string;
-  readonly onValueChange?: (value: string) => void;
-  readonly className?: string;
   readonly isRecording?: boolean;
   readonly isBusy?: boolean;
   readonly onRecordingToggle?: (start: boolean) => void;
   readonly onClose?: () => void;
   readonly onToggleVisibility?: () => void;
+  readonly visibilityShortcut?: string;
+  readonly pinControl?: React.ReactNode;
   readonly resizeControl?: React.ReactNode;
+  readonly onWorkspaceToggle?: () => void;
+  readonly isWorkspaceOpen?: boolean;
+  readonly className?: string;
   readonly showOutline?: boolean;
 };
 
-
 function AgentNavigationMenu({
-  items,
-  value,
-  defaultValue,
-  onValueChange,
-  className,
   isRecording,
   isBusy,
   onRecordingToggle,
   onClose,
   onToggleVisibility,
+  visibilityShortcut,
+  pinControl,
   resizeControl,
+  onWorkspaceToggle,
+  isWorkspaceOpen,
+  className,
   showOutline = false,
 }: AgentNavigationMenuProps) {
-  const [internalValue, setInternalValue] = React.useState<string>(
-    value ?? defaultValue ?? items[0]?.id ?? "",
-  );
-
-  const activeValue = value ?? internalValue;
-
-  const setActiveValue = (next: string) => {
-    onValueChange?.(next);
-    if (value === undefined) {
-      setInternalValue(next);
-    }
-  };
-
-  if (items.length === 0) {
-    return null;
-  }
-
-  type GroupedAcc = {
-    nodes: React.ReactNode[];
-    activeGroup: string | null;
-    groupNodes: React.ReactNode[];
-  };
-
-  const renderTabButton = (item: AgentNavigationMenuItem) => {
-    const isActive = item.id === activeValue;
-    return (
-      <button
-        key={item.id}
-        type="button"
-        onClick={() => setActiveValue(item.id)}
-        style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-        className={cn(
-          "rounded-none px-2 py-1 text-xs transition-colors",
-          isActive ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/50",
-        )}
-        aria-current={isActive ? "page" : undefined}
-      >
-        {item.label}
-      </button>
-    );
-  };
-
-  const flushGroup = (acc: GroupedAcc) => {
-    if (acc.activeGroup && acc.groupNodes.length > 0) {
-      acc.nodes.push(
-        <ButtonGroup key={`group-${acc.activeGroup}`} className="gap-x-2">
-          {acc.groupNodes}
-        </ButtonGroup>,
-      );
-      acc.groupNodes = [];
-      acc.activeGroup = null;
-    }
-  };
-
-  const result = items.reduce<GroupedAcc>(
-    (acc, item) => {
-      if (acc.activeGroup && item.group !== acc.activeGroup) {
-        flushGroup(acc);
-      }
-
-      if (item.group) {
-        acc.activeGroup = item.group;
-        acc.groupNodes.push(renderTabButton(item));
-        return acc;
-      }
-
-      flushGroup(acc);
-
-      if (item.id === "start-recording") {
-        const RecordingIcon = isRecording ? RiStopLine : RiPlayLine;
-        acc.nodes.push(
-          <button
-            key={item.id}
-            type="button"
-            disabled={isBusy}
-            onClick={() => onRecordingToggle?.(!isRecording)}
-            style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-            className={cn(
-              "transition-colors disabled:opacity-50 disabled:pointer-events-none",
-              isRecording
-                ? "text-destructive"
-                : "text-accent-foreground",
-            )}
-            aria-label={isRecording ? "Stop recording" : "Start recording"}
-          >
-            <RecordingIcon className="size-8 rounded-full p-2 border border-current-foreground/50 text-muted-foreground" />
-          </button>,
-        );
-        return acc;
-      }
-
-      if (item.id === "resize-window") {
-        if (resizeControl) {
-          acc.nodes.push(
-            <React.Fragment key={item.id}>{resizeControl}</React.Fragment>,
-          );
-        }
-        return acc;
-      }
-
-      if (item.id === "close") {
-        acc.nodes.push(
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => onClose?.()}
-            style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-            className="rounded-none p-1 text-muted-foreground hover:text-red-500/50 hover:border-red-400/70 transition-colors"
-          >
-            <RiCloseLine className="size-8 rounded-full p-1 hover:border-2 hover:border-red-400/70 transition-all duration-200 ease-in-out" />
-          </button>,
-        );
-        return acc;
-      }
-
-      if (item.id === "toggle-visibility") {
-        acc.nodes.push(
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => onToggleVisibility?.()}
-            style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-            className="rounded-none p-1 text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <RiEyeLine className="size-8 rounded-full p-1 transition-all duration-200 ease-in-out" />
-          </button>,
-        );
-        return acc;
-      }
-
-      acc.nodes.push(renderTabButton(item));
-      return acc;
-    },
-    { nodes: [], activeGroup: null, groupNodes: [] },
-  );
-
-  flushGroup(result);
+  const RecordingIcon = isRecording ? RiStopCircleLine : RiRecordCircleLine;
 
   return (
     <div
@@ -357,7 +214,86 @@ function AgentNavigationMenu({
       )}
       data-slot="agent-navigation-menu"
     >
-      {result.nodes}
+      <div className="flex items-center gap-2">
+        {pinControl}
+        <Tooltip delayDuration={100}>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={() => onToggleVisibility?.()}
+              style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+              className="rounded-none p-1 text-muted-foreground transition-colors hover:text-foreground"
+              aria-label="Toggle visibility"
+            >
+              <RiEyeLine className="size-8 rounded-full p-1 transition-all duration-200 ease-in-out" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" align="end" sideOffset={8} className="flex max-w-none items-center gap-2 p-2 bg-muted-background text-white">
+            <span>Toggle Visibility</span>
+            {visibilityShortcut ? (
+              <kbd
+                data-slot="kbd"
+                className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded-none border border-background/20 bg-background/15 px-1.5 font-mono text-[10px] font-medium text-background"
+              >
+                {visibilityShortcut}
+              </kbd>
+            ) : (
+              <kbd
+                data-slot="kbd"
+                className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded-none border border-background/20 bg-background/15 px-1.5 font-mono text-[10px] font-medium text-background"
+              >
+                Ctrl+Shift+V
+              </kbd>
+            )}
+          </TooltipContent>
+        </Tooltip>
+      </div>
+
+      <div className="flex items-center justify-center px-10">
+        <button
+          type="button"
+          disabled={isBusy}
+          onClick={() => onRecordingToggle?.(!isRecording)}
+          style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+          className={cn(
+            "transition-colors disabled:opacity-50 disabled:pointer-events-none",
+            isRecording
+              ? "text-destructive"
+              : "text-accent-foreground",
+            'group'
+          )}
+          aria-label={isRecording ? "Stop recording" : "Start recording"}
+        >
+          <RecordingIcon className={cn("size-8 text-red-500/50 group-active:animate-pulse duration-500", isRecording ? 'animate-pulse duration-500 transition-colors' : 'animate-none duration-0 ease-out')} />
+        </button>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => onWorkspaceToggle?.()}
+          style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+          className={cn(
+            "rounded-none p-1 transition-colors hover:text-yellow-indicator",
+            isWorkspaceOpen ? "text-yellow-indicator" : "text-muted-foreground"
+          )}
+          aria-label="Toggle workspace"
+        >
+          <RiSettings3Line className="size-8 rounded-full p-1 transition-all duration-200 ease-in-out" />
+        </button>
+
+        {resizeControl}
+
+        <button
+          type="button"
+          onClick={() => onClose?.()}
+          style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+          className="rounded-none p-1 text-muted-foreground hover:text-red-500/50 hover:border-red-400/70 transition-colors"
+          aria-label="Close app"
+        >
+          <RiCloseLine className="size-8 rounded-full p-1 hover:border-2 hover:border-red-400/70 transition-all duration-200 ease-in-out" />
+        </button>
+      </div>
     </div>
   );
 }

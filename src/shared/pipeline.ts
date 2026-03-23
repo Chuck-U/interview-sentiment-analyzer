@@ -1051,10 +1051,20 @@ export function normalizePipelineStageRun<
   ) as PipelineStageRunRecord<TStageName>;
 }
 
+export type CreatePipelineEventEnvelopeOptions = {
+  /**
+   * When true, skips `PIPELINE_ARTIFACT_HANDOFF_RULES` checks after parsing the payload.
+   * Use when rehydrating events from durable storage: older rows may not satisfy rules
+   * that were tightened after the event was persisted.
+   */
+  readonly skipArtifactHandoffValidation?: boolean;
+};
+
 export function createPipelineEventEnvelope<
   TEventType extends PipelineEventType,
 >(
   input: CreatePipelineEventEnvelopeInput<TEventType>,
+  options?: CreatePipelineEventEnvelopeOptions,
 ): PipelineEventEnvelope<TEventType> {
   const normalizedInput = parseWithSchema(
     pipelineEventEnvelopeInputSchema,
@@ -1075,26 +1085,28 @@ export function createPipelineEventEnvelope<
   const inputArtifactKinds = collectArtifactKinds(payload.inputArtifacts);
   const outputArtifactKinds = collectArtifactKinds(payload.outputArtifacts);
 
-  ensureAllowedArtifactKinds(
-    `${normalizedInput.eventType} inputArtifacts`,
-    inputArtifactKinds,
-    handoffRule.allowedInputKinds,
-  );
-  ensureRequiredArtifactKinds(
-    `${normalizedInput.eventType} inputArtifacts`,
-    inputArtifactKinds,
-    handoffRule.requiredInputKinds,
-  );
-  ensureAllowedArtifactKinds(
-    `${normalizedInput.eventType} outputArtifacts`,
-    outputArtifactKinds,
-    handoffRule.allowedOutputKinds,
-  );
-  ensureRequiredArtifactKinds(
-    `${normalizedInput.eventType} outputArtifacts`,
-    outputArtifactKinds,
-    handoffRule.requiredOutputKinds,
-  );
+  if (!options?.skipArtifactHandoffValidation) {
+    ensureAllowedArtifactKinds(
+      `${normalizedInput.eventType} inputArtifacts`,
+      inputArtifactKinds,
+      handoffRule.allowedInputKinds,
+    );
+    ensureRequiredArtifactKinds(
+      `${normalizedInput.eventType} inputArtifacts`,
+      inputArtifactKinds,
+      handoffRule.requiredInputKinds,
+    );
+    ensureAllowedArtifactKinds(
+      `${normalizedInput.eventType} outputArtifacts`,
+      outputArtifactKinds,
+      handoffRule.allowedOutputKinds,
+    );
+    ensureRequiredArtifactKinds(
+      `${normalizedInput.eventType} outputArtifacts`,
+      outputArtifactKinds,
+      handoffRule.requiredOutputKinds,
+    );
+  }
 
   return {
     eventId: normalizedInput.eventId,

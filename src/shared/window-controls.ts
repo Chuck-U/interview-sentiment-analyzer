@@ -6,12 +6,18 @@ export const WINDOW_CONTROL_CHANNELS = {
   setWindowSize: "window-controls:set-window-size",
   setWindowSizePreset: "window-controls:set-window-size-preset",
   getWindowBounds: "window-controls:get-window-bounds",
+  getAlwaysOnTop: "window-controls:get-always-on-top",
+  setAlwaysOnTop: "window-controls:set-always-on-top",
+  getPinned: "window-controls:get-pinned",
+  setPinned: "window-controls:set-pinned",
   bringToFront: "window-controls:bring-to-front",
   sendToBack: "window-controls:send-to-back",
 } as const;
 
 export const WINDOW_CONTROL_EVENT_CHANNELS = {
   boundsChanged: "window-controls:event-bounds-changed",
+  alwaysOnTopChanged: "window-controls:event-always-on-top-changed",
+  pinnedChanged: "window-controls:event-pinned-changed",
 } as const;
 
 export type WindowBoundsSnapshot = {
@@ -41,7 +47,15 @@ export type SetWindowSizeRequest = {
 export type WindowSizePreset = "50%" | "75%" | "90%";
 
 export type SetWindowSizePresetRequest = {
-  preset: WindowSizePreset | string
+  readonly preset: WindowSizePreset;
+};
+
+export type SetAlwaysOnTopRequest = {
+  readonly alwaysOnTop: boolean;
+};
+
+export type SetPinnedRequest = {
+  readonly pinned: boolean;
 };
 
 export type WindowControlsBridge = {
@@ -52,9 +66,15 @@ export type WindowControlsBridge = {
     request: SetWindowSizePresetRequest,
   ): Promise<WindowBoundsSnapshot>;
   getWindowBounds(): Promise<WindowBoundsSnapshot>;
+  getAlwaysOnTop(): Promise<boolean>;
+  setAlwaysOnTop(request: SetAlwaysOnTopRequest): Promise<boolean>;
+  getPinned(): Promise<boolean>;
+  setPinned(request: SetPinnedRequest): Promise<boolean>;
   onWindowBoundsChanged(
     listener: (bounds: WindowBoundsSnapshot) => void,
   ): Unsubscribe;
+  onAlwaysOnTopChanged(listener: (alwaysOnTop: boolean) => void): Unsubscribe;
+  onPinnedChanged(listener: (pinned: boolean) => void): Unsubscribe;
   bringToFront(): void;
   sendToBack(): void;
 };
@@ -117,14 +137,42 @@ export function parseSetWindowSizePresetRequest(
 
   const { preset } = input;
   if (
-    preset !== "half" &&
-    preset !== "three-quarters" &&
-    preset !== "full"
+    preset !== "50%" &&
+    preset !== "75%" &&
+    preset !== "90%"
   ) {
-    throw new Error("preset must be one of: half, three-quarters, full");
+    throw new Error("preset must be one of: 50%, 75%, 90%");
   }
 
-  return { preset };
+  return { preset: preset as WindowSizePreset };
+}
+
+export function parseSetAlwaysOnTopRequest(
+  input: unknown,
+): SetAlwaysOnTopRequest {
+  if (!isRecord(input)) {
+    throw new Error("setAlwaysOnTop request must be an object");
+  }
+
+  if (typeof input.alwaysOnTop !== "boolean") {
+    throw new Error("alwaysOnTop must be a boolean");
+  }
+
+  return { alwaysOnTop: input.alwaysOnTop };
+}
+
+export function parseSetPinnedRequest(
+  input: unknown,
+): SetPinnedRequest {
+  if (!isRecord(input)) {
+    throw new Error("setPinned request must be an object");
+  }
+
+  if (typeof input.pinned !== "boolean") {
+    throw new Error("pinned must be a boolean");
+  }
+
+  return { pinned: input.pinned };
 }
 
 type WindowSizeSnapshot = {

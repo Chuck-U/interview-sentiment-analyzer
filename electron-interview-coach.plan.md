@@ -617,6 +617,14 @@ Phase 5: Hosted analysis and coaching
 2. Implement chunk analysis, rolling context condensation, and final session synthesis.
 3. Add neurodiversity-aware coaching as an opt-in feedback lens centered on ambiguity, pacing, interruption handling, and cue mismatch.
 
+
+Layout Phase: 
+[X] Get rough layout design
+[X] implement options and controls
+[X] add UI 
+[ ] add Question Extraction window (what's the question being asked) and add attention details.
+
+
 Phase 5a: 
 1. ensure recording pipeline and chunking.
 
