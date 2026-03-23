@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 
 import {
+  RiBrainLine,
   RiCameraLine,
   RiComputerLine,
   RiDownloadCloud2Line,
@@ -15,6 +16,7 @@ import { RecordingSandboxCard } from "@/renderer/recording/recording-sandbox-car
 import type { OptionsProps } from "./Options";
 import { OptionsOverviewCard } from "./OptionsOverviewCard";
 import { SidebarCardShell } from "./SidebarCardShell";
+import { AiProviderCard } from "./agent-controls-cards/AiProviderCard";
 import { ExportRecordingCard } from "./agent-controls-cards/ExportRecordingCard";
 import { RecordingControlCard } from "./agent-controls-cards/RecordingControlCard";
 import { DisplayCaptureCard } from "./capture-options-cards/DisplayCaptureCard";
@@ -25,6 +27,7 @@ import { WebcamCaptureCard } from "./capture-options-cards/WebcamCaptureCard";
 
 type WorkspaceSectionId =
   | "options"
+  | "ai-provider"
   | CaptureOptionSectionId
   | "recording"
   | "export"
@@ -53,6 +56,12 @@ export function OptionsWorkspace({
         label: "Options",
         icon: RiSettings3Line,
         content: <OptionsOverviewCard {...props} />,
+      },
+      {
+        id: "ai-provider",
+        label: "AI Provider",
+        icon: RiBrainLine,
+        content: <AiProviderCard />,
       },
       {
         id: "microphone",

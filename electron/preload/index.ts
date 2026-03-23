@@ -202,7 +202,6 @@ const shortcutsBridge: ShortcutsBridge = {
     return ipcRenderer.invoke(SHORTCUTS_IPC_CHANNELS.getConfig);
   },
   setShortcutEnabled(request) {
-    console.log('[shortcutsBridge setShortcutEnabled]', request)
     return ipcRenderer.invoke(
       SHORTCUTS_IPC_CHANNELS.setShortcutEnabled,
       normalizeSetShortcutEnabledRequest(request),
@@ -239,7 +238,7 @@ const aiProviderBridge: AiProviderBridge = {
       provider,
     ) as Promise<void>;
   },
-  listModels(provider) {
+  async listModels(provider) {
     return ipcRenderer
       .invoke(AI_PROVIDER_CHANNELS.listModels, provider)
       .then(normalizeAiProviderModels);

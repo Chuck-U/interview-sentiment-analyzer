@@ -1,4 +1,4 @@
-import { clampWindowSize, WINDOW_CONTROL_EVENT_CHANNELS, type WindowBoundsSnapshot, type WindowSizePreset } from "@/shared";
+import { clampWindowSize, WINDOW_CONTROL_EVENT_CHANNELS, type WindowBoundsSnapshot, type WindowSizePreset } from "@/shared/window-controls";
 import { BrowserWindow, screen } from "electron";
 import { MAIN_WINDOW_MIN_WIDTH, MAIN_WINDOW_MIN_HEIGHT, getWindowRole } from "./main";
 import { WINDOW_ROLES } from "@/shared/window-registry";

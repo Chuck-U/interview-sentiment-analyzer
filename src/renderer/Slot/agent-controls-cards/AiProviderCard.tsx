@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 import { useEffect, useMemo } from "react";
-
+import { cn } from "@/lib/utils";
 import {
   RiEyeLine,
   RiEyeOffLine,
@@ -41,11 +41,12 @@ import {
 } from "@/shared/ai-provider";
 import { useAppDispatch, useAppSelector } from "@/renderer/store/hooks";
 import {
+  fetchAiProviderModels,
   loadAiProviderState,
   persistAiProviderApiKey,
   persistAiProviderModel,
   persistAiProviderSelection,
-  refreshAiProviderData,
+  syncAiProviderKeyStatus,
   setDraftApiKey,
   toggleApiKeyVisibility,
 } from "@/renderer/store/slices/aiProviderSlice";
@@ -139,7 +140,7 @@ export function AiProviderCard() {
 
     try {
       await dispatch(persistAiProviderSelection(nextProvider)).unwrap();
-      toast.success(`${PROVIDER_LABELS[nextProvider]} is now the active provider.`);
+      await dispatch(syncAiProviderKeyStatus(nextProvider)).unwrap();
     } catch (error) {
       toast.error(`Unable to save the AI provider. ${getErrorMessage(error)}`);
     }
@@ -153,6 +154,7 @@ export function AiProviderCard() {
     };
 
     try {
+
       const savedConfig = await dispatch(
         persistAiProviderModel(nextConfig),
       ).unwrap();
@@ -194,7 +196,7 @@ export function AiProviderCard() {
       return;
     }
 
-    void dispatch(refreshAiProviderData(selectedProvider))
+    void dispatch(fetchAiProviderModels(selectedProvider))
       .unwrap()
       .catch((error: unknown) => {
         toast.error(`Unable to load ${selectedProviderLabel} models. ${getErrorMessage(error)}`);
@@ -206,50 +208,42 @@ export function AiProviderCard() {
       <CardHeader className="border-b">
         <CardTitle>AI Provider</CardTitle>
         <CardDescription>
-          Choose the provider, save its API key securely, and select which
-          model the desktop app should use.
-        </CardDescription>
+          Provider configuration and API key Management.</CardDescription>
       </CardHeader>
       <CardContent className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto py-1">
-        <div className="flex flex-col gap-1.5" style={noDragStyle}>
-          <Label htmlFor="ai-provider-select">Provider</Label>
-          <Select
-            value={selectedProvider}
-            onValueChange={(value) => {
-              void handleProviderChange(value as AiProvider);
-            }}
-            disabled={!hasLoaded || isSavingProvider}
-          >
-            <SelectTrigger id="ai-provider-select" className="w-full">
-              <SelectValue placeholder="Choose a provider" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                {AI_PROVIDERS.map((provider) => (
-                  <SelectItem key={provider} value={provider}>
-                    {PROVIDER_LABELS[provider]}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-          <p className="text-sm text-muted-foreground">
-            The selected provider controls which saved key and model list are
-            used for AI requests.
-          </p>
-        </div>
+        <div className="flex flex-col gap-3 rounded-md border border-yellow-contrast/30  p-3">
 
-        <div className="flex flex-col gap-3 rounded-md border border-border/50 bg-background/35 p-3">
+          <div className="flex flex-col gap-1.5" style={noDragStyle}>
+            <Label htmlFor="ai-provider-select">Provider</Label>
+            <Select
+              value={selectedProvider}
+              onValueChange={(value) => {
+                void handleProviderChange(value as AiProvider);
+              }}
+              disabled={!hasLoaded || isSavingProvider}
+
+            >
+              <SelectTrigger id="ai-provider-select" className="w-full border border-yellow-a9/30 active:border-yellow-a9/50 border-2">
+                <SelectValue placeholder="Choose a provider" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup className="from-yellow-11/30 to-yellow-11/20 bg-gradient-to-b">
+                  {AI_PROVIDERS.map((provider) => (
+                    <SelectItem key={provider} value={provider}>
+                      {PROVIDER_LABELS[provider]}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="flex items-center justify-between gap-3">
-            <div className="flex flex-col gap-1">
-              <p className="text-sm font-medium">API key</p>
-              <p className="text-sm text-muted-foreground">
-                Keys are stored per provider and stay outside the plain-text app
-                config.
-              </p>
+            <div className="flex flex-row items-center justify-start gap-1">
+              <h3 className="text-sm font-medium text-nowrap leading-7">API key</h3>
             </div>
-            <Badge variant={hasStoredKey ? "secondary" : "outline"}>
-              {hasStoredKey ? "Stored" : "Not stored"}
+            <Badge variant={hasStoredKey ? "default" : "secondary"} className="text-md  leading-7">
+              {hasStoredKey ? "Saved" : "Empty"}
             </Badge>
           </div>
 
@@ -272,6 +266,7 @@ export function AiProviderCard() {
                   onClick={() => {
                     dispatch(toggleApiKeyVisibility());
                   }}
+                  className={cn("size-6", isApiKeyVisible ? "text-yellow-indicator" : "text-foreground")}
                 >
                   {isApiKeyVisible ? (
                     <RiEyeOffLine data-icon="inline-end" />

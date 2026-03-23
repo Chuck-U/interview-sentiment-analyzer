@@ -1,5 +1,5 @@
-import path from "node:path";
 
+import path from "node:path";
 import {
   app,
   BrowserWindow,
@@ -12,7 +12,7 @@ import {
   systemPreferences,
   Tray,
 } from "electron";
-import { Log } from "../../src/lib/utils";
+import { logger, type LoggerProps } from "../../src/lib/logger";
 import { createSessionLifecycleBackend } from "../../src/backend";
 import { createListAiProviderModelsUseCase } from "../../src/backend/application/use-cases/list-ai-provider-models";
 import { createSecretStore } from "../../src/backend/infrastructure/config/secretStore";
@@ -68,17 +68,24 @@ import {
   isCardWindowRole,
 } from "../../src/shared/window-registry";
 import { createMonitorPickerController } from "./monitor-picker";
-import { applyOptionsWindowOpenBounds, createWindowBoundsSnapshot, getClampedWindowPositionForSize, getMinimumWindowSize, getWindowSizeForPreset, publishWindowBounds } from "@electron/electron-utils";
+import { applyOptionsWindowOpenBounds, createWindowBoundsSnapshot, getClampedWindowPositionForSize, getMinimumWindowSize, getWindowSizeForPreset, publishWindowBounds } from "../electron-utils";
 
-const devServerUrl = process.env.VITE_DEV_SERVER_URL ?? 'http://localhost:5180';
+const devServerUrl = process.env.VITE_DEV_SERVER_URL ?? 'http://localhost:5180'; // TODO: fix handling of this env variable
 
 const pipelineOrchestrationMode =
-  process.env.PIPELINE_ORCHESTRATOR === "langchain" ? "langchain" : "built-in";
-export const MAIN_WINDOW_MIN_WIDTH = 460;
+  process.env.PIPELINE_ORCHESTRATOR === "langchain" ? "langchain" : "built-in"; // slop code
+export const MAIN_WINDOW_MIN_WIDTH = 600;
 export const MAIN_WINDOW_MIN_HEIGHT = 104;
 const MAIN_WINDOW_DEFAULT_WIDTH = 700;
 const MAIN_WINDOW_DEFAULT_HEIGHT = 112;
-const log = Log.getInstance().forSource(path.basename(__filename));
+const log: Pick<typeof logger, "ger"> = {
+  ger(entry: LoggerProps): void {
+    logger.ger({
+      ...entry,
+      source: __filename,
+    });
+  },
+};
 const listAiProviderModels = createListAiProviderModelsUseCase({
   fetch: globalThis.fetch,
 });
@@ -1291,9 +1298,12 @@ async function initializeApp() {
   });
 
   app.on("window-all-closed", () => {
+    app.removeAllListeners()
+    log.ger({ type: "info", message: "[app window-all-closed] removing all listeners" });
     if (process.platform !== "darwin") {
       app.quit();
     }
+    app.quit()
   });
 }
 

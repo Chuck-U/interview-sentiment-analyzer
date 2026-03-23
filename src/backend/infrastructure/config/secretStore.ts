@@ -1,6 +1,6 @@
 import path from "node:path";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { Log } from "../../../lib/utils";
+import { logger } from "../../../lib/logger";
 import { safeStorage, type App } from "electron";
 import { z } from "zod";
 
@@ -18,7 +18,6 @@ const secretsFileSchema = z.object({
 export type SecretStoreProvider = z.infer<typeof secretStoreProviderSchema>;
 
 type SecretsFile = z.infer<typeof secretsFileSchema>;
-const log = Log.getInstance().forSource(__filename);
 export type SecretStore = {
   ensureSecretsFileExists(): Promise<void>;
   getApiKey(provider: SecretStoreProvider): Promise<string | null>;
@@ -96,8 +95,9 @@ export function createSecretStore(app: Pick<App, "getPath">): SecretStore {
       try {
         await rename(secretsPath, backupPath);
       } catch {
-        log.ger({
+        logger.ger({
           type: "warn",
+          source: __filename,
           message: `Failed to rename secrets file to backup path: ${backupPath}`,
         });
       }
@@ -142,8 +142,9 @@ export function createSecretStore(app: Pick<App, "getPath">): SecretStore {
       try {
         return safeStorage.decryptString(Buffer.from(encodedSecret, "base64"));
       } catch (error) {
-        log.ger({
+        logger.ger({
           type: "warn",
+          source: __filename,
           message: `Failed to decrypt API key for '${provider}'.`,
           data: error,
         });

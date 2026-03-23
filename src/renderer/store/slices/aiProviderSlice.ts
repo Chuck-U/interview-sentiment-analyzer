@@ -30,7 +30,12 @@ type ProviderDataSnapshot = {
 
 type ProviderDataError = {
   readonly provider: AiProvider;
+  readonly hasStoredKey: boolean;
   readonly message: string;
+};
+
+type PersistApiKeyResult = {
+  readonly provider: AiProvider;
 };
 
 function getErrorMessage(error: unknown, fallbackMessage: string): string {
@@ -55,12 +60,12 @@ async function loadProviderData(
     };
   }
 
-  const models = await window.electronApp.aiProvider.listModels(provider);
+  // const models = await window.electronApp.aiProvider.listModels(provider);
 
   return {
     provider,
     hasStoredKey: true,
-    models,
+    models: [],
   };
 }
 
@@ -97,16 +102,94 @@ export const refreshAiProviderData = createAsyncThunk<
 >(
   "aiProvider/refreshProviderData",
   async (provider, { rejectWithValue }) => {
+    const apiKeyStatus =
+      await window.electronApp.aiProvider.getApiKeyStatus(provider);
+
+    if (!apiKeyStatus.hasKey) {
+      return {
+        provider,
+        hasStoredKey: false,
+        models: [],
+      };
+    }
+
     try {
-      return await loadProviderData(provider);
+      const models = await window.electronApp.aiProvider.listModels(provider);
+
+      return {
+        provider,
+        hasStoredKey: true,
+        models,
+      };
     } catch (error) {
       return rejectWithValue({
         provider,
+        hasStoredKey: true,
         message: getErrorMessage(
           error,
           "Unable to load the AI provider models.",
         ),
       });
+    }
+  },
+);
+
+type ProviderModelsSnapshot = {
+  readonly provider: AiProvider;
+  readonly models: readonly AiModelSnapshot[];
+};
+
+type ProviderModelsError = {
+  readonly provider: AiProvider;
+  readonly message: string;
+};
+
+type ProviderKeyStatusSnapshot = {
+  readonly provider: AiProvider;
+  readonly hasStoredKey: boolean;
+};
+
+export const fetchAiProviderModels = createAsyncThunk<
+  ProviderModelsSnapshot,
+  AiProvider,
+  { readonly rejectValue: ProviderModelsError }
+>(
+  "aiProvider/fetchModels",
+  async (provider, { rejectWithValue }) => {
+    try {
+      const models = await window.electronApp.aiProvider.listModels(provider);
+      return {
+        provider,
+        models,
+      };
+    } catch (error) {
+      return rejectWithValue({
+        provider,
+        message: getErrorMessage(error, "Unable to load the AI provider models."),
+      });
+    }
+  },
+);
+
+export const syncAiProviderKeyStatus = createAsyncThunk<
+  ProviderKeyStatusSnapshot,
+  AiProvider,
+  { readonly rejectValue: string }
+>(
+  "aiProvider/syncKeyStatus",
+  async (provider, { rejectWithValue }) => {
+    try {
+      const apiKeyStatus =
+        await window.electronApp.aiProvider.getApiKeyStatus(provider);
+
+      return {
+        provider,
+        hasStoredKey: apiKeyStatus.hasKey,
+      };
+    } catch (error) {
+      return rejectWithValue(
+        getErrorMessage(error, "Unable to load the AI provider key status."),
+      );
     }
   },
 );
@@ -157,7 +240,7 @@ export const persistAiProviderModel = createAsyncThunk<
 );
 
 export const persistAiProviderApiKey = createAsyncThunk<
-  ProviderDataSnapshot,
+  PersistApiKeyResult,
   {
     readonly provider: AiProvider;
     readonly key: string;
@@ -168,8 +251,7 @@ export const persistAiProviderApiKey = createAsyncThunk<
   async ({ provider, key }, { rejectWithValue }) => {
     try {
       await window.electronApp.aiProvider.setApiKey(provider, key);
-
-      return await loadProviderData(provider);
+      return { provider };
     } catch (error) {
       return rejectWithValue(
         getErrorMessage(error, "Unable to save the API key."),
@@ -255,7 +337,7 @@ const aiProviderSlice = createSlice({
 
         if (action.payload) {
           if (state.config.provider === action.payload.provider) {
-            state.hasStoredKey = false;
+            state.hasStoredKey = action.payload.hasStoredKey;
             state.models = [];
           }
 
@@ -302,11 +384,52 @@ const aiProviderSlice = createSlice({
         state.isSavingApiKey = false;
         state.draftApiKey = "";
         state.isApiKeyVisible = false;
-        applyProviderData(state, action.payload);
+
+        if (state.config.provider === action.payload.provider) {
+          state.hasStoredKey = true;
+        }
       })
       .addCase(persistAiProviderApiKey.rejected, (state, action) => {
         state.isSavingApiKey = false;
         state.errorMessage = action.payload ?? "Unable to save the API key.";
+      })
+      .addCase(fetchAiProviderModels.pending, (state) => {
+        state.isRefreshingProviderData = true;
+        state.errorMessage = null;
+      })
+      .addCase(fetchAiProviderModels.fulfilled, (state, action) => {
+        state.isRefreshingProviderData = false;
+
+        if (state.config.provider !== action.payload.provider) {
+          return;
+        }
+
+        state.models = [...action.payload.models];
+      })
+      .addCase(fetchAiProviderModels.rejected, (state, action) => {
+        state.isRefreshingProviderData = false;
+
+        if (action.payload) {
+          if (state.config.provider === action.payload.provider) {
+            state.models = [];
+          }
+
+          state.errorMessage = action.payload.message;
+          return;
+        }
+
+        state.errorMessage = "Unable to load the AI provider models.";
+      })
+      .addCase(syncAiProviderKeyStatus.fulfilled, (state, action) => {
+        if (state.config.provider !== action.payload.provider) {
+          return;
+        }
+
+        state.hasStoredKey = action.payload.hasStoredKey;
+      })
+      .addCase(syncAiProviderKeyStatus.rejected, (state, action) => {
+        state.errorMessage =
+          action.payload ?? "Unable to load the AI provider key status.";
       });
   },
 });
