@@ -950,6 +950,24 @@ async function initializeApp() {
       monitorPicker.close();
     });
 
+    // WASM Threading (threaded mode — disabled by default)
+    // ─────────────────────────────────────────────────────
+    // Uncomment the block below AND the server.headers block in vite.config.ts
+    // to inject COOP/COEP headers required by SharedArrayBuffer / multi-threaded
+    // ONNX WASM. Also set numThreads > 1 in src/renderer/workers/transformers-env.ts.
+    //
+    // mainWindow.webContents.session.webRequest.onHeadersReceived(
+    //   (details, callback) => {
+    //     callback({
+    //       responseHeaders: {
+    //         ...details.responseHeaders,
+    //         'Cross-Origin-Opener-Policy': ['same-origin'],
+    //         'Cross-Origin-Embedder-Policy': ['require-corp'],
+    //       },
+    //     });
+    //   },
+    // );
+
     mainWindow.webContents.session.setDisplayMediaRequestHandler(
       async (_request, callback) => {
         const captureOptions = await appConfigStore.loadCaptureOptionsConfig();

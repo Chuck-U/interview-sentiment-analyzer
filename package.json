@@ -29,6 +29,7 @@
   "license": "MIT",
   "dependencies": {
     "@fontsource-variable/nunito-sans": "^5.2.7",
+    "@huggingface/transformers": "^3.8.1",
     "@langchain/langgraph": "^1.2.2",
     "@reduxjs/toolkit": "^2.11.2",
     "@remixicon/react": "^4.9.0",
