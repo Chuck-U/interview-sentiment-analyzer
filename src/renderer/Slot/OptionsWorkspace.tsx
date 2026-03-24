@@ -6,12 +6,9 @@ import {
   RiComputerLine,
   RiDownloadCloud2Line,
   RiEqualizerLine,
-  RiFlaskLine,
   RiRecordCircleFill,
   RiSettings3Line,
 } from "@remixicon/react";
-
-import { RecordingSandboxCard } from "@/renderer/recording/recording-sandbox-card";
 
 import type { OptionsProps } from "./Options";
 import { OptionsOverviewCard } from "./OptionsOverviewCard";
@@ -24,6 +21,7 @@ import { MicrophoneCaptureCard } from "./capture-options-cards/MicrophoneCapture
 import type { CaptureOptionSectionId } from "./capture-options-cards/shared";
 import { SystemCaptureOptionsCard } from "./capture-options-cards/SystemCaptureOptionsCard";
 import { WebcamCaptureCard } from "./capture-options-cards/WebcamCaptureCard";
+import { OptionsCard } from "./capture-options-cards/OptionsCard";
 
 type WorkspaceSectionId =
   | "options"
@@ -51,12 +49,7 @@ export function OptionsWorkspace({
 
   const sections = useMemo(
     () => [
-      {
-        id: "options",
-        label: "Options",
-        icon: RiSettings3Line,
-        content: <OptionsOverviewCard {...props} />,
-      },
+
       {
         id: "ai-provider",
         label: "AI Provider",
@@ -65,10 +58,10 @@ export function OptionsWorkspace({
       },
       {
         id: "microphone",
-        label: "Microphone",
+        label: "Input Devices",
         icon: RiEqualizerLine,
         content: (
-          <MicrophoneCaptureCard
+          <> <OptionsCard title="Microphone" description="Capture input"> <MicrophoneCaptureCard
             isBusy={props.isBusy}
             microphoneDevices={props.microphoneDevices}
             microphoneEnabled={props.microphoneEnabled}
@@ -76,6 +69,31 @@ export function OptionsWorkspace({
             onSetMicrophoneEnabled={props.onSetMicrophoneEnabled}
             onSetMicrophoneDeviceId={props.onSetMicrophoneDeviceId}
           />
+            <WebcamCaptureCard
+              isBusy={props.isBusy}
+              webcamDevices={props.webcamDevices}
+              webcamEnabled={props.webcamEnabled}
+              isWebcamPreviewVisible={props.isWebcamPreviewVisible}
+              isWebcamPreviewLoading={props.isWebcamPreviewLoading}
+              webcamPreviewStream={props.webcamPreviewStream}
+              onSetWebcamEnabled={props.onSetWebcamEnabled}
+              onSetWebcamDeviceId={props.onSetWebcamDeviceId}
+              onSetWebcamPreviewVisible={props.onSetWebcamPreviewVisible}
+            />
+            <DisplayCaptureCard
+              isBusy={props.isBusy}
+              displays={props.displays}
+              screenEnabled={props.screenEnabled}
+              isDesktopPreviewVisible={props.isDesktopPreviewVisible}
+              isDesktopPreviewLoading={props.isDesktopPreviewLoading}
+              desktopPreviewStream={props.desktopPreviewStream}
+              onSetScreenEnabled={props.onSetScreenEnabled}
+              onSetDisplayId={props.onSetDisplayId}
+              onSetDesktopPreviewVisible={props.onSetDesktopPreviewVisible}
+              onOpenMonitorPicker={props.onOpenMonitorPicker}
+            />
+          </OptionsCard>
+          </>
         ),
       },
       {
@@ -101,18 +119,20 @@ export function OptionsWorkspace({
         label: "Display",
         icon: RiComputerLine,
         content: (
-          <DisplayCaptureCard
-            isBusy={props.isBusy}
-            displays={props.displays}
-            screenEnabled={props.screenEnabled}
-            isDesktopPreviewVisible={props.isDesktopPreviewVisible}
-            isDesktopPreviewLoading={props.isDesktopPreviewLoading}
-            desktopPreviewStream={props.desktopPreviewStream}
-            onSetScreenEnabled={props.onSetScreenEnabled}
-            onSetDisplayId={props.onSetDisplayId}
-            onSetDesktopPreviewVisible={props.onSetDesktopPreviewVisible}
-            onOpenMonitorPicker={props.onOpenMonitorPicker}
-          />
+
+          <OptionsCard title="Display" description="Screen recording and system audio share the selected monitor target.">
+            <DisplayCaptureCard
+              isBusy={props.isBusy}
+              displays={props.displays}
+              screenEnabled={props.screenEnabled}
+              isDesktopPreviewVisible={props.isDesktopPreviewVisible}
+              isDesktopPreviewLoading={props.isDesktopPreviewLoading}
+              desktopPreviewStream={props.desktopPreviewStream}
+              onSetScreenEnabled={props.onSetScreenEnabled}
+              onSetDisplayId={props.onSetDisplayId}
+              onSetDesktopPreviewVisible={props.onSetDesktopPreviewVisible}
+              onOpenMonitorPicker={props.onOpenMonitorPicker}
+            /></OptionsCard>
         ),
       },
       {
@@ -120,14 +140,18 @@ export function OptionsWorkspace({
         label: "System",
         icon: RiSettings3Line,
         content: (
-          <SystemCaptureOptionsCard
-            isBusy={props.isBusy}
-            systemAudioEnabled={props.systemAudioEnabled}
-            screenshotEnabled={props.screenshotEnabled}
-            hasCaptureSourceEnabled={props.hasCaptureSourceEnabled}
-            onSetSystemAudioEnabled={props.onSetSystemAudioEnabled}
-            onSetScreenshotEnabled={props.onSetScreenshotEnabled}
-          />
+          <OptionsCard title="System" description="Configure shared recording behavior that is not tied to a single source card.">
+            <SystemCaptureOptionsCard
+              isBusy={props.isBusy}
+              audioOutputDevices={props.audioOutputDevices}
+              systemAudioEnabled={props.systemAudioEnabled}
+              screenshotEnabled={props.screenshotEnabled}
+              hasCaptureSourceEnabled={props.hasCaptureSourceEnabled}
+              onSetAudioOutputDeviceId={props.onSetAudioOutputDeviceId}
+              onSetSystemAudioEnabled={props.onSetSystemAudioEnabled}
+              onSetScreenshotEnabled={props.onSetScreenshotEnabled}
+            />
+          </OptionsCard>
         ),
       },
       {
@@ -135,13 +159,18 @@ export function OptionsWorkspace({
         label: "Recording",
         icon: RiRecordCircleFill,
         content: (
-          <RecordingControlCard
-            feedbackMessage={props.feedbackMessage}
-            currentSessionId={props.currentSessionId}
-            isRecording={props.isRecording}
-            isBusy={props.isBusy}
-            onToggleRecording={props.onToggleRecording}
-          />
+          <OptionsCard title="Recording" description="View and manage your recordings.">
+            <RecordingControlCard
+              feedbackMessage={props.feedbackMessage}
+              currentSessionId={props.currentSessionId}
+              isRecording={props.isRecording}
+              isBusy={props.isBusy}
+              onToggleRecording={props.onToggleRecording}
+              onOpenRecordingsFolder={props.onOpenRecordingsFolder}
+              recordingState={props.recordingState as unknown as RecordingState}
+            />
+
+          </OptionsCard>
         ),
       },
       {
@@ -156,11 +185,12 @@ export function OptionsWorkspace({
         ),
       },
       {
-        id: "sandbox",
-        label: "Sandbox",
-        icon: RiFlaskLine,
-        content: <RecordingSandboxCard />,
+        id: "options",
+        label: "Options",
+        icon: RiSettings3Line,
+        content: <OptionsOverviewCard {...props} />,
       },
+
     ] as const,
     [canExport, props],
   );

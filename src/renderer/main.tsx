@@ -288,7 +288,7 @@ function CardWindowMain({ layout, id }: { readonly layout: OptionsCardLayout, id
               platformLabel={platformLabel}
               windowSizeLabel={windowSizeLabel}
               windowBoundsLabel={windowBoundsLabel}
-              currentSessionId={currentSession?.id.slice(0, 8)}
+              currentSessionId={currentSession?.id}
               feedbackMessage={feedbackMessage}
               isRecording={isRecording}
               isBusy={isBusy}
@@ -304,6 +304,7 @@ function CardWindowMain({ layout, id }: { readonly layout: OptionsCardLayout, id
               }}
               permissions={captureOptions.permissions}
               microphoneDevices={captureOptions.microphoneDevices}
+              audioOutputDevices={captureOptions.audioOutputDevices}
               webcamDevices={captureOptions.webcamDevices}
               displays={captureOptions.displays}
               microphoneEnabled={captureOptions.config.microphone.enabled}
@@ -325,12 +326,32 @@ function CardWindowMain({ layout, id }: { readonly layout: OptionsCardLayout, id
               onSetSystemAudioEnabled={captureOptions.setSystemAudioEnabled}
               onSetScreenshotEnabled={captureOptions.setScreenshotEnabled}
               onSetMicrophoneDeviceId={captureOptions.setMicrophoneDeviceId}
+              onSetAudioOutputDeviceId={captureOptions.setAudioOutputDeviceId}
               onSetWebcamDeviceId={captureOptions.setWebcamDeviceId}
               onSetDisplayId={captureOptions.setDisplayId}
               onSetWebcamPreviewVisible={captureOptions.setWebcamPreviewVisible}
               onSetDesktopPreviewVisible={captureOptions.setDesktopPreviewVisible}
               onOpenMonitorPicker={() => {
                 void captureOptions.openMonitorPicker();
+              }}
+              onOpenRecordingsFolder={() => {
+                const sessionId = recordingState?.sessionId || currentSession?.id;
+                if (!sessionId) {
+                  dispatch(setFeedbackMessage("No recording session is available yet."));
+                  return;
+                }
+
+                void window.electronApp.recording
+                  .openRecordingsFolder({ sessionId })
+                  .catch((error: unknown) => {
+                    dispatch(
+                      setFeedbackMessage(
+                        error instanceof Error
+                          ? error.message
+                          : "Unable to open recordings folder.",
+                      ),
+                    );
+                  });
               }}
               onQuit={() => {
                 void handleCloseApplication();

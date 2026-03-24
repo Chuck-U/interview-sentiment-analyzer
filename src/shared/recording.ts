@@ -129,6 +129,9 @@ export type RecordingBridge = {
   exportRecording(
     request: ExportRecordingRequest,
   ): Promise<ExportRecordingResponse>;
+  openRecordingsFolder(request: {
+    readonly sessionId: string;
+  }): Promise<void>;
 };
 
 export type RecordingEventsBridge = {

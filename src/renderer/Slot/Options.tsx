@@ -31,6 +31,7 @@ export type OptionsProps = {
 
   readonly permissions: CapturePermissionSnapshot | null;
   readonly microphoneDevices: readonly CaptureDeviceOption[];
+  readonly audioOutputDevices: readonly CaptureDeviceOption[];
   readonly webcamDevices: readonly CaptureDeviceOption[];
   readonly displays: readonly CaptureDisplayOption[];
   readonly microphoneEnabled: boolean;
@@ -52,11 +53,13 @@ export type OptionsProps = {
   readonly onSetSystemAudioEnabled: (enabled: boolean) => void;
   readonly onSetScreenshotEnabled: (enabled: boolean) => void;
   readonly onSetMicrophoneDeviceId: (deviceId: string) => void;
+  readonly onSetAudioOutputDeviceId: (deviceId: string) => void;
   readonly onSetWebcamDeviceId: (deviceId: string) => void;
   readonly onSetDisplayId: (displayId: string) => void;
   readonly onSetWebcamPreviewVisible: (visible: boolean) => void;
   readonly onSetDesktopPreviewVisible: (visible: boolean) => void;
   readonly onOpenMonitorPicker: () => void;
+  readonly onOpenRecordingsFolder: () => void;
   readonly onQuit: () => void;
 };
 
@@ -79,6 +82,7 @@ export function Options({
   onExportRecording,
   permissions,
   microphoneDevices,
+  audioOutputDevices,
   webcamDevices,
   displays,
   microphoneEnabled,
@@ -100,11 +104,13 @@ export function Options({
   onSetSystemAudioEnabled,
   onSetScreenshotEnabled,
   onSetMicrophoneDeviceId,
+  onSetAudioOutputDeviceId,
   onSetWebcamDeviceId,
   onSetDisplayId,
   onSetWebcamPreviewVisible,
   onSetDesktopPreviewVisible,
   onOpenMonitorPicker,
+  onOpenRecordingsFolder,
   onQuit,
 }: OptionsProps) {
   const shellClass =
@@ -131,6 +137,7 @@ export function Options({
           onExportRecording={onExportRecording}
           permissions={permissions}
           microphoneDevices={microphoneDevices}
+          audioOutputDevices={audioOutputDevices}
           webcamDevices={webcamDevices}
           displays={displays}
           microphoneEnabled={microphoneEnabled}
@@ -152,11 +159,13 @@ export function Options({
           onSetSystemAudioEnabled={onSetSystemAudioEnabled}
           onSetScreenshotEnabled={onSetScreenshotEnabled}
           onSetMicrophoneDeviceId={onSetMicrophoneDeviceId}
+          onSetAudioOutputDeviceId={onSetAudioOutputDeviceId}
           onSetWebcamDeviceId={onSetWebcamDeviceId}
           onSetDisplayId={onSetDisplayId}
           onSetWebcamPreviewVisible={onSetWebcamPreviewVisible}
           onSetDesktopPreviewVisible={onSetDesktopPreviewVisible}
           onOpenMonitorPicker={onOpenMonitorPicker}
+          onOpenRecordingsFolder={onOpenRecordingsFolder}
           onQuit={onQuit}
         />
       </div>
@@ -184,6 +193,7 @@ export function Options({
           onExportRecording={onExportRecording}
           permissions={permissions}
           microphoneDevices={microphoneDevices}
+          audioOutputDevices={audioOutputDevices}
           webcamDevices={webcamDevices}
           displays={displays}
           microphoneEnabled={microphoneEnabled}
@@ -205,11 +215,13 @@ export function Options({
           onSetSystemAudioEnabled={onSetSystemAudioEnabled}
           onSetScreenshotEnabled={onSetScreenshotEnabled}
           onSetMicrophoneDeviceId={onSetMicrophoneDeviceId}
+          onSetAudioOutputDeviceId={onSetAudioOutputDeviceId}
           onSetWebcamDeviceId={onSetWebcamDeviceId}
           onSetDisplayId={onSetDisplayId}
           onSetWebcamPreviewVisible={onSetWebcamPreviewVisible}
           onSetDesktopPreviewVisible={onSetDesktopPreviewVisible}
           onOpenMonitorPicker={onOpenMonitorPicker}
+          onOpenRecordingsFolder={onOpenRecordingsFolder}
           onQuit={onQuit}
         />
       </div>

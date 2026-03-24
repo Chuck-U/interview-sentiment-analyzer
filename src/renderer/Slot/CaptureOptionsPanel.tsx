@@ -19,6 +19,7 @@ import type {
 import { SidebarCardShell } from "./SidebarCardShell";
 import { DisplayCaptureCard } from "./capture-options-cards/DisplayCaptureCard";
 import { MicrophoneCaptureCard } from "./capture-options-cards/MicrophoneCaptureCard";
+import { OptionsCard } from "./capture-options-cards/OptionsCard";
 import { SystemCaptureOptionsCard } from "./capture-options-cards/SystemCaptureOptionsCard";
 import { WebcamCaptureCard } from "./capture-options-cards/WebcamCaptureCard";
 import {
@@ -29,6 +30,7 @@ import {
 type CaptureOptionsPanelProps = {
   readonly isBusy: boolean;
   readonly microphoneDevices: readonly CaptureDeviceOption[];
+  readonly audioOutputDevices: readonly CaptureDeviceOption[];
   readonly webcamDevices: readonly CaptureDeviceOption[];
   readonly displays: readonly CaptureDisplayOption[];
   readonly permissions: CapturePermissionSnapshot | null;
@@ -51,6 +53,7 @@ type CaptureOptionsPanelProps = {
   readonly onSetSystemAudioEnabled: (enabled: boolean) => void;
   readonly onSetScreenshotEnabled: (enabled: boolean) => void;
   readonly onSetMicrophoneDeviceId: (deviceId: string) => void;
+  readonly onSetAudioOutputDeviceId: (deviceId: string) => void;
   readonly onSetWebcamDeviceId: (deviceId: string) => void;
   readonly onSetDisplayId: (displayId: string) => void;
   readonly onSetWebcamPreviewVisible: (visible: boolean) => void;
@@ -70,6 +73,7 @@ type CaptureSection = {
 export function CaptureOptionsPanel({
   isBusy,
   microphoneDevices,
+  audioOutputDevices,
   webcamDevices,
   displays,
   permissions,
@@ -92,6 +96,7 @@ export function CaptureOptionsPanel({
   onSetSystemAudioEnabled,
   onSetScreenshotEnabled,
   onSetMicrophoneDeviceId,
+  onSetAudioOutputDeviceId,
   onSetWebcamDeviceId,
   onSetDisplayId,
   onSetWebcamPreviewVisible,
@@ -111,14 +116,19 @@ export function CaptureOptionsPanel({
         label: "Microphone",
         icon: RiEqualizerLine,
         content: (
-          <MicrophoneCaptureCard
-            isBusy={isBusy}
-            microphoneDevices={microphoneDevices}
-            microphoneEnabled={microphoneEnabled}
-            microphoneLevel={microphoneLevel}
-            onSetMicrophoneEnabled={onSetMicrophoneEnabled}
-            onSetMicrophoneDeviceId={onSetMicrophoneDeviceId}
-          />
+          <OptionsCard
+            title="Microphone"
+            description="Preview metering runs while the options view is active."
+          >
+            <MicrophoneCaptureCard
+              isBusy={isBusy}
+              microphoneDevices={microphoneDevices}
+              microphoneEnabled={microphoneEnabled}
+              microphoneLevel={microphoneLevel}
+              onSetMicrophoneEnabled={onSetMicrophoneEnabled}
+              onSetMicrophoneDeviceId={onSetMicrophoneDeviceId}
+            />
+          </OptionsCard>
         ),
       },
       {
@@ -126,17 +136,22 @@ export function CaptureOptionsPanel({
         label: "Webcam",
         icon: RiCameraLine,
         content: (
-          <WebcamCaptureCard
-            isBusy={isBusy}
-            webcamDevices={webcamDevices}
-            webcamEnabled={webcamEnabled}
-            isWebcamPreviewVisible={isWebcamPreviewVisible}
-            isWebcamPreviewLoading={isWebcamPreviewLoading}
-            webcamPreviewStream={webcamPreviewStream}
-            onSetWebcamEnabled={onSetWebcamEnabled}
-            onSetWebcamDeviceId={onSetWebcamDeviceId}
-            onSetWebcamPreviewVisible={onSetWebcamPreviewVisible}
-          />
+          <OptionsCard
+            title="Webcam"
+            description="Choose a camera and keep a live preview visible while configuring capture."
+          >
+            <WebcamCaptureCard
+              isBusy={isBusy}
+              webcamDevices={webcamDevices}
+              webcamEnabled={webcamEnabled}
+              isWebcamPreviewVisible={isWebcamPreviewVisible}
+              isWebcamPreviewLoading={isWebcamPreviewLoading}
+              webcamPreviewStream={webcamPreviewStream}
+              onSetWebcamEnabled={onSetWebcamEnabled}
+              onSetWebcamDeviceId={onSetWebcamDeviceId}
+              onSetWebcamPreviewVisible={onSetWebcamPreviewVisible}
+            />
+          </OptionsCard>
         ),
       },
       {
@@ -144,18 +159,23 @@ export function CaptureOptionsPanel({
         label: "Display",
         icon: RiComputerLine,
         content: (
-          <DisplayCaptureCard
-            isBusy={isBusy}
-            displays={displays}
-            screenEnabled={screenEnabled}
-            isDesktopPreviewVisible={isDesktopPreviewVisible}
-            isDesktopPreviewLoading={isDesktopPreviewLoading}
-            desktopPreviewStream={desktopPreviewStream}
-            onSetScreenEnabled={onSetScreenEnabled}
-            onSetDisplayId={onSetDisplayId}
-            onSetDesktopPreviewVisible={onSetDesktopPreviewVisible}
-            onOpenMonitorPicker={onOpenMonitorPicker}
-          />
+          <OptionsCard
+            title="Display"
+            description="Configure screen capture, monitor selection, and desktop preview."
+          >
+            <DisplayCaptureCard
+              isBusy={isBusy}
+              displays={displays}
+              screenEnabled={screenEnabled}
+              isDesktopPreviewVisible={isDesktopPreviewVisible}
+              isDesktopPreviewLoading={isDesktopPreviewLoading}
+              desktopPreviewStream={desktopPreviewStream}
+              onSetScreenEnabled={onSetScreenEnabled}
+              onSetDisplayId={onSetDisplayId}
+              onSetDesktopPreviewVisible={onSetDesktopPreviewVisible}
+              onOpenMonitorPicker={onOpenMonitorPicker}
+            />
+          </OptionsCard>
         ),
       },
       {
@@ -163,19 +183,27 @@ export function CaptureOptionsPanel({
         label: "System",
         icon: RiSettings3Line,
         content: (
-          <SystemCaptureOptionsCard
-            isBusy={isBusy}
-            systemAudioEnabled={systemAudioEnabled}
-            screenshotEnabled={screenshotEnabled}
-            hasCaptureSourceEnabled={hasCaptureSourceEnabled}
-            onSetSystemAudioEnabled={onSetSystemAudioEnabled}
-            onSetScreenshotEnabled={onSetScreenshotEnabled}
-          />
+          <OptionsCard
+            title="System Options"
+            description="Configure shared recording behavior that is not tied to a single source card."
+          >
+            <SystemCaptureOptionsCard
+              isBusy={isBusy}
+              audioOutputDevices={audioOutputDevices}
+              systemAudioEnabled={systemAudioEnabled}
+              screenshotEnabled={screenshotEnabled}
+              hasCaptureSourceEnabled={hasCaptureSourceEnabled}
+              onSetAudioOutputDeviceId={onSetAudioOutputDeviceId}
+              onSetSystemAudioEnabled={onSetSystemAudioEnabled}
+              onSetScreenshotEnabled={onSetScreenshotEnabled}
+            />
+          </OptionsCard>
         ),
       },
     ],
     [
       desktopPreviewStream,
+      audioOutputDevices,
       displays,
       hasCaptureSourceEnabled,
       isBusy,
@@ -191,6 +219,7 @@ export function CaptureOptionsPanel({
       onSetDisplayId,
       onSetMicrophoneDeviceId,
       onSetMicrophoneEnabled,
+      onSetAudioOutputDeviceId,
       onSetScreenEnabled,
       onSetScreenshotEnabled,
       onSetSystemAudioEnabled,

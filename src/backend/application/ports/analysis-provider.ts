@@ -34,7 +34,7 @@ export type PipelineStageExecutionResult<
   readonly emittedEvents: readonly PipelineEventEnvelope<TEventType>[];
 };
 
-export type HostedAnalysisProviderName = "google" | "openai";
+export type HostedAnalysisProviderName = "google" | "openai" | "anthropic";
 
 export type HostedAnalysisUsage = {
   readonly inputTokens: number;
