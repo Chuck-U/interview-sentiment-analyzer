@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 
 import {
+  RiBrainLine,
   RiCameraLine,
   RiComputerLine,
   RiDownloadCloud2Line,
@@ -12,6 +13,7 @@ import {
 import type { OptionsProps } from "./Options";
 import { OptionsOverviewCard } from "./OptionsOverviewCard";
 import { SidebarCardShell } from "./SidebarCardShell";
+import { AiProviderCard } from "./agent-controls-cards/AiProviderCard";
 import { ExportRecordingCard } from "./agent-controls-cards/ExportRecordingCard";
 import { RecordingControlCard } from "./agent-controls-cards/RecordingControlCard";
 import { DisplayCaptureCard } from "./capture-options-cards/DisplayCaptureCard";
@@ -23,6 +25,7 @@ import { OptionsCard } from "./capture-options-cards/OptionsCard";
 
 type WorkspaceSectionId =
   | "options"
+  | "ai-provider"
   | CaptureOptionSectionId
   | "recording"
   | "export"
@@ -47,6 +50,12 @@ export function OptionsWorkspace({
   const sections = useMemo(
     () => [
 
+      {
+        id: "ai-provider",
+        label: "AI Provider",
+        icon: RiBrainLine,
+        content: <AiProviderCard />,
+      },
       {
         id: "microphone",
         label: "Input Devices",

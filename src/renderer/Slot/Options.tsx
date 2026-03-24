@@ -227,10 +227,10 @@ export function Options({
       </div>
     );
   }
+  if (layout === "sandbox") {
+    return <RecordingSandboxCard />;
+  }
 
-  return (
-    <div className={shellClass}>
-      <RecordingSandboxCard />
-    </div>
-  );
+  return null;
 }
+

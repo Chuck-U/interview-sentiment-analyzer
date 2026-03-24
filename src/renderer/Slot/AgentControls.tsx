@@ -2,9 +2,10 @@ import type { CSSProperties, ComponentType, ReactNode } from "react";
 import { useMemo, useState } from "react";
 
 import {
+  RiBrainLine,
   RiDownloadCloud2Line,
-  RiPlayCircleLine,
   RiFlaskLine,
+  RiPlayCircleLine,
 } from "@remixicon/react";
 
 import { Badge } from "@/components/ui/badge";
@@ -15,8 +16,9 @@ import type { OptionsProps } from "./Options";
 import { SidebarCardShell } from "./SidebarCardShell";
 import { ExportRecordingCard } from "./agent-controls-cards/ExportRecordingCard";
 import { RecordingControlCard } from "./agent-controls-cards/RecordingControlCard";
+import { AiProviderCard } from "./agent-controls-cards/AiProviderCard";
 
-type ControlsSectionId = "recording" | "export" | "sandbox";
+type ControlsSectionId = "ai-provider" | "recording" | "export" | "sandbox";
 
 type ControlsSection = {
   readonly id: ControlsSectionId;
@@ -48,7 +50,7 @@ export function AgentControls({
   readonly showQuitButton?: boolean;
 }) {
   const [activeSection, setActiveSection] =
-    useState<ControlsSectionId>("recording");
+    useState<ControlsSectionId>("ai-provider");
   const canExport =
     !isRecording &&
     !!recordingState &&
@@ -57,6 +59,12 @@ export function AgentControls({
 
   const sections = useMemo<readonly ControlsSection[]>(
     () => [
+      {
+        id: "ai-provider",
+        label: "AI Provider",
+        icon: RiBrainLine,
+        content: <AiProviderCard />,
+      },
       {
         id: "recording",
         label: "Recording",
