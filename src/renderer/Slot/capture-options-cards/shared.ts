@@ -45,9 +45,11 @@ export type DisplayCaptureCardProps = CaptureCardBaseProps & {
 };
 
 export type SystemCaptureOptionsCardProps = CaptureCardBaseProps & {
+  readonly audioOutputDevices: readonly CaptureDeviceOption[];
   readonly systemAudioEnabled: boolean;
   readonly screenshotEnabled: boolean;
   readonly hasCaptureSourceEnabled: boolean;
+  readonly onSetAudioOutputDeviceId: (deviceId: string) => void;
   readonly onSetSystemAudioEnabled: (enabled: boolean) => void;
   readonly onSetScreenshotEnabled: (enabled: boolean) => void;
 };

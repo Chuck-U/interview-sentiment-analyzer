@@ -1,7 +1,10 @@
 import type { CSSProperties } from "react";
 
+import { RiCheckboxBlankCircleLine, RiCheckboxCircleLine } from "@remixicon/react";
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
+
+import { IconToggle } from "./IconToggle";
 
 type ShortcutSettingsCardProps = {
   readonly shortcutLabel: string;
@@ -33,11 +36,13 @@ export function ShortcutSettingsCard({
             </p>
           </div>
           <div style={{ WebkitAppRegion: "no-drag" } as CSSProperties}>
-            <Switch
-              checked={isShortcutEnabled}
-              aria-label="Toggle recording keyboard shortcut"
+            <IconToggle
+              pressed={isShortcutEnabled}
+              ariaLabel="Toggle recording keyboard shortcut"
               disabled={isBusy}
-              onCheckedChange={onSetShortcutEnabled}
+              onPressedChange={onSetShortcutEnabled}
+              IconActive={RiCheckboxCircleLine}
+              IconInactive={RiCheckboxBlankCircleLine}
             />
           </div>
         </div>

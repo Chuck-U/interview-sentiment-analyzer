@@ -1,3 +1,4 @@
+import { mkdir } from "node:fs/promises";
 import path from "node:path";
 
 import {
@@ -9,6 +10,7 @@ import {
   Menu,
   nativeImage,
   screen,
+  shell,
   systemPreferences,
   Tray,
 } from "electron";
@@ -78,6 +80,8 @@ function buildCaptureSourcesFromConfig(
   config: CaptureOptionsConfig,
 ): readonly MediaChunkSource[] {
   const sources: MediaChunkSource[] = [];
+  const hasUnifiedDesktopCapture =
+    config.screen.enabled && config.systemAudio.enabled;
 
   if (config.microphone.enabled) {
     sources.push("microphone");
@@ -87,11 +91,13 @@ function buildCaptureSourcesFromConfig(
     sources.push("webcam");
   }
 
-  if (config.systemAudio.enabled) {
+  if (hasUnifiedDesktopCapture) {
+    sources.push("desktop-capture");
+  } else if (config.systemAudio.enabled) {
     sources.push("system-audio");
   }
 
-  if (config.screen.enabled) {
+  if (config.screen.enabled && !hasUnifiedDesktopCapture) {
     sources.push("screen-video");
   }
 
@@ -278,13 +284,13 @@ function applyOptionsWindowOpenBounds(
     targetSize,
     anchorBounds
       ? {
-          x: anchorBounds.x,
-          y: anchorBounds.y + 100,
-        }
+        x: anchorBounds.x,
+        y: anchorBounds.y + 100,
+      }
       : {
-          x: display.bounds.x,
-          y: display.bounds.y,
-        },
+        x: display.bounds.x,
+        y: display.bounds.y,
+      },
   );
 
   window.setBounds({
@@ -520,7 +526,7 @@ function createWindow(
     if (!isLauncher && devServerUrl) {
       browserWindow.webContents.openDevTools({ mode: "detach" });
     }
-    
+
     publishAlwaysOnTop(browserWindow);
     publishPinned(browserWindow);
     syncTrayMenuRef?.();
@@ -926,9 +932,9 @@ async function initializeApp() {
           event: _event
         },
       });
-      log.ger({ type: 'debug', message: '[windowRegistry openWindow] webContents', data: { webContents } });
-      log.ger({ type: 'debug', message: '[windowRegistry openWindow] cardWindows', data: { cardWindows } });
-      log.ger({ type: 'debug', message: '[windowRegistry openWindow] windowBounds', data: { windowBounds } });
+      // log.ger({ type: 'debug', message: '[windowRegistry openWindow] webContents', data: { webContents } });
+      // log.ger({ type: 'debug', message: '[windowRegistry openWindow] cardWindows', data: { cardWindows } });
+      // log.ger({ type: 'debug', message: '[windowRegistry openWindow] windowBounds', data: { windowBounds } });
       const existing = cardWindows.get(input);
       if (existing && !existing.isDestroyed()) {
         try {
@@ -1387,6 +1393,30 @@ async function initializeApp() {
             errorMessage,
           });
           return { exportStatus: "failed" };
+        }
+      },
+    );
+
+    ipcMain.handle(
+      RECORDING_CHANNELS.openRecordingsFolder,
+      async (_event, input: unknown) => {
+        if (typeof input !== "object" || input === null) {
+          throw new Error("openRecordingsFolder request must be an object");
+        }
+
+        const sessionId = (input as Record<string, unknown>).sessionId;
+        if (typeof sessionId !== "string" || sessionId.trim().length === 0) {
+          throw new Error("openRecordingsFolder requires sessionId");
+        }
+
+        const recordingsRoot = storageLayoutResolver.resolveSessionLayout(
+          sessionId.trim(),
+        ).recordingsRoot;
+        await mkdir(recordingsRoot, { recursive: true });
+        const openResult = await shell.openPath(recordingsRoot);
+
+        if (openResult.length > 0) {
+          throw new Error(openResult);
         }
       },
     );

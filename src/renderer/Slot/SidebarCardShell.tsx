@@ -5,10 +5,10 @@ import {
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarInset,
   SidebarMenu,
   SidebarMenuButton,
+  SidebarGroupLabel,
   SidebarMenuItem,
   SidebarProvider,
 } from "@/components/ui/sidebar";
@@ -48,7 +48,7 @@ export function SidebarCardShell<TSectionId extends string>({
       className={cn("h-full !min-h-0 w-full overflow-hidden", className)}
       style={
         {
-          "--sidebar-width": "20%",
+          "--sidebar-width": "30%",
           WebkitAppRegion: "no-drag",
         } as CSSProperties
       }
@@ -63,7 +63,7 @@ export function SidebarCardShell<TSectionId extends string>({
           style={noDragStyle}
         >
           <SidebarGroup>
-            <SidebarGroupLabel className="border-b pb-1 border-b-[#">Sections</SidebarGroupLabel>
+            <SidebarGroupLabel className="border pb-1  border-0 border-b-1 border-yellow-contrast/10 ">Settings</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 {sections.map((section) => {

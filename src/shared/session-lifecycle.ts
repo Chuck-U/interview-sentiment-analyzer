@@ -9,6 +9,7 @@ export const SESSION_STATUSES = [
 export const MEDIA_CHUNK_SOURCES = [
   "microphone",
   "webcam",
+  "desktop-capture",
   "system-audio",
   "screen-video",
   "screenshot",

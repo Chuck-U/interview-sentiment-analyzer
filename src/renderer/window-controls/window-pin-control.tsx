@@ -27,7 +27,7 @@ export function WindowPinControl({
     >
       <RiPushpinFill
         data-icon="inline-start hover:text-yellow-8"
-        className={cn("size-5", isPinned ? "text-yellow-indicator  shadow-yellow-contrast -translate-x-1 translate-y-1" : "text-muted-foreground", isPinned ? "" : "group-hover:-translate-x-1 group-hover:translate-y-1 transition-transform duration-75 delay-100 ease-in-out")}
+        className={cn("size-5", isPinned ? "text-yellow-indicator  shadow-yellow-contrast -translate-x-1 translate-y-1" : "text-muted-foreground", isPinned ? "group-active:translate-x-0.5 group-active:-translate-y-0.5 duration-75  ease-out" : "group-hover:-translate-x-1 group-hover:translate-y-1 transition-transform duration-75 ease-in-out delay-100")}
       />
     </Button>
   );

@@ -197,9 +197,9 @@ button {
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.715 0.143 215.221);
   --sidebar-primary-foreground: oklch(0.302 0.056 229.695);
-  --sidebar-accent: oklch(0.263 0.024 320.12);
+  --sidebar-accent: #e5ebcecc;
   --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-border: #ffffff1a;
   --sidebar-ring: oklch(0.542 0.034 322.5);
 }
 

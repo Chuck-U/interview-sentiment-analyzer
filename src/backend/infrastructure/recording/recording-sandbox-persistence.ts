@@ -13,6 +13,7 @@ const MIME_TO_EXTENSION: Record<string, string> = {
   "audio/ogg;codecs=opus": "ogg",
   "video/webm;codecs=vp9,opus": "webm",
   "video/webm;codecs=vp8,opus": "webm",
+  "video/webm;codecs=av01,opus": "webm",
   "video/webm": "webm",
 };
 

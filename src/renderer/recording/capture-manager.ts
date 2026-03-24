@@ -7,7 +7,12 @@ import type {
 } from "@/shared/recording";
 import type { CaptureOptionsConfig } from "@/shared/capture-options";
 import type { MediaChunkSource } from "@/shared/session-lifecycle";
-import { AUDIO_MIME_CANDIDATES, VIDEO_MIME_CANDIDATES, DEFAULT_CHUNK_INTERVAL_MS, DEFAULT_SCREENSHOT_INTERVAL_MS } from "./constants";
+import {
+  AUDIO_MIME_CANDIDATES,
+  DEFAULT_CHUNK_INTERVAL_MS,
+  DEFAULT_SCREENSHOT_INTERVAL_MS,
+  VIDEO_MIME_CANDIDATES,
+} from "./constants";
 
 
 function pickSupportedMimeType(candidates: string[]): string | undefined {
@@ -47,6 +52,12 @@ type ScreenshotCapture = {
   intervalId?: ReturnType<typeof setInterval>;
 };
 
+type AudioMixSession = {
+  readonly context: AudioContext;
+  readonly destination: MediaStreamAudioDestinationNode;
+  readonly inputStreams: readonly MediaStream[];
+};
+
 export type CaptureManagerCallbacks = {
   onChunkAvailable(
     sessionId: string,
@@ -77,6 +88,7 @@ export class CaptureManager {
   private recorders = new Map<MediaChunkSource, SourceRecorder>();
   private screenshotCapture: ScreenshotCapture | null = null;
   private displayStream: MediaStream | null = null;
+  private audioMixSession: AudioMixSession | null = null;
   private exportStatus: RecordingExportStatus = "idle";
   private exportFilePath?: string;
   private exportErrorMessage?: string;
@@ -137,6 +149,8 @@ export class CaptureManager {
       }
       this.displayStream = null;
     }
+
+    await this.disposeAudioMixSession();
 
     this.publishState();
   }
@@ -224,10 +238,13 @@ export class CaptureManager {
       }
       this.displayStream = null;
     }
+
+    void this.disposeAudioMixSession();
   }
 
   private isDisplaySource(source: MediaChunkSource): boolean {
     return (
+      source === "desktop-capture" ||
       source === "screen-video" ||
       source === "system-audio" ||
       source === "screenshot"
@@ -301,12 +318,17 @@ export class CaptureManager {
     sources: readonly MediaChunkSource[],
     captureOptions: CaptureOptionsConfig,
   ): Promise<void> {
+    const hasUnifiedDesktopCapture = sources.includes("desktop-capture");
+    const hasScreenVideo =
+      !hasUnifiedDesktopCapture && sources.includes("screen-video");
+    const hasSystemAudio =
+      !hasUnifiedDesktopCapture && sources.includes("system-audio");
     let stream: MediaStream;
 
     try {
       stream = await navigator.mediaDevices.getDisplayMedia({
         video: true,
-        audio: sources.includes("system-audio"),
+        audio: hasUnifiedDesktopCapture || hasSystemAudio,
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -314,10 +336,13 @@ export class CaptureManager {
         ? "permission-denied"
         : "device-unavailable";
 
-      if (sources.includes("screen-video")) {
+      if (hasUnifiedDesktopCapture) {
+        this.handleSourceError(sessionId, "desktop-capture", code, errorMessage);
+      }
+      if (hasScreenVideo) {
         this.handleSourceError(sessionId, "screen-video", code, errorMessage);
       }
-      if (sources.includes("system-audio")) {
+      if (hasSystemAudio) {
         this.handleSourceError(sessionId, "system-audio", code, errorMessage);
       }
       if (sources.includes("screenshot")) {
@@ -332,7 +357,46 @@ export class CaptureManager {
     const videoTrack = stream.getVideoTracks()[0];
     const audioTracks = stream.getAudioTracks();
 
-    if (sources.includes("screen-video")) {
+    if (hasUnifiedDesktopCapture) {
+      if (!videoTrack) {
+        this.handleSourceError(
+          sessionId,
+          "desktop-capture",
+          "device-unavailable",
+          "No display video track is available",
+        );
+      } else if (audioTracks.length === 0) {
+        this.handleSourceError(
+          sessionId,
+          "desktop-capture",
+          "device-unavailable",
+          "System audio is unavailable for the selected display",
+        );
+      } else {
+        const microphoneEnabled = sources.includes("microphone");
+        const desktopStream = new MediaStream([
+          videoTrack.clone(),
+          ...(await this.buildMixedDesktopAudioTracks({
+            sessionId,
+            captureOptions,
+            desktopAudioTracks: audioTracks,
+            includeMicrophone: microphoneEnabled,
+          })),
+        ]);
+
+        await this.startRecorderForStream(
+          sessionId,
+          "desktop-capture",
+          desktopStream,
+          VIDEO_MIME_CANDIDATES,
+          {
+            activeDisplayId,
+          },
+        );
+      }
+    }
+
+    if (hasScreenVideo) {
       if (!videoTrack) {
         this.handleSourceError(
           sessionId,
@@ -353,7 +417,7 @@ export class CaptureManager {
       }
     }
 
-    if (sources.includes("system-audio")) {
+    if (hasSystemAudio) {
       if (audioTracks.length === 0) {
         this.handleSourceError(
           sessionId,
@@ -374,13 +438,144 @@ export class CaptureManager {
       }
     }
 
-    if ((sources.includes("screenshot") || sources.includes("screen-video")) && videoTrack) {
+    if (
+      (sources.includes("screenshot") ||
+        hasUnifiedDesktopCapture ||
+        hasScreenVideo) &&
+      videoTrack
+    ) {
       this.startScreenshotCapture(
         sessionId,
         new MediaStream([videoTrack.clone()]),
         activeDisplayId,
       );
     }
+  }
+
+  private async buildMixedDesktopAudioTracks(args: {
+    readonly sessionId: string;
+    readonly captureOptions: CaptureOptionsConfig;
+    readonly desktopAudioTracks: readonly MediaStreamTrack[];
+    readonly includeMicrophone: boolean;
+  }): Promise<readonly MediaStreamTrack[]> {
+    const { sessionId, captureOptions, desktopAudioTracks, includeMicrophone } = args;
+    const desktopAudioStream = new MediaStream(
+      desktopAudioTracks.map((track) => track.clone()),
+    );
+
+    if (!includeMicrophone) {
+      return desktopAudioStream.getAudioTracks();
+    }
+
+    let microphoneStream: MediaStream | null = null;
+
+    try {
+      microphoneStream = await navigator.mediaDevices.getUserMedia({
+        audio: captureOptions.microphone.deviceId
+          ? {
+              deviceId: { exact: captureOptions.microphone.deviceId },
+            }
+          : true,
+        video: false,
+      });
+
+      this.audioMixSession = await this.createStereoAudioMixSession([
+        desktopAudioStream,
+        microphoneStream,
+      ]);
+      return this.audioMixSession.destination.stream.getAudioTracks();
+    } catch (error) {
+      for (const track of desktopAudioStream.getTracks()) {
+        track.stop();
+      }
+      if (microphoneStream) {
+        for (const track of microphoneStream.getTracks()) {
+          track.stop();
+        }
+      }
+
+      this.handleSourceError(
+        sessionId,
+        "desktop-capture",
+        "device-unavailable",
+        error instanceof Error
+          ? `Unable to mix microphone into desktop capture: ${error.message}`
+          : "Unable to mix microphone into desktop capture",
+      );
+
+      return desktopAudioTracks.map((track) => track.clone());
+    }
+  }
+
+  private async createStereoAudioMixSession(
+    inputStreams: readonly MediaStream[],
+  ): Promise<AudioMixSession> {
+    await this.disposeAudioMixSession();
+
+    const context = new AudioContext();
+    const mixBus = context.createGain();
+    const destination = context.createMediaStreamDestination();
+
+    mixBus.channelCount = 2;
+    mixBus.channelCountMode = "explicit";
+    mixBus.channelInterpretation = "speakers";
+    mixBus.connect(destination);
+
+    for (const stream of inputStreams) {
+      this.connectStreamToStereoMix(context, stream, mixBus);
+    }
+
+    if (context.state === "suspended") {
+      await context.resume();
+    }
+
+    return {
+      context,
+      destination,
+      inputStreams,
+    };
+  }
+
+  private connectStreamToStereoMix(
+    context: AudioContext,
+    stream: MediaStream,
+    mixBus: GainNode,
+  ): void {
+    const audioTrack = stream.getAudioTracks()[0];
+    if (!audioTrack) {
+      return;
+    }
+
+    const source = context.createMediaStreamSource(stream);
+    const splitter = context.createChannelSplitter(2);
+    const merger = context.createChannelMerger(2);
+    const gain = context.createGain();
+    const channelCount = audioTrack.getSettings().channelCount ?? 2;
+
+    source.connect(splitter);
+    splitter.connect(merger, 0, 0);
+    splitter.connect(merger, channelCount > 1 ? 1 : 0, 1);
+    merger.connect(gain);
+    gain.connect(mixBus);
+  }
+
+  private async disposeAudioMixSession(): Promise<void> {
+    if (!this.audioMixSession) {
+      return;
+    }
+
+    const mixSession = this.audioMixSession;
+    this.audioMixSession = null;
+
+    for (const stream of mixSession.inputStreams) {
+      for (const track of stream.getTracks()) {
+        track.stop();
+      }
+    }
+
+    await mixSession.context.close().catch(() => {
+      // AudioContext may already be torn down during renderer shutdown.
+    });
   }
 
   private async startRecorderForStream(
