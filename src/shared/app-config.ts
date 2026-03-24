@@ -6,6 +6,11 @@ import {
   type CaptureOptionsConfig,
 } from "./capture-options";
 import {
+  DEFAULT_AI_PROVIDER_CONFIG,
+  aiProviderConfigSchema,
+  type AiProviderConfig,
+} from "./ai-provider";
+import {
   DEFAULT_SHORTCUT_ID_RECORDING_TOGGLE,
   SHORTCUT_ACTIONS,
   type ShortcutAction,
@@ -20,6 +25,7 @@ export type AppConfig = {
   // Future schema versions can add per-window pin and bounds preferences here
   // so launcher/card lock state survives reopen without coupling it to capture options.
   readonly captureOptions: CaptureOptionsConfig;
+  readonly aiProvider: AiProviderConfig;
 };
 
 const shortcutActionSchema = z.enum(SHORTCUT_ACTIONS);
@@ -39,6 +45,7 @@ export const appConfigSchema = z.object({
   schemaVersion: z.literal(APP_CONFIG_SCHEMA_VERSION),
   shortcuts: z.record(z.string(), shortcutConfigEntrySchema),
   captureOptions: captureOptionsConfigSchema,
+  aiProvider: aiProviderConfigSchema.default(DEFAULT_AI_PROVIDER_CONFIG),
 });
 
 export const DEFAULT_APP_CONFIG: AppConfig = {
@@ -51,6 +58,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     },
   },
   captureOptions: DEFAULT_CAPTURE_OPTIONS_CONFIG,
+  aiProvider: DEFAULT_AI_PROVIDER_CONFIG,
 };
 
 export function normalizeAppConfig(input: unknown): AppConfig {

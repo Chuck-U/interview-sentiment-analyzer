@@ -1,5 +1,5 @@
-import path from "node:path";
 
+import path from "node:path";
 import {
   app,
   BrowserWindow,
@@ -12,9 +12,10 @@ import {
   systemPreferences,
   Tray,
 } from "electron";
-
-import { Log } from "../../src/lib/utils";
+import { logger, type LoggerProps } from "../../src/lib/logger";
 import { createSessionLifecycleBackend } from "../../src/backend";
+import { createListAiProviderModelsUseCase } from "../../src/backend/application/use-cases/list-ai-provider-models";
+import { createSecretStore } from "../../src/backend/infrastructure/config/secretStore";
 import { registerSessionLifecycleIpc } from "../../src/backend/infrastructure/ipc/register-session-lifecycle-ipc";
 import { registerRecordingIpc } from "../../src/backend/infrastructure/ipc/register-recording-ipc";
 import { createRecordingPersistenceService } from "../../src/backend/infrastructure/recording/recording-persistence";
@@ -35,6 +36,12 @@ import {
 import { SESSION_LIFECYCLE_EVENT_CHANNELS } from "../../src/backend/infrastructure/ipc/session-lifecycle-channels";
 import { RECORDING_CHANNELS, RECORDING_EVENT_CHANNELS } from "../../src/backend/infrastructure/ipc/recording-channels";
 import {
+  AI_PROVIDER_CHANNELS,
+  normalizeAiProvider,
+  normalizeAiProviderConfig,
+  normalizeSetAiProviderApiKeyRequest,
+} from "../../src/shared/ai-provider";
+import {
   clampWindowSize,
   parseMoveWindowByRequest,
   parseSetAlwaysOnTopRequest,
@@ -43,8 +50,6 @@ import {
   parseSetWindowSizeRequest,
   WINDOW_CONTROL_CHANNELS,
   WINDOW_CONTROL_EVENT_CHANNELS,
-  type WindowSizePreset,
-  type WindowBoundsSnapshot,
   parseResizeWindowByRequest,
 } from "../../src/shared/window-controls";
 import type { MediaChunkSource, SessionSnapshot } from "../../src/shared/session-lifecycle";
@@ -63,16 +68,27 @@ import {
   isCardWindowRole,
 } from "../../src/shared/window-registry";
 import { createMonitorPickerController } from "./monitor-picker";
+import { applyOptionsWindowOpenBounds, createWindowBoundsSnapshot, getClampedWindowPositionForSize, getMinimumWindowSize, getWindowSizeForPreset, publishWindowBounds } from "../electron-utils";
 
-const devServerUrl = process.env.VITE_DEV_SERVER_URL ?? 'http://localhost:5180';
+const devServerUrl = process.env.VITE_DEV_SERVER_URL ?? 'http://localhost:5180'; // TODO: fix handling of this env variable
 
 const pipelineOrchestrationMode =
-  process.env.PIPELINE_ORCHESTRATOR === "langchain" ? "langchain" : "built-in";
-const MAIN_WINDOW_MIN_WIDTH = 460;
-const MAIN_WINDOW_MIN_HEIGHT = 104;
-const MAIN_WINDOW_DEFAULT_WIDTH = 560;
+  process.env.PIPELINE_ORCHESTRATOR === "langchain" ? "langchain" : "built-in"; // slop code
+export const MAIN_WINDOW_MIN_WIDTH = 600;
+export const MAIN_WINDOW_MIN_HEIGHT = 104;
+const MAIN_WINDOW_DEFAULT_WIDTH = 700;
 const MAIN_WINDOW_DEFAULT_HEIGHT = 112;
-const log = Log.getInstance().forSource(path.basename(__filename))
+const log: Pick<typeof logger, "ger"> = {
+  ger(entry: LoggerProps): void {
+    logger.ger({
+      ...entry,
+      source: __filename,
+    });
+  },
+};
+const listAiProviderModels = createListAiProviderModelsUseCase({
+  fetch: globalThis.fetch,
+});
 
 function buildCaptureSourcesFromConfig(
   config: CaptureOptionsConfig,
@@ -119,200 +135,6 @@ function publishToAllWindows(channel: string, payload: unknown): void {
   }
 }
 
-function createWindowBoundsSnapshot(
-  window: BrowserWindow,
-): WindowBoundsSnapshot {
-  const bounds = window.getBounds();
-  const [rawMinWidth, rawMinHeight] = window.getMinimumSize();
-  const minWidth = rawMinWidth > 0 ? rawMinWidth : MAIN_WINDOW_MIN_WIDTH;
-  const minHeight = rawMinHeight > 0 ? rawMinHeight : MAIN_WINDOW_MIN_HEIGHT;
-
-  return {
-    x: bounds.x,
-    y: bounds.y,
-    width: bounds.width,
-    height: bounds.height,
-    minWidth,
-    minHeight,
-  };
-}
-
-function getMinimumWindowSize(window: BrowserWindow): {
-  readonly width: number;
-  readonly height: number;
-} {
-  const [rawMinWidth, rawMinHeight] = window.getMinimumSize();
-
-  return {
-    width: rawMinWidth > 0 ? rawMinWidth : MAIN_WINDOW_MIN_WIDTH,
-    height: rawMinHeight > 0 ? rawMinHeight : MAIN_WINDOW_MIN_HEIGHT,
-  };
-}
-
-function getWindowSizeForPreset(
-  window: BrowserWindow,
-  preset: WindowSizePreset,
-): {
-  readonly width: number;
-  readonly height: number;
-} {
-  const display = screen.getDisplayMatching(window.getBounds());
-  const { width: workAreaWidth, height: workAreaHeight } = display.workAreaSize;
-  const minimumSize = getMinimumWindowSize(window);
-  const [, currentHeight] = window.getSize();
-  const isLauncher = getWindowRole(window) === WINDOW_ROLES.launcher;
-
-  const widthRatio =
-    preset === "50%" ? 0.5 : preset === "75%" ? 0.75 : 0.9;
-
-  if (isLauncher) {
-    return clampWindowSize(
-      {
-        width: Math.round(workAreaWidth * widthRatio),
-        height: currentHeight,
-      },
-      minimumSize,
-    );
-  }
-
-  switch (preset) {
-    case "50%":
-      return clampWindowSize(
-        {
-          width: Math.round(workAreaWidth * 0.5),
-          height: Math.round(workAreaHeight * 0.5),
-        },
-        minimumSize,
-      );
-    case "75%":
-      return clampWindowSize(
-        {
-          width: Math.round(workAreaWidth * 0.75),
-          height: Math.round(workAreaHeight * 0.75),
-        },
-        minimumSize,
-      );
-    case "90%":
-      return clampWindowSize(
-        {
-          width: Math.round(workAreaWidth * 0.9),
-          height: Math.round(workAreaHeight * 0.9),
-        },
-        minimumSize,
-      );
-  }
-}
-
-function getClampedWindowPositionForSize(
-  window: BrowserWindow,
-  size: {
-    readonly width: number;
-    readonly height: number;
-  },
-): {
-  readonly x: number;
-  readonly y: number;
-} {
-  const display = screen.getDisplayMatching(window.getBounds());
-  const { x, y, width, height } = display.workArea;
-  const [currentX, currentY] = window.getPosition();
-  const maxX = Math.max(x, x + width - size.width);
-  const maxY = Math.max(y, y + height - size.height);
-
-  return {
-    x: Math.min(Math.max(currentX, x), maxX),
-    y: Math.min(Math.max(currentY, y), maxY),
-  };
-}
-
-function getClampedPositionWithinBounds(
-  bounds: {
-    readonly x: number;
-    readonly y: number;
-    readonly width: number;
-    readonly height: number;
-  },
-  size: {
-    readonly width: number;
-    readonly height: number;
-  },
-  preferredPosition: {
-    readonly x: number;
-    readonly y: number;
-  },
-): {
-  readonly x: number;
-  readonly y: number;
-} {
-  const maxX = Math.max(bounds.x, bounds.x + bounds.width - size.width);
-  const maxY = Math.max(bounds.y, bounds.y + bounds.height - size.height);
-
-  return {
-    x: Math.min(Math.max(preferredPosition.x, bounds.x), maxX),
-    y: Math.min(Math.max(preferredPosition.y, bounds.y), maxY),
-  };
-}
-
-function applyOptionsWindowOpenBounds(
-  window: BrowserWindow,
-  anchorBounds?: {
-    readonly x: number;
-    readonly y: number;
-    readonly width: number;
-    readonly height: number;
-  },
-): void {
-  const display = screen.getDisplayMatching(
-    anchorBounds ?? window.getBounds(),
-  );
-  const minimumSize = getMinimumWindowSize(window);
-  const targetSize = clampWindowSize(
-    {
-      width: 560,
-      height: 640,
-    },
-    minimumSize,
-  );
-  const targetPosition = getClampedPositionWithinBounds(
-    display.bounds,
-    targetSize,
-    anchorBounds
-      ? {
-          x: anchorBounds.x,
-          y: anchorBounds.y + 100,
-        }
-      : {
-          x: display.bounds.x,
-          y: display.bounds.y,
-        },
-  );
-
-  window.setBounds({
-    x: targetPosition.x,
-    y: targetPosition.y,
-    width: targetSize.width,
-    height: targetSize.height,
-  });
-}
-
-function publishWindowBounds(window: BrowserWindow): void {
-  if (window.isDestroyed()) {
-    return;
-  }
-  const contents = window.webContents;
-  if (contents.isDestroyed()) {
-    return;
-  }
-  try {
-    contents.send(
-      WINDOW_CONTROL_EVENT_CHANNELS.boundsChanged,
-      createWindowBoundsSnapshot(window),
-    );
-  } catch {
-    // Ignore if the window is tearing down.
-  }
-}
-
 function publishAlwaysOnTop(window: BrowserWindow): void {
   if (window.isDestroyed()) {
     return;
@@ -335,6 +157,13 @@ function publishAlwaysOnTop(window: BrowserWindow): void {
 
 function publishPinned(window: BrowserWindow): void {
   if (window.isDestroyed()) {
+    log.ger({
+      type: "debug",
+      message: "[window publishPinned] window is destroyed",
+      data: {
+        window,
+      },
+    });
     return;
   }
 
@@ -361,7 +190,7 @@ let isQuitting = false;
 /** Set after tray sync is defined so every app window can refresh the tray menu on show/hide. */
 let syncTrayMenuRef: (() => void) | null = null;
 
-function getWindowRole(window: BrowserWindow): string | undefined {
+export function getWindowRole(window: BrowserWindow): string | undefined {
   return roleByWebContentsId.get(window.webContents.id);
 }
 
@@ -520,7 +349,7 @@ function createWindow(
     if (!isLauncher && devServerUrl) {
       browserWindow.webContents.openDevTools({ mode: "detach" });
     }
-    
+
     publishAlwaysOnTop(browserWindow);
     publishPinned(browserWindow);
     syncTrayMenuRef?.();
@@ -743,6 +572,7 @@ async function initializeApp() {
     let currentSession: SessionSnapshot | null = null;
     let sessionLifecycleController: SessionLifecycleController | null = null;
     const appConfigStore = createAppConfigStore(app);
+    const secretStore = createSecretStore(app);
     const monitorPicker = createMonitorPickerController({
       onSelectionChanged(displayId) {
         publishToAllWindows(
@@ -1035,6 +865,55 @@ async function initializeApp() {
 
     ipcMain.handle(CAPTURE_OPTIONS_CHANNELS.getConfig, async () => {
       return appConfigStore.loadCaptureOptionsConfig();
+    });
+
+    ipcMain.handle(AI_PROVIDER_CHANNELS.getConfig, async () => {
+      return appConfigStore.loadAiProviderConfig();
+    });
+
+    ipcMain.handle(AI_PROVIDER_CHANNELS.setConfig, async (_event, input: unknown) => {
+      const config = normalizeAiProviderConfig(input);
+      return appConfigStore.saveAiProviderConfig(config);
+    });
+
+    ipcMain.handle(AI_PROVIDER_CHANNELS.getApiKey, async (_event, input: unknown) => {
+      const provider = normalizeAiProvider(input);
+      const apiKey = await secretStore.getApiKey(provider);
+
+      return {
+        hasKey: typeof apiKey === "string" && apiKey.trim().length > 0,
+      };
+    });
+
+    ipcMain.handle(AI_PROVIDER_CHANNELS.setApiKey, async (_event, input: unknown) => {
+      const request = normalizeSetAiProviderApiKeyRequest(input);
+      const didStoreApiKey = await secretStore.setApiKey(request.provider, request.key);
+
+      if (!didStoreApiKey) {
+        throw new Error("Secure storage is unavailable; API key could not be saved.");
+      }
+    });
+
+    ipcMain.handle(
+      AI_PROVIDER_CHANNELS.deleteApiKey,
+      async (_event, input: unknown) => {
+        const provider = normalizeAiProvider(input);
+        await secretStore.deleteApiKey(provider);
+      },
+    );
+
+    ipcMain.handle(AI_PROVIDER_CHANNELS.listModels, async (_event, input: unknown) => {
+      const provider = normalizeAiProvider(input);
+      const apiKey = await secretStore.getApiKey(provider);
+
+      if (!apiKey) {
+        throw new Error(`No API key is configured for provider '${provider}'.`);
+      }
+
+      return listAiProviderModels({
+        provider,
+        apiKey,
+      });
     });
 
     ipcMain.handle(CAPTURE_OPTIONS_CHANNELS.setConfig, async (_event, input) => {
@@ -1419,9 +1298,12 @@ async function initializeApp() {
   });
 
   app.on("window-all-closed", () => {
+    app.removeAllListeners()
+    log.ger({ type: "info", message: "[app window-all-closed] removing all listeners" });
     if (process.platform !== "darwin") {
       app.quit();
     }
+    app.quit()
   });
 }
 
