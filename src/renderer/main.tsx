@@ -14,6 +14,7 @@ import { Options } from "./Slot/Options";
 import type { OptionsCardLayout } from "./Slot/Options";
 import { useCaptureOptions } from "./capture-options/useCaptureOptions";
 import { usePinnedWindowBehavior } from "./hooks/usePinnedWindowBehavior";
+import { useDiarizationTranscriptToasts } from "@/renderer/hooks/useDiarizationTranscriptToasts";
 import { useRecordingSession } from "./hooks/useRecordingSession";
 import { useShortcutsWindowEffects } from "./hooks/useShortcutsWindowEffects";
 import { useViews, VIEW_OPTIONS } from "./hooks/useViews";
@@ -372,6 +373,8 @@ function CardWindowMain({ layout, id }: { readonly layout: OptionsCardLayout, id
 }
 
 function Main() {
+  useDiarizationTranscriptToasts();
+
   const role = parseWindowRoleFromLocation();
 
   if (role === WINDOW_ROLES.launcher) {

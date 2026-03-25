@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useRef } from "react";
 
 import { CaptureManager } from "@/renderer/recording/capture-manager";
+import { decodeAudioToPcm } from "@/renderer/recording/audio-decoder";
 import { selectCaptureSources } from "@/renderer/store/slices/captureOptionsSlice";
+import {
+  segmentReceived,
+  transcriptionChunkFailed,
+} from "@/renderer/store/slices/diarizationSlice";
 import {
   setFeedbackMessage,
   setIsStarting,
@@ -11,8 +16,12 @@ import {
 } from "@/renderer/store/slices/sessionRecordingSlice";
 import { store } from "@/renderer/store/store";
 import type { SessionSnapshot } from "@/shared/session-lifecycle";
+import { logger } from "@/lib/logger";
 
 import { useAppDispatch, useAppSelector } from "../store/hooks";
+import { isAudioMediaChunkSource } from "@/shared/session-lifecycle";
+
+const log = logger.forSource("useRecordingSession");
 
 export function useRecordingSession() {
   const dispatch = useAppDispatch();
@@ -45,7 +54,7 @@ export function useRecordingSession() {
 
   const createCaptureManager = useCallback(() => {
     return new CaptureManager({
-      onChunkAvailable(
+      async onChunkAvailable(
         sessionId,
         source,
         sequenceNumber,
@@ -53,7 +62,7 @@ export function useRecordingSession() {
         recordedAt,
         buffer,
       ) {
-        return window.electronApp.recording.persistChunk({
+        const result = await window.electronApp.recording.persistChunk({
           sessionId,
           source,
           sequenceNumber,
@@ -61,6 +70,74 @@ export function useRecordingSession() {
           recordedAt,
           buffer,
         });
+        if (isAudioMediaChunkSource(source)) {
+          void (async () => {
+            log.ger({
+              type: "info",
+              message: "[transcription] chunk queued for ASR (after persist)",
+              data: {
+                sessionId: sessionId.slice(0, 8),
+                chunkId: result.chunkId,
+                source,
+                bufferBytes: buffer.byteLength,
+              },
+            });
+            try {
+              const pcm = await decodeAudioToPcm(buffer);
+              log.ger({
+                type: "debug",
+                message: "[transcription] PCM decoded; invoking main process",
+                data: {
+                  chunkId: result.chunkId,
+                  pcmSamples: pcm.length,
+                },
+              });
+              const transcription =
+                await window.electronApp.transcription.transcribeAudio({
+                  source,
+                  pcmSamples: Array.from(pcm),
+                  sessionId,
+                  chunkId: result.chunkId,
+                });
+              log.ger({
+                type: "info",
+                message: "[transcription] segment received from main",
+                data: {
+                  chunkId: transcription.chunkId,
+                  textLength: transcription.text.length,
+                },
+              });
+              dispatch(
+                segmentReceived({
+                  sessionId: transcription.sessionId,
+                  chunkId: transcription.chunkId,
+                  text: transcription.text,
+                  chunks: transcription.chunks,
+                }),
+              );
+            } catch (err) {
+              const message = err instanceof Error ? err.message : String(err);
+              const stack = err instanceof Error ? err.stack : undefined;
+              log.ger({
+                type: "error",
+                message: "[transcription] decode or transcribeAudio failed",
+                data: {
+                  chunkId: result.chunkId,
+                  source,
+                  error: message,
+                  stack,
+                },
+              });
+              dispatch(
+                transcriptionChunkFailed({
+                  chunkId: result.chunkId,
+                  message,
+                }),
+              );
+            }
+          })();
+        }
+        return result;
       },
       onScreenshotAvailable(
         sessionId,
@@ -129,6 +206,14 @@ export function useRecordingSession() {
 
       const manager = createCaptureManager();
       captureManagerRef.current = manager;
+      log.ger({
+        type: "info",
+        message: "recordingStart: capture attached for session",
+        data: {
+          sessionId: response.session.id.slice(0, 8),
+          captureSources,
+        },
+      });
       await manager.startCapture(response.session.id, captureSources, config);
     } catch (error) {
       dispatch(
@@ -316,6 +401,15 @@ export function useRecordingSession() {
 
       const manager = createCaptureManager();
       captureManagerRef.current = manager;
+
+      log.ger({
+        type: "info",
+        message: "recordingStart: capture re-attached from session sync",
+        data: {
+          sessionId: session.id.slice(0, 8),
+          captureSources: session.captureSources,
+        },
+      });
 
       void manager
         .startCapture(session.id, session.captureSources, captureConfig)

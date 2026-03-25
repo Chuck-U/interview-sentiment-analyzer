@@ -19,7 +19,8 @@ export function createWindowBoundsSnapshot(
         minWidth,
         minHeight,
     };
-} export function getMinimumWindowSize(window: BrowserWindow): {
+}
+export function getMinimumWindowSize(window: BrowserWindow): {
     readonly width: number;
     readonly height: number;
 } {
@@ -79,6 +80,19 @@ export function getWindowSizeForPreset(
                 },
                 minimumSize
             );
+        default: {
+            const parsed = Number.parseFloat(preset);
+            const ratio = Number.isFinite(parsed)
+                ? Math.min(0.95, Math.max(0.1, parsed / 100))
+                : 0.75;
+            return clampWindowSize(
+                {
+                    width: Math.round(workAreaWidth * ratio),
+                    height: Math.round(workAreaHeight * ratio),
+                },
+                minimumSize
+            );
+        }
     }
 }
 export function getClampedWindowPositionForSize(

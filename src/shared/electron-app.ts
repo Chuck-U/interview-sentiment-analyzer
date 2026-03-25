@@ -8,6 +8,7 @@ import type {
   SessionLifecycleEventsBridge,
 } from "./session-lifecycle";
 import type { ShortcutsBridge } from "./shortcuts";
+import type { TranscriptionBridge } from "./transcription";
 import type { WindowControlsBridge } from "./window-controls";
 import type { WindowRegistryBridge } from "./window-registry";
 
@@ -24,4 +25,5 @@ export type ElectronAppBridge = {
   readonly shortcuts: ShortcutsBridge;
   readonly windowRegistry: WindowRegistryBridge;
   readonly modelInit: ModelInitBridge;
+  readonly transcription: TranscriptionBridge;
 };

@@ -14,6 +14,11 @@ import {
   normalizeAiProviderModels,
 } from "../../src/shared/ai-provider";
 import type { ElectronAppBridge } from "../../src/shared/electron-app";
+import type {
+  TranscriptionBridge,
+  TranscriptionResult,
+} from "../../src/shared/transcription";
+import { TRANSCRIPTION_CHANNELS } from "../../src/shared/transcription";
 import type { CaptureOptionsBridge } from "../../src/shared/capture-options";
 import type { ModelInitBridge } from "../../src/shared/model-init";
 import {
@@ -338,6 +343,15 @@ const recordingEventsBridge: RecordingEventsBridge = {
   },
 };
 
+const transcriptionBridge: TranscriptionBridge = {
+  transcribeAudio(request) {
+    return ipcRenderer.invoke(
+      TRANSCRIPTION_CHANNELS.transcribeAudio,
+      request,
+    ) as Promise<TranscriptionResult>;
+  },
+};
+
 const modelInitBridge: ModelInitBridge = {
   startInit() {
     return ipcRenderer.invoke(MODEL_INIT_CHANNELS.startInit) as Promise<void>;
@@ -397,6 +411,7 @@ const electronAppBridge: ElectronAppBridge = {
   shortcuts: shortcutsBridge,
   windowRegistry: windowRegistryBridge,
   modelInit: modelInitBridge,
+  transcription: transcriptionBridge,
 };
 
 contextBridge.exposeInMainWorld("electronApp", electronAppBridge);
