@@ -177,8 +177,10 @@ function CardWindowMain({ layout, id }: { readonly layout: OptionsCardLayout, id
   const windowBounds = useAppSelector(
     (state) => state.shortcutsWindow.windowBounds,
   );
-  const { dragRegionStyle, noDragRegionStyle, pinControlProps } =
+  const { dragRegionStyle, noDragRegionStyle, isPinned, pinControlProps } =
     usePinnedWindowBehavior();
+
+
 
   const handleCaptureOptionsError = useCallback(
     (message: string) => {
@@ -218,11 +220,13 @@ function CardWindowMain({ layout, id }: { readonly layout: OptionsCardLayout, id
 
   const handleResizePreset = useCallback(
     async (preset: WindowSizePreset) => {
-      return window.electronApp.windowControls.setWindowSizePreset({
+      console.log('handleResizePreset', preset);
+      const newBounds = await window.electronApp.windowControls.setWindowSizePreset({
         preset,
       });
+      return newBounds;
     },
-    [],
+    [windowBounds],
   );
 
   const isRecording = currentSession?.status === "active";
@@ -249,6 +253,7 @@ function CardWindowMain({ layout, id }: { readonly layout: OptionsCardLayout, id
     <div className="flex h-full min-h-0 w-full flex-1 flex-col bg-transparent" id={id}>
       <nav
         className="relative z-[70] flex w-full shrink-0 flex-col items-end justify-baseline rounded-r-md rounded-bl-md border transition-colors duration-200 ease-in-out group-hover:border-yellow-a10 active:bg-yellow-a10/70"
+        draggable={!isPinned}
         style={dragRegionStyle}
       >
         <div className="flex w-full items-center justify-between gap-2 leading-7 px-2 py-1">

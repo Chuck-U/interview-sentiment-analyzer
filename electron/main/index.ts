@@ -222,7 +222,7 @@ function isCardWindowOpen(role: CardWindowRole): boolean {
   const target = cardWindows.get(role);
   return Boolean(target && !target.isDestroyed() && target.isVisible());
 }
-
+// we can remove control, sandbox from this
 function getCardOpenState(): CardWindowsOpenState {
   return {
     openIds: {
@@ -552,7 +552,6 @@ function createTrayMenu(args: {
 }
 async function initializeApp() {
   process.on("warning", (warning) => {
-    console.warn("[electron warning]", warning);
     log.ger({
       type: "warn",
       message: `[process warning] ${warning.name}: ${warning.message}`,
@@ -561,7 +560,6 @@ async function initializeApp() {
   });
 
   process.on("unhandledRejection", (reason) => {
-    console.error("[electron unhandledRejection]", reason);
     log.ger({
       type: "error",
       message: "[process unhandledRejection]",
@@ -570,7 +568,6 @@ async function initializeApp() {
   });
 
   process.on("uncaughtException", (error) => {
-    console.error("[electron uncaughtException]", error);
     log.ger({
       type: "fatal",
       message: `[process uncaughtException] ${error.message}`,
@@ -580,7 +577,7 @@ async function initializeApp() {
 
   app.whenReady().then(async () => {
     const mainWindow = createWindow(WINDOW_ROLES.launcher);
-    log.ger({ type: "info", message: "[app createWindow]", data: mainWindow })
+    log.ger({ type: "debug", message: "Window created" })
     mainWindow.focus();
 
     let currentSession: SessionSnapshot | null = null;
@@ -1039,7 +1036,7 @@ async function initializeApp() {
         y: currentY + request.deltaY,
       };
       log.ger({
-        type: "info",
+        type: "debug",
         message: "[app WINDOW_CONTROL_CHANNELS.moveWindowBy] next position",
         data: {
           role: getWindowRole(targetWindow),
@@ -1071,7 +1068,7 @@ async function initializeApp() {
         nextSize,
       );
       log.ger({
-        type: "info",
+        type: "debug",
         message: "[app WINDOW_CONTROL_CHANNELS.resizeWindowBy] next bounds",
         data: {
           role: getWindowRole(targetWindow),

@@ -15,6 +15,7 @@ export function usePinnedWindowBehavior() {
   const isPinned = useAppSelector((state) => state.shortcutsWindow.isPinned);
 
   const dragRegionStyle = useMemo<CSSProperties>(() => {
+    console.log('isPinned', isPinned);
     return isPinned ? NO_DRAG_REGION_STYLE : DRAG_REGION_STYLE;
   }, [isPinned]);
 
@@ -22,7 +23,7 @@ export function usePinnedWindowBehavior() {
     return window.electronApp.windowControls.setPinned({
       pinned: nextValue,
     });
-  }, []);
+  }, [isPinned]);
 
   return {
     isPinned,

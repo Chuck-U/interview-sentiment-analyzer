@@ -1,18 +1,9 @@
-import type { CSSProperties } from "react";
 
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuShortcut,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { IconToggle } from "@/renderer/Slot/IconToggle";
+
 import type { WindowBoundsSnapshot, WindowSizePreset } from "@/shared/window-controls";
-import { RiExpandDiagonalLine } from "@remixicon/react";
+import { RiExpandHorizontalLine, RiContractLeftRightFill } from "@remixicon/react";
+import { CSSProperties, useCallback } from "react";
 
 type WindowResizePresetOption = {
   readonly preset: WindowSizePreset;
@@ -32,56 +23,29 @@ export function WindowResizeControl({
   presetOptions,
   onSelectPreset,
 }: WindowResizeControlProps) {
-  const currentSizeLabel = windowBounds
-    ? `${windowBounds.width}px x ${windowBounds.height}px`
-    : "Syncing window size";
 
+  const isExpanded = Boolean(windowBounds?.width && windowBounds.width > 700);
+
+
+  const onToggle = () => {
+    if (isExpanded) {
+      console.debug("[window-resize-control] toggle to collapsed");
+      return onSelectPreset("50%");
+    } else {
+      console.debug("[window-resize-control] toggle to expanded");
+      return onSelectPreset("90%");
+    }
+  }
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild style={{ WebkitAppRegion: "no-drag" } as CSSProperties}>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          aria-label="Resize window"
-          title={`Resize window. Current: ${currentSizeLabel}`}
-          className="bg-transparent hover:bg-yellow-contrast"
-        >
-          <RiExpandDiagonalLine data-icon="inline-start hover:text-yellow-8" />
-        </Button>
-      </DropdownMenuTrigger>
-
-      <DropdownMenuContent
-        side="top"
-        align="end"
-        sideOffset={8}
-        className="min-w-44"
-      >
-        <DropdownMenuLabel className="pt-0 text-[11px]">
-          Current: {currentSizeLabel}
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuGroup>
-          {presetOptions.map((option) => (
-            <DropdownMenuItem
-              key={option.preset}
-              onSelect={() => {
-                console.debug("[window-resize-control] preset selected", {
-                  preset: option.preset,
-                  label: option.label,
-                  currentSize: currentSizeLabel,
-                });
-                void onSelectPreset(option.preset);
-              }}
-            >
-              <div className="flex min-w-0 flex-col gap-0.5">
-                <span>{option.label}</span>
-              </div>
-              <DropdownMenuShortcut>{option.preset}</DropdownMenuShortcut>
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
+    <div style={{ WebkitAppRegion: "no-drag" } as CSSProperties}>
+      <IconToggle
+        pressed={isExpanded}
+        ariaLabel="Toggle recording keyboard shortcut"
+        onPressedChange={() => void onToggle()}
+        IconActive={RiContractLeftRightFill}
+        IconInactive={RiExpandHorizontalLine}
+        className="bg-transparent data-[state=on]:hover:bg-accent/30 data-[state=on]:hover:ring-2 data-[state=on]:active:bg-accent/50"
+      />
+    </div>
+  )
 }

@@ -44,7 +44,12 @@ export type SetWindowSizeRequest = {
   readonly height: number;
 };
 
-export type WindowSizePreset = "50%" | "75%" | "90%";
+export function WindowPresetUtil<T extends number>(value: T): `${T}%` {
+  return `${value}%`
+};
+type WindowPresetUtilType = ReturnType<typeof WindowPresetUtil>;
+
+export type WindowSizePreset = "50%" | "75%" | "90%" | WindowPresetUtilType;
 
 export type SetWindowSizePresetRequest = {
   readonly preset: WindowSizePreset;
@@ -136,12 +141,10 @@ export function parseSetWindowSizePresetRequest(
   }
 
   const { preset } = input;
-  if (
-    preset !== "50%" &&
-    preset !== "75%" &&
-    preset !== "90%"
+  if (typeof preset !== "string" ||
+    isNaN(parseInt(preset)) || parseInt(preset) < 20 || parseInt(preset) > 100
   ) {
-    throw new Error("preset must be one of: 50%, 75%, 90%");
+    throw new Error("preset must be a number between 20 and 100");
   }
 
   return { preset: preset as WindowSizePreset };
