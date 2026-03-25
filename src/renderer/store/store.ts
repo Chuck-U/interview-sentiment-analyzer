@@ -2,6 +2,7 @@ import { configureStore } from "@reduxjs/toolkit";
 
 import aiProviderReducer from "./slices/aiProviderSlice";
 import captureOptionsReducer from "./slices/captureOptionsSlice";
+import modelInitReducer from "./slices/modelInitSlice";
 import sessionRecordingReducer from "./slices/sessionRecordingSlice";
 import shortcutsWindowReducer from "./slices/shortcutsWindowSlice";
 import viewsReducer from "./slices/viewsSlice";
@@ -13,6 +14,7 @@ export const store = configureStore({
     sessionRecording: sessionRecordingReducer,
     captureOptions: captureOptionsReducer,
     shortcutsWindow: shortcutsWindowReducer,
+    modelInit: modelInitReducer,
   },
 });
 

@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 
 import Main from "./main";
 import { loadCaptureOptions } from "./store/slices/captureOptionsSlice";
+import { startModelInit } from "./store/slices/modelInitSlice";
 import { useAppDispatch } from "./store/hooks";
 import { store } from "./store/store";
 import "./styles.css";
@@ -16,6 +17,13 @@ export function AppRoot() {
 
   useEffect(() => {
     void dispatch(loadCaptureOptions());
+  }, [dispatch]);
+
+  useEffect(() => {
+    const handle = requestIdleCallback(() => {
+      void dispatch(startModelInit());
+    });
+    return () => cancelIdleCallback(handle);
   }, [dispatch]);
 
   return <Main />;
