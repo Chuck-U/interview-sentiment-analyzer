@@ -79,7 +79,6 @@ import {
 import type {
   SessionTranscriptArtifactV1,
   TranscriptionResult,
-  TranscriptChunk,
 } from "../../src/shared/transcription";
 import {
   buildSessionTranscriptArtifact,
@@ -87,43 +86,9 @@ import {
   TRANSCRIPTION_CHANNELS,
 } from "../../src/shared/transcription";
 import * as modelLifecycle from "../../src/backend/infrastructure/ml/model-lifecycle-service";
+import { normalizeAsrOutput } from "../../src/backend/guards/normalize-asr-output";
 
 const WHISPER_TINY_EN_ID = "onnx-community/whisper-tiny.en";
-
-function normalizeAsrOutput(raw: unknown): {
-  text: string;
-  chunks?: TranscriptChunk[];
-} {
-  if (raw === null || typeof raw !== "object") {
-    return { text: "" };
-  }
-  const record = raw as Record<string, unknown>;
-  const text = typeof record.text === "string" ? record.text : "";
-  if (!Array.isArray(record.chunks)) {
-    return { text };
-  }
-  const chunks: TranscriptChunk[] = [];
-  for (const item of record.chunks) {
-    if (item === null || typeof item !== "object") {
-      continue;
-    }
-    const chunk = item as Record<string, unknown>;
-    const chunkText = typeof chunk.text === "string" ? chunk.text : "";
-    const ts = chunk.timestamp;
-    if (
-      Array.isArray(ts) &&
-      ts.length >= 2 &&
-      typeof ts[0] === "number" &&
-      typeof ts[1] === "number"
-    ) {
-      chunks.push({
-        text: chunkText,
-        timestamp: [ts[0], ts[1]],
-      });
-    }
-  }
-  return { text, chunks: chunks.length > 0 ? chunks : undefined };
-}
 
 async function writeSessionTranscriptToDisk(
   resolver: {

@@ -7,7 +7,7 @@ export function isNonEmptyArray<T>(value: unknown): value is T[] {
 }
 
 export function isNonEmptyObject(value: unknown): value is Record<string, unknown> {
-    return typeof value === "object" && value !== null && Object.keys(value).length > 0;
+    return typeof value === "object" && !Array.isArray(value) && value !== null && Object.keys(value).length > 0;
 }
 
 export function isNonEmptyNumber(value: unknown): value is number {
@@ -17,3 +17,4 @@ export function isNonEmptyNumber(value: unknown): value is number {
 export function isInRecord<K extends string, V>(value: unknown, record: Record<K, V>): value is V {
     return typeof value === "string" && value in record;
 }
+
