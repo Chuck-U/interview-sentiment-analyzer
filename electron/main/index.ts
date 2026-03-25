@@ -217,6 +217,8 @@ function getCardOpenState(): CardWindowsOpenState {
       controls: isCardWindowOpen("controls"),
       options: isCardWindowOpen("options"),
       sandbox: isCardWindowOpen("sandbox"),
+      "question-box": isCardWindowOpen("question-box"),
+      "speech-box": isCardWindowOpen("speech-box"),
     },
   };
 }

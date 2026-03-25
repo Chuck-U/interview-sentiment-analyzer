@@ -5,6 +5,8 @@ export const WINDOW_ROLES = {
   controls: "controls",
   options: "options",
   sandbox: "sandbox",
+  questionBox: "question-box",
+  speechBox: "speech-box",
 } as const;
 
 export type WindowRole = (typeof WINDOW_ROLES)[keyof typeof WINDOW_ROLES];
@@ -15,7 +17,9 @@ export function isCardWindowRole(value: string): value is CardWindowRole {
   return (
     value === WINDOW_ROLES.controls ||
     value === WINDOW_ROLES.options ||
-    value === WINDOW_ROLES.sandbox
+    value === WINDOW_ROLES.sandbox ||
+    value === WINDOW_ROLES.questionBox ||
+    value === WINDOW_ROLES.speechBox
   );
 }
 

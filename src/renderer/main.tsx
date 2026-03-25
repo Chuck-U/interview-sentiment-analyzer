@@ -18,7 +18,7 @@ import { useRecordingSession } from "./hooks/useRecordingSession";
 import { useShortcutsWindowEffects } from "./hooks/useShortcutsWindowEffects";
 import { useViews, VIEW_OPTIONS } from "./hooks/useViews";
 import { useWindowRegistrySync } from "./hooks/useWindowRegistrySync";
-import { parseWindowRoleFromLocation } from "./parseWindowRole";
+import { parseWindowRoleFromLocation } from "../lib/parseWindowRole";
 import { useAppDispatch, useAppSelector } from "./store/hooks";
 import { setFeedbackMessage } from "./store/slices/sessionRecordingSlice";
 import { setShortcutEnabled } from "./store/slices/shortcutsWindowSlice";

@@ -240,7 +240,7 @@ function AgentNavigationMenu({
             ) : (
               <kbd
                 data-slot="kbd"
-                className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded-none border border-background/20 bg-background/15 px-1.5 font-mono text-[10px] font-medium text-background"
+                className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded-none border border-background/20 bg-background/15 p-2 font-mono text-[10px] font-medium text-background"
               >
                 Ctrl+Shift+V
               </kbd>
@@ -264,7 +264,7 @@ function AgentNavigationMenu({
           )}
           aria-label={isRecording ? "Stop recording" : "Start recording"}
         >
-          <RecordingIcon className={cn("size-8 text-red-500/50 group-active:animate-pulse duration-500", isRecording ? 'animate-pulse duration-500 transition-colors' : 'animate-none duration-0 ease-out')} />
+          <RecordingIcon className={cn("size-8 text-red-500/50 group-active:animate-pulse duration-400", isRecording ? 'animate-pulse duration-500 transition-colors from-red-500/50 to-red-500/10' : 'animate-none duration-0 ease-out')} />
         </button>
       </div>
 
