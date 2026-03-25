@@ -30,7 +30,7 @@ export function SystemCaptureOptionsCard({
   const selectedAudioOutput = audioOutputDevices.find((device) => device.isSelected);
 
   return (
-    <>
+    <div className="flex flex-col gap-4 px-2 my-4">
       <div className="">
         <div className="flex flex-col gap-1">
           <Label htmlFor="system-audio-switch">System audio</Label>
@@ -97,6 +97,6 @@ export function SystemCaptureOptionsCard({
           ? "At least one source is enabled and ready to record."
           : "Enable at least one source before starting a recording."}
       </div>
-    </>
+    </div>
   );
 }

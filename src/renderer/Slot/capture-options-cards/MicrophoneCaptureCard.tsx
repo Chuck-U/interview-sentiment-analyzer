@@ -27,8 +27,8 @@ export function MicrophoneCaptureCard({
   const selectedMicrophone = microphoneDevices.find((device) => device.isSelected);
 
   return (
-    <>
-      <div className="flex items-center justify-between gap-3 rounded-md border border-border/50 bg-background/35 p-3">
+    <div className="flex flex-col gap-4 px-2 my-4 [&>*:nth-child(odd)]:bg-background/35 [&>*:nth-child(odd)]:rounded-md">
+      <div className="flex items-center justify-between gap-3 rounded-md border p-3">
         <div className="flex flex-col gap-1">
           <p className="text-sm font-medium">Capture input</p>
           <p className="text-xs text-muted-foreground">
@@ -67,7 +67,7 @@ export function MicrophoneCaptureCard({
         </Select>
       </div>
 
-      <div className="rounded-md border border-border/50 bg-background/35 p-3">
+      <div className="rounded-md border p-3">
         <div className="mb-2 flex items-center justify-between gap-3">
           <p className="text-sm font-medium">Live level</p>
           <span className="w-10 text-right text-xs text-muted-foreground">
@@ -76,6 +76,6 @@ export function MicrophoneCaptureCard({
         </div>
         <Progress value={microphoneEnabled ? microphoneLevel : 0} />
       </div>
-    </>
+    </div>
   );
 }

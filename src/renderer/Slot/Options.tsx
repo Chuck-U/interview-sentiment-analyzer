@@ -1,8 +1,6 @@
-import { RecordingSandboxCard } from "@/renderer/recording/recording-sandbox-card";
 import type { CapturePermissionSnapshot } from "@/shared/capture-options";
 import type { RecordingStateSnapshot } from "@/shared/recording";
 
-import { AgentControls } from "./AgentControls";
 import { OptionsWorkspace } from "./OptionsWorkspace";
 import type { CaptureDeviceOption, CaptureDisplayOption } from "../capture-options/domain";
 
@@ -114,123 +112,64 @@ export function Options({
   onQuit,
 }: OptionsProps) {
   const shellClass =
-    "flex h-full w-full min-h-0 flex-1 flex-col overflow-hidden from-[#262209] to-[#262209]/30 bg-gradient-to-b  border-2";
+    "flex h-full w-full min-h-0 flex-1 flex-col overflow-hidden";
 
-  if (layout === "options") {
-    return (
-      <div className={shellClass}>
-        <OptionsWorkspace
-          statusLabel={statusLabel}
-          statusVariant={statusVariant}
-          platformLabel={platformLabel}
-          windowSizeLabel={windowSizeLabel}
-          windowBoundsLabel={windowBoundsLabel}
-          currentSessionId={currentSessionId}
-          feedbackMessage={feedbackMessage}
-          isRecording={isRecording}
-          isBusy={isBusy}
-          onToggleRecording={onToggleRecording}
-          shortcutLabel={shortcutLabel}
-          isShortcutEnabled={isShortcutEnabled}
-          onSetShortcutEnabled={onSetShortcutEnabled}
-          recordingState={recordingState}
-          onExportRecording={onExportRecording}
-          permissions={permissions}
-          microphoneDevices={microphoneDevices}
-          audioOutputDevices={audioOutputDevices}
-          webcamDevices={webcamDevices}
-          displays={displays}
-          microphoneEnabled={microphoneEnabled}
-          webcamEnabled={webcamEnabled}
-          screenEnabled={screenEnabled}
-          systemAudioEnabled={systemAudioEnabled}
-          screenshotEnabled={screenshotEnabled}
-          microphoneLevel={microphoneLevel}
-          isWebcamPreviewVisible={isWebcamPreviewVisible}
-          isWebcamPreviewLoading={isWebcamPreviewLoading}
-          webcamPreviewStream={webcamPreviewStream}
-          isDesktopPreviewVisible={isDesktopPreviewVisible}
-          isDesktopPreviewLoading={isDesktopPreviewLoading}
-          desktopPreviewStream={desktopPreviewStream}
-          hasCaptureSourceEnabled={hasCaptureSourceEnabled}
-          onSetMicrophoneEnabled={onSetMicrophoneEnabled}
-          onSetWebcamEnabled={onSetWebcamEnabled}
-          onSetScreenEnabled={onSetScreenEnabled}
-          onSetSystemAudioEnabled={onSetSystemAudioEnabled}
-          onSetScreenshotEnabled={onSetScreenshotEnabled}
-          onSetMicrophoneDeviceId={onSetMicrophoneDeviceId}
-          onSetAudioOutputDeviceId={onSetAudioOutputDeviceId}
-          onSetWebcamDeviceId={onSetWebcamDeviceId}
-          onSetDisplayId={onSetDisplayId}
-          onSetWebcamPreviewVisible={onSetWebcamPreviewVisible}
-          onSetDesktopPreviewVisible={onSetDesktopPreviewVisible}
-          onOpenMonitorPicker={onOpenMonitorPicker}
-          onOpenRecordingsFolder={onOpenRecordingsFolder}
-          onQuit={onQuit}
-        />
-      </div>
-    );
-  }
+  if (!layout) return null;
+  return (
+    <div className={shellClass}>
+      <OptionsWorkspace
+        statusLabel={statusLabel}
+        statusVariant={statusVariant}
+        platformLabel={platformLabel}
+        windowSizeLabel={windowSizeLabel}
+        windowBoundsLabel={windowBoundsLabel}
+        currentSessionId={currentSessionId}
+        feedbackMessage={feedbackMessage}
+        isRecording={isRecording}
+        isBusy={isBusy}
+        onToggleRecording={onToggleRecording}
+        shortcutLabel={shortcutLabel}
+        isShortcutEnabled={isShortcutEnabled}
+        onSetShortcutEnabled={onSetShortcutEnabled}
+        recordingState={recordingState}
+        onExportRecording={onExportRecording}
+        permissions={permissions}
+        microphoneDevices={microphoneDevices}
+        audioOutputDevices={audioOutputDevices}
+        webcamDevices={webcamDevices}
+        displays={displays}
+        microphoneEnabled={microphoneEnabled}
+        webcamEnabled={webcamEnabled}
+        screenEnabled={screenEnabled}
+        systemAudioEnabled={systemAudioEnabled}
+        screenshotEnabled={screenshotEnabled}
+        microphoneLevel={microphoneLevel}
+        isWebcamPreviewVisible={isWebcamPreviewVisible}
+        isWebcamPreviewLoading={isWebcamPreviewLoading}
+        webcamPreviewStream={webcamPreviewStream}
+        isDesktopPreviewVisible={isDesktopPreviewVisible}
+        isDesktopPreviewLoading={isDesktopPreviewLoading}
+        desktopPreviewStream={desktopPreviewStream}
+        hasCaptureSourceEnabled={hasCaptureSourceEnabled}
+        onSetMicrophoneEnabled={onSetMicrophoneEnabled}
+        onSetWebcamEnabled={onSetWebcamEnabled}
+        onSetScreenEnabled={onSetScreenEnabled}
+        onSetSystemAudioEnabled={onSetSystemAudioEnabled}
+        onSetScreenshotEnabled={onSetScreenshotEnabled}
+        onSetMicrophoneDeviceId={onSetMicrophoneDeviceId}
+        onSetAudioOutputDeviceId={onSetAudioOutputDeviceId}
+        onSetWebcamDeviceId={onSetWebcamDeviceId}
+        onSetDisplayId={onSetDisplayId}
+        onSetWebcamPreviewVisible={onSetWebcamPreviewVisible}
+        onSetDesktopPreviewVisible={onSetDesktopPreviewVisible}
+        onOpenMonitorPicker={onOpenMonitorPicker}
+        onOpenRecordingsFolder={onOpenRecordingsFolder}
+        onQuit={onQuit}
+      />
+    </div>
+  )
 
-  if (layout === "controls") {
-    return (
-      <div className={shellClass}>
-        <AgentControls
-          statusLabel={statusLabel}
-          statusVariant={statusVariant}
-          platformLabel={platformLabel}
-          windowSizeLabel={windowSizeLabel}
-          windowBoundsLabel={windowBoundsLabel}
-          currentSessionId={currentSessionId}
-          feedbackMessage={feedbackMessage}
-          isRecording={isRecording}
-          isBusy={isBusy}
-          onToggleRecording={onToggleRecording}
-          shortcutLabel={shortcutLabel}
-          isShortcutEnabled={isShortcutEnabled}
-          onSetShortcutEnabled={onSetShortcutEnabled}
-          recordingState={recordingState}
-          onExportRecording={onExportRecording}
-          permissions={permissions}
-          microphoneDevices={microphoneDevices}
-          audioOutputDevices={audioOutputDevices}
-          webcamDevices={webcamDevices}
-          displays={displays}
-          microphoneEnabled={microphoneEnabled}
-          webcamEnabled={webcamEnabled}
-          screenEnabled={screenEnabled}
-          systemAudioEnabled={systemAudioEnabled}
-          screenshotEnabled={screenshotEnabled}
-          microphoneLevel={microphoneLevel}
-          isWebcamPreviewVisible={isWebcamPreviewVisible}
-          isWebcamPreviewLoading={isWebcamPreviewLoading}
-          webcamPreviewStream={webcamPreviewStream}
-          isDesktopPreviewVisible={isDesktopPreviewVisible}
-          isDesktopPreviewLoading={isDesktopPreviewLoading}
-          desktopPreviewStream={desktopPreviewStream}
-          hasCaptureSourceEnabled={hasCaptureSourceEnabled}
-          onSetMicrophoneEnabled={onSetMicrophoneEnabled}
-          onSetWebcamEnabled={onSetWebcamEnabled}
-          onSetScreenEnabled={onSetScreenEnabled}
-          onSetSystemAudioEnabled={onSetSystemAudioEnabled}
-          onSetScreenshotEnabled={onSetScreenshotEnabled}
-          onSetMicrophoneDeviceId={onSetMicrophoneDeviceId}
-          onSetAudioOutputDeviceId={onSetAudioOutputDeviceId}
-          onSetWebcamDeviceId={onSetWebcamDeviceId}
-          onSetDisplayId={onSetDisplayId}
-          onSetWebcamPreviewVisible={onSetWebcamPreviewVisible}
-          onSetDesktopPreviewVisible={onSetDesktopPreviewVisible}
-          onOpenMonitorPicker={onOpenMonitorPicker}
-          onOpenRecordingsFolder={onOpenRecordingsFolder}
-          onQuit={onQuit}
-        />
-      </div>
-    );
-  }
-  if (layout === "sandbox") {
-    return <RecordingSandboxCard />;
-  }
 
-  return null;
+
 }
 

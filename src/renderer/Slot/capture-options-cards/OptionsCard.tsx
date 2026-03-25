@@ -17,7 +17,7 @@ export function OptionsCard({
                     <CardDescription>{description}</CardDescription>
                 </CardHeader>
             )}
-            <div className="w-full px-2 mt-4 pb-4 overflow-y-auto ">{children}</div>
+            <div className="w-full px-2 mt-4 pb-4 overflow-y-auto [&>*:nth-child(odd)]:bg-background/35 [&>*:nth-child(odd)]:rounded-md">{children}</div>
         </Card>
     );
 }

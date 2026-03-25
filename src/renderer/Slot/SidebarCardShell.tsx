@@ -28,6 +28,7 @@ type SidebarCardShellProps<TSectionId extends string> = {
   readonly activeSection: TSectionId;
   readonly onActiveSectionChange: (section: TSectionId) => void;
   readonly className?: string;
+  readonly onOpenRecordingsFolder: () => void;
 };
 
 export function SidebarCardShell<TSectionId extends string>({
@@ -55,15 +56,15 @@ export function SidebarCardShell<TSectionId extends string>({
     >
       <Sidebar
         collapsible="none"
-        className="min-h-0 border-r border-sidebar-border/20 bg-sidebar/95"
+        className="min-h-0"
         style={noDragStyle}
       >
         <SidebarContent
-          className="min-h-0 flex-1 overflow-y-auto from-[#fff6c0f4]/60 bg-[#ffe85b70] to-[#d4ba11ff]/40 bg-gradient-to-t"
+          className="min-h-0 flex-1 overflow-y-auto bg-gradient-to-br from-yellow-a6/30 to-transparent"
           style={noDragStyle}
         >
           <SidebarGroup>
-            <SidebarGroupLabel className="border pb-1  border-0 border-b-1 border-yellow-contrast/10 ">Settings</SidebarGroupLabel>
+            <SidebarGroupLabel className="pb-1 ">Settings</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 {sections.map((section) => {
@@ -89,11 +90,11 @@ export function SidebarCardShell<TSectionId extends string>({
         </SidebarContent>
       </Sidebar>
       <SidebarInset
-        className="flex min-h-0 flex-1 overflow-hidden backface-visible p-0"
+        className="flex min-h-0 flex-1 p-0  overflow-hidden  py-0 -my-8"
         style={noDragStyle}
       >
         <div
-          className="flex min-h-0 flex-1 flex-col overflow-y-auto"
+          className="flex min-h-0 flex-1 flex-col from-yellow-a6/30 via-yellow-a6/20 to-transparent bg-gradient-to-br"
           style={noDragStyle}
         >
           {activeContent}
