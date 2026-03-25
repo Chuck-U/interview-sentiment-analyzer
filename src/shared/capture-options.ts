@@ -10,7 +10,11 @@ export const CAPTURE_PERMISSION_STATES = [
   "unsupported",
 ] as const;
 
-export const CAPTURE_DEVICE_KINDS = ["audioinput", "videoinput"] as const;
+export const CAPTURE_DEVICE_KINDS = [
+  "audioinput",
+  "audiooutput",
+  "videoinput",
+] as const;
 
 export type CapturePermissionState = (typeof CAPTURE_PERMISSION_STATES)[number];
 export type CaptureDeviceKind = (typeof CAPTURE_DEVICE_KINDS)[number];
@@ -33,7 +37,7 @@ export type CaptureOptionsConfig = {
   readonly microphone: CaptureDevicePreference & CaptureToggleConfig;
   readonly webcam: CaptureDevicePreference & CaptureToggleConfig;
   readonly screen: CaptureToggleConfig;
-  readonly systemAudio: CaptureToggleConfig;
+  readonly systemAudio: CaptureDevicePreference & CaptureToggleConfig;
   readonly screenshot: CaptureToggleConfig;
   // Window pin and saved bounds should live in a dedicated config section rather
   // than piggybacking on capture-options when reopen persistence is added.
@@ -129,7 +133,7 @@ export const captureOptionsConfigSchema = z.object({
   microphone: captureDevicePreferenceSchema,
   webcam: captureDevicePreferenceSchema,
   screen: captureToggleConfigSchema,
-  systemAudio: captureToggleConfigSchema,
+  systemAudio: captureDevicePreferenceSchema,
   screenshot: captureToggleConfigSchema,
   display: captureDisplayPreferenceSchema,
 });

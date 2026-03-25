@@ -302,6 +302,9 @@ const recordingBridge: RecordingBridge = {
   exportRecording(request) {
     return ipcRenderer.invoke(RECORDING_CHANNELS.exportRecording, request);
   },
+  openRecordingsFolder(request) {
+    return ipcRenderer.invoke(RECORDING_CHANNELS.openRecordingsFolder, request);
+  },
 };
 
 const recordingEventsBridge: RecordingEventsBridge = {

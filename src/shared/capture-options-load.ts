@@ -24,6 +24,10 @@ function buildFallbackLabel(
     return isDefault ? "Default microphone" : `Microphone ${index + 1}`;
   }
 
+  if (kind === "audiooutput") {
+    return isDefault ? "Default speaker" : `Speaker ${index + 1}`;
+  }
+
   return isDefault ? "Default camera" : `Camera ${index + 1}`;
 }
 
@@ -32,7 +36,9 @@ export function normalizeDeviceInfosToSnapshots(
 ): readonly CaptureDeviceSnapshot[] {
   const filtered = devices.filter(
     (device): device is DeviceInfoInput & { kind: CaptureDeviceKind } =>
-      device.kind === "audioinput" || device.kind === "videoinput",
+      device.kind === "audioinput" ||
+      device.kind === "audiooutput" ||
+      device.kind === "videoinput",
   );
 
   const firstDeviceIndexByKind = new Map<CaptureDeviceKind, number>();

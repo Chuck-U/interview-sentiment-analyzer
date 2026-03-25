@@ -57,6 +57,13 @@ export function reconcileCaptureOptionsConfig(args: {
   )
     ? config.webcam.deviceId
     : getFirstDeviceIdForKind(devices, "videoinput");
+  const selectedSystemAudioId = hasDevice(
+    devices,
+    "audiooutput",
+    config.systemAudio.deviceId,
+  )
+    ? config.systemAudio.deviceId
+    : getFirstDeviceIdForKind(devices, "audiooutput");
   const selectedDisplay =
     findDisplay(displays, config.display.displayId) ?? displays[0];
 
@@ -75,6 +82,13 @@ export function reconcileCaptureOptionsConfig(args: {
       label:
         devices.find((device) => device.deviceId === selectedWebcamId)?.label ??
         config.webcam.label,
+    },
+    systemAudio: {
+      ...config.systemAudio,
+      deviceId: selectedSystemAudioId,
+      label:
+        devices.find((device) => device.deviceId === selectedSystemAudioId)?.label ??
+        config.systemAudio.label,
     },
     display: {
       displayId: selectedDisplay?.displayId,

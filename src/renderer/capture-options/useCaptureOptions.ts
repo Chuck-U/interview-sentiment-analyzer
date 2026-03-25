@@ -33,6 +33,7 @@ type UseCaptureOptionsResult = {
   readonly config: CaptureOptionsConfig;
   readonly permissions: CapturePermissionSnapshot | null;
   readonly microphoneDevices: ReturnType<typeof buildDeviceOptions>;
+  readonly audioOutputDevices: ReturnType<typeof buildDeviceOptions>;
   readonly webcamDevices: ReturnType<typeof buildDeviceOptions>;
   readonly displays: ReturnType<typeof buildDisplayOptions>;
   readonly microphoneLevel: number;
@@ -50,6 +51,7 @@ type UseCaptureOptionsResult = {
   readonly setSystemAudioEnabled: (enabled: boolean) => void;
   readonly setScreenshotEnabled: (enabled: boolean) => void;
   readonly setMicrophoneDeviceId: (deviceId: string) => void;
+  readonly setAudioOutputDeviceId: (deviceId: string) => void;
   readonly setWebcamDeviceId: (deviceId: string) => void;
   readonly setDisplayId: (displayId: string) => void;
   readonly setWebcamPreviewVisible: (visible: boolean) => void;
@@ -212,6 +214,16 @@ export function useCaptureOptions(
     [activeWebcamDeviceId, config.webcam.deviceId, devices],
   );
 
+  const audioOutputDevices = useMemo(
+    () =>
+      buildDeviceOptions({
+        devices,
+        kind: "audiooutput",
+        selectedDeviceId: config.systemAudio.deviceId,
+      }),
+    [config.systemAudio.deviceId, devices],
+  );
+
   const displayOptions = useMemo(
     () =>
       buildDisplayOptions({
@@ -231,6 +243,7 @@ export function useCaptureOptions(
     config,
     permissions,
     microphoneDevices,
+    audioOutputDevices,
     webcamDevices,
     displays: displayOptions,
     microphoneLevel: previewState.microphoneLevel,
@@ -272,6 +285,7 @@ export function useCaptureOptions(
       applyConfigUpdate((current) => ({
         ...current,
         systemAudio: {
+          ...current.systemAudio,
           enabled,
         },
       }));
@@ -289,6 +303,17 @@ export function useCaptureOptions(
         ...current,
         microphone: {
           ...current.microphone,
+          deviceId,
+          label: devicesRef.current.find((device) => device.deviceId === deviceId)
+            ?.label,
+        },
+      }));
+    },
+    setAudioOutputDeviceId(deviceId) {
+      applyConfigUpdate((current) => ({
+        ...current,
+        systemAudio: {
+          ...current.systemAudio,
           deviceId,
           label: devicesRef.current.find((device) => device.deviceId === deviceId)
             ?.label,

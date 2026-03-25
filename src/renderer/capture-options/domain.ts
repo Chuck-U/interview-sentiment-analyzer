@@ -23,6 +23,8 @@ export function buildCaptureSourcesFromConfig(
   config: CaptureOptionsConfig,
 ): readonly MediaChunkSource[] {
   const sources: MediaChunkSource[] = [];
+  const hasUnifiedDesktopCapture =
+    config.screen.enabled && config.systemAudio.enabled;
 
   if (config.microphone.enabled) {
     sources.push("microphone");
@@ -32,11 +34,13 @@ export function buildCaptureSourcesFromConfig(
     sources.push("webcam");
   }
 
-  if (config.systemAudio.enabled) {
+  if (hasUnifiedDesktopCapture) {
+    sources.push("desktop-capture");
+  } else if (config.systemAudio.enabled) {
     sources.push("system-audio");
   }
 
-  if (config.screen.enabled) {
+  if (config.screen.enabled && !hasUnifiedDesktopCapture) {
     sources.push("screen-video");
   }
 
@@ -101,6 +105,7 @@ export function getActiveDisplayId(
   recordingState: RecordingStateSnapshot | null,
 ): string | undefined {
   return (
+    getActiveSource(recordingState, "desktop-capture")?.activeDisplayId ??
     getActiveSource(recordingState, "screen-video")?.activeDisplayId ??
     getActiveSource(recordingState, "system-audio")?.activeDisplayId ??
     getActiveSource(recordingState, "screenshot")?.activeDisplayId

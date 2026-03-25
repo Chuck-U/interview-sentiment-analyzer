@@ -4,6 +4,7 @@ export const RECORDING_CHANNELS = {
   beginSandboxRecording: "recording:begin-sandbox-recording",
   saveSandboxRecording: "recording:save-sandbox-recording",
   exportRecording: "recording:export-recording",
+  openRecordingsFolder: "recording:open-recordings-folder",
 } as const;
 
 export const RECORDING_EVENT_CHANNELS = {
