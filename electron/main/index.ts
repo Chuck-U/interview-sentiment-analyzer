@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import path from "node:path";
 
 import {
@@ -55,7 +55,6 @@ import {
   parseResizeWindowByRequest,
 } from "../../src/shared/window-controls";
 import type { MediaChunkSource, SessionSnapshot } from "../../src/shared/session-lifecycle";
-import { isAudioMediaChunkSource } from "../../src/shared/session-lifecycle";
 import {
   SHORTCUTS_IPC_CHANNELS,
   DEFAULT_RECORDING_CAPTURE_SOURCES,
@@ -76,32 +75,9 @@ import {
   MODEL_INIT_CHANNELS,
   MODEL_INIT_EVENT_CHANNELS,
 } from "../../src/shared/model-init";
-import type {
-  SessionTranscriptArtifactV1,
-  TranscriptionResult,
-} from "../../src/shared/transcription";
-import {
-  buildSessionTranscriptArtifact,
-  getSessionTranscriptRelativePath,
-  TRANSCRIPTION_CHANNELS,
-} from "../../src/shared/transcription";
+import { TRANSCRIPTION_CHANNELS } from "../../src/shared/transcription";
 import * as modelLifecycle from "../../src/backend/infrastructure/ml/model-lifecycle-service";
-import { normalizeAsrOutput } from "../../src/backend/guards/normalize-asr-output";
-
-const WHISPER_TINY_EN_ID = "onnx-community/whisper-tiny.en";
-
-async function writeSessionTranscriptToDisk(
-  resolver: {
-    resolveSessionLayout: (sessionId: string) => { readonly sessionRoot: string };
-  },
-  artifact: SessionTranscriptArtifactV1,
-): Promise<void> {
-  const layout = resolver.resolveSessionLayout(artifact.sessionId);
-  const relativePath = getSessionTranscriptRelativePath(artifact.chunkId);
-  const absolutePath = path.join(layout.sessionRoot, relativePath);
-  await mkdir(path.dirname(absolutePath), { recursive: true });
-  await writeFile(absolutePath, JSON.stringify(artifact, null, 2), "utf8");
-}
+import { createTranscribeAudioIpcHandler } from "../../src/backend/interfaces/controllers/transcription-controller";
 
 const devServerUrl = process.env.VITE_DEV_SERVER_URL ?? 'http://localhost:5180'; // TODO: fix handling of this env variable
 
@@ -1010,141 +986,11 @@ async function initializeApp() {
 
     ipcMain.handle(
       TRANSCRIPTION_CHANNELS.transcribeAudio,
-      async (_event, input: unknown) => {
-        try {
-          log.ger({
-            type: "info",
-            message: "[transcription] transcribeAudio IPC invoked",
-            data: {
-              hasPayload: typeof input === "object" && input !== null,
-            },
-          });
-          if (typeof input !== "object" || input === null) {
-            throw new Error("transcribeAudio request must be an object");
-          }
-          const body = input as Record<string, unknown>;
-          const sessionId = body.sessionId;
-          const chunkId = body.chunkId;
-          const pcmSamples = body.pcmSamples;
-          const source = body.source;
-          if (typeof sessionId !== "string" || sessionId.trim() === "") {
-            throw new Error("transcribeAudio requires sessionId");
-          }
-          if (typeof chunkId !== "string" || chunkId.trim() === "") {
-            throw new Error("transcribeAudio requires chunkId");
-          }
-          if (!Array.isArray(pcmSamples)) {
-            throw new Error("transcribeAudio requires pcmSamples array");
-          }
-          if (!isAudioMediaChunkSource(source)) {
-            log.ger({
-              type: "error",
-              message: "[transcription] rejected: unsupported audio source",
-              data: { source },
-            });
-            throw new Error("transcribeAudio requires a supported audio source");
-          }
-          log.ger({
-            type: "info",
-            message: "[transcription] request accepted; running ASR",
-            data: {
-              sessionId: sessionId.slice(0, 8),
-              chunkId,
-              source,
-              pcmSamples: pcmSamples.length,
-            },
-          });
-          const pcm = new Float32Array(pcmSamples.length);
-          for (let i = 0; i < pcmSamples.length; i += 1) {
-            const n = pcmSamples[i];
-            pcm[i] = typeof n === "number" && Number.isFinite(n) ? n : 0;
-          }
-          const pipelineUnknown: unknown = await modelLifecycle.getPipeline(
-            WHISPER_TINY_EN_ID,
-          );
-          const asrPipeline = pipelineUnknown as (
-            audio: Float32Array,
-            options?: Record<string, unknown>,
-          ) => Promise<unknown>;
-          // whisper-tiny.en is English-only: do not pass `language` or `task` (transformers.js throws).
-          const raw: unknown = await asrPipeline(pcm, {
-            return_timestamps: true,
-          });
-          const { text, chunks } = normalizeAsrOutput(raw);
-          log.ger({
-            type: "debug",
-            message: "[transcription] ASR raw output",
-            data: { textLength: text.length, hasChunks: Boolean(chunks?.length) },
-          });
-          const result: TranscriptionResult = {
-            source,
-            text,
-            sessionId,
-            chunkId,
-            ...(chunks && chunks.length > 0 ? { chunks } : {}),
-          };
-          const artifact = buildSessionTranscriptArtifact({
-            chunkId,
-            sessionId,
-            source,
-            text,
-            chunks,
-            includeLegacyTranscriptField: true,
-          });
-          try {
-            await writeSessionTranscriptToDisk(storageLayoutResolver, artifact);
-            log.ger({
-              type: "info",
-              message: "[transcription] saved transcript artifact with segments",
-              data: {
-                relativePath: getSessionTranscriptRelativePath(chunkId),
-                segmentCount: chunks?.length ?? 0,
-              },
-            });
-          } catch (persistErr) {
-            const pmsg =
-              persistErr instanceof Error ? persistErr.message : String(persistErr);
-            log.ger({
-              type: "error",
-              message: "[transcription] failed to write transcript JSON (ASR result still returned)",
-              data: { chunkId, error: pmsg },
-            });
-          }
-          log.ger({
-            type: "info",
-            message: "[transcription] transcribeAudio complete",
-            data: {
-              sessionId: sessionId.slice(0, 8),
-              chunkId,
-              source,
-              textLength: text.length,
-            },
-          });
-          return result;
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err);
-          const stack = err instanceof Error ? err.stack : undefined;
-          const body =
-            typeof input === "object" && input !== null
-              ? (input as Record<string, unknown>)
-              : undefined;
-          log.ger({
-            type: "error",
-            message: "[transcription] transcribeAudio failed",
-            data: {
-              error: message,
-              stack,
-              sessionId:
-                typeof body?.sessionId === "string"
-                  ? body.sessionId.slice(0, 8)
-                  : undefined,
-              chunkId: typeof body?.chunkId === "string" ? body.chunkId : undefined,
-              source: body?.source,
-            },
-          });
-          throw err;
-        }
-      },
+      createTranscribeAudioIpcHandler({
+        getPipeline: modelLifecycle.getPipeline,
+        storageLayoutResolver,
+        logGer: log.ger,
+      }),
     );
 
     mainWindow.webContents.session.setDisplayMediaRequestHandler(

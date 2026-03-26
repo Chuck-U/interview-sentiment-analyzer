@@ -4,12 +4,14 @@ import type { RecordingStateSnapshot } from "@/shared/recording";
 import { shouldAcceptIncomingSession } from "@/shared/session-incoming-sync";
 import type { SessionSnapshot } from "@/shared/session-lifecycle";
 
+
 export type SessionRecordingState = {
   readonly currentSession: SessionSnapshot | null;
   readonly feedbackMessage: string;
   readonly isStarting: boolean;
   readonly isStopping: boolean;
   readonly recordingState: RecordingStateSnapshot | null;
+  readonly recordingStartTime: number | null;
 };
 
 const initialState: SessionRecordingState = {
@@ -18,6 +20,7 @@ const initialState: SessionRecordingState = {
   isStarting: false,
   isStopping: false,
   recordingState: null,
+  recordingStartTime: null,
 };
 
 const sessionRecordingSlice = createSlice({
@@ -34,9 +37,9 @@ const sessionRecordingSlice = createSlice({
       const next = action.payload;
       state.recordingState = next
         ? {
-            ...next,
-            sources: next.sources.map((source) => ({ ...source })),
-          }
+          ...next,
+          sources: next.sources.map((source) => ({ ...source })),
+        }
         : null;
     },
     setIsStarting(state, action: PayloadAction<boolean>) {
@@ -59,6 +62,22 @@ const sessionRecordingSlice = createSlice({
         storageLayout: { ...session.storageLayout },
       };
     },
+    setRecordingStartTime(state) {
+      state.recordingStartTime = Date.now();
+    },
+  },
+  extraReducers(builder) {
+    builder.addCase(setIsStarting, (state, action) => {
+      if (action.payload) {
+        state.recordingStartTime = Date.now();
+      }
+    });
+    builder.addCase(setIsStopping, (state) => {
+      if (state.recordingStartTime) {
+        const elapsed = Date.now() - state.recordingStartTime;
+        state.recordingStartTime = elapsed;
+      }
+    });
   },
 });
 
@@ -68,6 +87,7 @@ export const {
   setIsStarting,
   setIsStopping,
   syncIncomingSession,
+  setRecordingStartTime,
 } = sessionRecordingSlice.actions;
 
 export default sessionRecordingSlice.reducer;

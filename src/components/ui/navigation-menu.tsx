@@ -12,6 +12,7 @@ import {
   RiStopCircleLine,
 } from "@remixicon/react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./tooltip";
+import { RecordingTimer } from "../molecules/Timer";
 
 function NavigationMenu({
   className,
@@ -187,6 +188,7 @@ type AgentNavigationMenuProps = {
   readonly isWorkspaceOpen?: boolean;
   readonly className?: string;
   readonly showOutline?: boolean;
+  readonly recordingStartTime?: number | null;
 };
 
 function AgentNavigationMenu({
@@ -202,6 +204,7 @@ function AgentNavigationMenu({
   isWorkspaceOpen,
   className,
   showOutline = false,
+  recordingStartTime,
 }: AgentNavigationMenuProps) {
   const RecordingIcon = isRecording ? RiStopCircleLine : RiRecordCircleLine;
 
@@ -266,6 +269,12 @@ function AgentNavigationMenu({
         >
           <RecordingIcon className={cn("size-8 text-red-500/50 group-active:animate-pulse duration-400", isRecording ? 'animate-pulse duration-500 transition-colors from-red-500/50 to-red-500/10' : 'animate-none duration-0 ease-out')} />
         </button>
+        {recordingStartTime &&
+          (<span className="w-full">
+
+            <RecordingTimer recordingStartTime={recordingStartTime} isRecording={isRecording ?? false} />
+          </span>
+          )}
       </div>
 
       <div className="flex items-center gap-2">
