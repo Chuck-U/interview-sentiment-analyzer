@@ -87,7 +87,7 @@ export const MAIN_WINDOW_MIN_WIDTH = 600;
 export const MAIN_WINDOW_MIN_HEIGHT = 104;
 const MAIN_WINDOW_DEFAULT_WIDTH = 700;
 const MAIN_WINDOW_DEFAULT_HEIGHT = 112;
-const log: Pick<typeof logger, "ger"> = {
+export const log: Pick<typeof logger, "ger"> = {
   ger(entry: LoggerProps): void {
     logger.ger({
       ...entry,
@@ -578,6 +578,15 @@ async function initializeApp() {
   });
 
   app.whenReady().then(async () => {
+    try {
+      initializeAutoUpdates();
+    } catch (error) {
+      log.ger({
+        type: "error",
+        message: "[app initializeAutoUpdates] failed",
+        data: error,
+      });
+    }
     const mainWindow = createWindow(WINDOW_ROLES.launcher);
     log.ger({ type: "debug", message: "Window created" })
     mainWindow.focus();
