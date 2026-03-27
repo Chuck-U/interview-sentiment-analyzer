@@ -12,6 +12,13 @@ export type ViewOption = (typeof VIEW_OPTIONS)[keyof typeof VIEW_OPTIONS];
 
 export type CardWindowId = "controls" | "options" | "sandbox";
 
+/** Active sidebar section inside the options card window. */
+export type OptionsSectionId =
+  | "capture-options"
+  | "recordings"
+  | "ai-provider"
+  | "options";
+
 const CARD_TAB_ORDER: readonly CardWindowId[] = [
   "controls",
   "options",
@@ -33,11 +40,13 @@ export function pickFirstOpenCardView(
 
 type ViewsState = {
   readonly activeView: ViewOption;
+  readonly activeOptionsSection: OptionsSectionId;
   readonly openWindowIds: Record<CardWindowId, boolean>;
 };
 
 const initialState: ViewsState = {
   activeView: VIEW_OPTIONS.controls,
+  activeOptionsSection: "capture-options",
   openWindowIds: {
     controls: false,
     options: false,
@@ -51,6 +60,9 @@ const viewsSlice = createSlice({
   reducers: {
     setActiveView(state, action: PayloadAction<ViewOption>) {
       state.activeView = action.payload;
+    },
+    setActiveOptionsSection(state, action: PayloadAction<OptionsSectionId>) {
+      state.activeOptionsSection = action.payload;
     },
     openView(state, action: PayloadAction<CardWindowId>) {
       state.openWindowIds[action.payload] = true;
@@ -72,6 +84,7 @@ const viewsSlice = createSlice({
 
 export const {
   setActiveView,
+  setActiveOptionsSection,
   openView,
   closeView,
   toggleView,

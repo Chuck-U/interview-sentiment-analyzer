@@ -1,12 +1,17 @@
-import { useMemo, useState } from "react";
+import { useCallback } from "react";
 
 import {
   RiBrainLine,
-  RiDownloadCloud2Line,
   RiEqualizerLine,
   RiRecordCircleFill,
   RiSettings3Line,
 } from "@remixicon/react";
+
+import { useAppDispatch, useAppSelector } from "../store/hooks";
+import {
+  setActiveOptionsSection,
+  type OptionsSectionId,
+} from "../store/slices/viewsSlice";
 
 import type { OptionsProps } from "./Options";
 import { OptionsOverviewCard } from "./OptionsOverviewCard";
@@ -15,24 +20,14 @@ import { AiProviderCard } from "./agent-controls-cards/AiProviderCard";
 import { RecordingControlCard } from "./agent-controls-cards/RecordingControlCard";
 import { DisplayCaptureCard } from "./capture-options-cards/DisplayCaptureCard";
 import { MicrophoneCaptureCard } from "./capture-options-cards/MicrophoneCaptureCard";
-import type { CaptureOptionSectionId } from "./capture-options-cards/shared";
 import { WebcamCaptureCard } from "./capture-options-cards/WebcamCaptureCard";
 import { OptionsCard } from "./capture-options-cards/OptionsCard";
 
-type WorkspaceSectionId =
-  | "options"
-  | "ai-provider"
-  | CaptureOptionSectionId
-  | "recordings"
-  | "export"
+export type { OptionsSectionId as optionsSectionId };
 
-
-type OptionsWorkspaceProps = Omit<OptionsProps, "layout"> & {
-  readonly initialSection?: WorkspaceSectionId;
-};
+type OptionsWorkspaceProps = Omit<OptionsProps, "layout">;
 
 export function OptionsWorkspace({
-  initialSection = "microphone",
   statusLabel,
   statusVariant,
   platformLabel,
@@ -81,25 +76,34 @@ export function OptionsWorkspace({
   onOpenRecordingsFolder,
   onQuit,
 }: OptionsWorkspaceProps) {
-  const [activeSection, setActiveSection] =
-    useState<WorkspaceSectionId>(initialSection);
+  const dispatch = useAppDispatch();
+  const activeOptionsSection = useAppSelector(
+    (state) => state.views.activeOptionsSection,
+  );
+  const handleActiveOptionsSectionChange = useCallback(
+    (section: OptionsSectionId) => {
+      dispatch(setActiveOptionsSection(section));
+    },
+    [dispatch],
+  );
 
   const sections = [
 
 
     {
-      id: "microphone",
+      id: "capture-options",
       label: "Input Devices",
       icon: RiEqualizerLine,
       content: (
-        <> <OptionsCard title="Microphone" description="Capture input"> <MicrophoneCaptureCard
-          isBusy={isBusy}
-          microphoneDevices={microphoneDevices}
-          microphoneEnabled={microphoneEnabled}
-          microphoneLevel={microphoneLevel}
-          onSetMicrophoneEnabled={onSetMicrophoneEnabled}
-          onSetMicrophoneDeviceId={onSetMicrophoneDeviceId}
-        />
+        <> <OptionsCard title="Microphone" description="Capture input">
+          <MicrophoneCaptureCard
+            isBusy={isBusy}
+            microphoneDevices={microphoneDevices}
+            microphoneEnabled={microphoneEnabled}
+            microphoneLevel={microphoneLevel}
+            onSetMicrophoneEnabled={onSetMicrophoneEnabled}
+            onSetMicrophoneDeviceId={onSetMicrophoneDeviceId}
+          />
           <WebcamCaptureCard
             isBusy={isBusy}
             webcamDevices={webcamDevices}
@@ -168,7 +172,7 @@ export function OptionsWorkspace({
             isShortcutEnabled={isShortcutEnabled}
             onSetShortcutEnabled={onSetShortcutEnabled}
             isBusy={isBusy}
-          />,
+          />
         </OptionsCard>
       ),
     },
@@ -180,8 +184,10 @@ export function OptionsWorkspace({
       <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
         <SidebarCardShell
           sections={sections}
-          activeSection={activeSection}
-          onActiveSectionChange={(section) => setActiveSection(section as WorkspaceSectionId)}
+          activeSection={activeOptionsSection}
+          onActiveSectionChange={(section) =>
+            handleActiveOptionsSectionChange(section as OptionsSectionId)
+          }
           onOpenRecordingsFolder={onOpenRecordingsFolder}
         />
       </div>

@@ -10,7 +10,7 @@ import {
 } from "@/shared/shortcuts";
 import type { WindowSizePreset } from "@/shared/window-controls";
 import { WINDOW_ROLES } from "@/shared/window-registry";
-import { Options } from "./Slot/Options";
+import { OptionsWorkspace } from "./Slot/OptionsWorkspace";
 import type { OptionsCardLayout } from "./Slot/Options";
 import { useCaptureOptions } from "./capture-options/useCaptureOptions";
 import { usePinnedWindowBehavior } from "./hooks/usePinnedWindowBehavior";
@@ -287,8 +287,7 @@ function CardWindowMain({ layout, id }: { readonly layout: OptionsCardLayout, id
         <div className="flex min-h-0 flex-1">
           <div className="w-4 shrink-0" style={dragRegionStyle} />
           <div className="flex min-h-0 flex-1 overflow-hidden" style={noDragRegionStyle}>
-            <Options
-              layout={layout}
+            <OptionsWorkspace
               statusLabel={statusCopy.label}
               statusVariant={statusCopy.variant}
               platformLabel={platformLabel}
