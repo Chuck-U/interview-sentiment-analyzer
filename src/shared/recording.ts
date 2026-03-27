@@ -130,7 +130,7 @@ export type RecordingBridge = {
     request: ExportRecordingRequest,
   ): Promise<ExportRecordingResponse>;
   openRecordingsFolder(request: {
-    readonly sessionId: string;
+    sessionId?: string;
   }): Promise<void>;
 };
 

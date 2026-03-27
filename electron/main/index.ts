@@ -10,11 +10,12 @@ import {
   Menu,
   nativeImage,
   screen,
+  session,
   shell,
   systemPreferences,
   Tray,
 } from "electron";
-import { logger, type LoggerProps } from "../../src/lib/logger";
+import { log } from "../../src/lib/logger";
 import { createSessionLifecycleBackend } from "../../src/backend";
 import { createListAiProviderModelsUseCase } from "../../src/backend/application/use-cases/list-ai-provider-models";
 import { createSecretStore } from "../../src/backend/infrastructure/config/secretStore";
@@ -54,7 +55,7 @@ import {
   WINDOW_CONTROL_EVENT_CHANNELS,
   parseResizeWindowByRequest,
 } from "../../src/shared/window-controls";
-import type { MediaChunkSource, SessionSnapshot } from "../../src/shared/session-lifecycle";
+import { type MediaChunkSource, type SessionSnapshot } from "../../src/shared/session-lifecycle";
 import {
   SHORTCUTS_IPC_CHANNELS,
   DEFAULT_RECORDING_CAPTURE_SOURCES,
@@ -78,6 +79,7 @@ import {
 import { TRANSCRIPTION_CHANNELS } from "../../src/shared/transcription";
 import * as modelLifecycle from "../../src/backend/infrastructure/ml/model-lifecycle-service";
 import { createTranscribeAudioIpcHandler } from "../../src/backend/interfaces/controllers/transcription-controller";
+import { isNonEmptyObject, isNonEmptyString } from "@/backend/guards/checks";
 
 const devServerUrl = process.env.VITE_DEV_SERVER_URL ?? 'http://localhost:5180'; // TODO: fix handling of this env variable
 
@@ -87,14 +89,6 @@ export const MAIN_WINDOW_MIN_WIDTH = 600;
 export const MAIN_WINDOW_MIN_HEIGHT = 104;
 const MAIN_WINDOW_DEFAULT_WIDTH = 700;
 const MAIN_WINDOW_DEFAULT_HEIGHT = 112;
-export const log: Pick<typeof logger, "ger"> = {
-  ger(entry: LoggerProps): void {
-    logger.ger({
-      ...entry,
-      source: __filename,
-    });
-  },
-};
 const listAiProviderModels = createListAiProviderModelsUseCase({
   fetch: globalThis.fetch,
 });
@@ -552,6 +546,7 @@ function createTrayMenu(args: {
     { label: "Exit", click: () => onExit() },
   ]);
 }
+
 async function initializeApp() {
   process.on("warning", (warning) => {
     log.ger({
@@ -578,15 +573,17 @@ async function initializeApp() {
   });
 
   app.whenReady().then(async () => {
-    try {
-      initializeAutoUpdates();
-    } catch (error) {
-      log.ger({
-        type: "error",
-        message: "[app initializeAutoUpdates] failed",
-        data: error,
-      });
-    }
+    // try {
+    //   initializeAutoUpdates();
+    // } catch (error) {
+    //   log.ger({
+    //     type: "error",
+    //     message: "[app initializeAutoUpdates] failed",
+    //     data: error,
+    //   });
+    // }
+
+
     const mainWindow = createWindow(WINDOW_ROLES.launcher);
     log.ger({ type: "debug", message: "Window created" })
     mainWindow.focus();
@@ -998,11 +995,10 @@ async function initializeApp() {
       createTranscribeAudioIpcHandler({
         getPipeline: modelLifecycle.getPipeline,
         storageLayoutResolver,
-        logGer: log.ger,
       }),
     );
 
-    mainWindow.webContents.session.setDisplayMediaRequestHandler(
+    session.defaultSession.setDisplayMediaRequestHandler(
       async (_request, callback) => {
         const captureOptions = await appConfigStore.loadCaptureOptionsConfig();
         const sources = await desktopCapturer.getSources({
@@ -1320,17 +1316,23 @@ async function initializeApp() {
     ipcMain.handle(
       RECORDING_CHANNELS.openRecordingsFolder,
       async (_event, input: unknown) => {
-        if (typeof input !== "object" || input === null) {
+        if (!isNonEmptyObject(input)) {
           throw new Error("openRecordingsFolder request must be an object");
         }
+        const sessionId = input.sessionId;
+        if (!isNonEmptyString(sessionId)) {
+          log.ger({ type: "debug", message: "[app RECORDING_CHANNELS.openRecordingsFolder] with no sessionId" })
 
-        const sessionId = (input as Record<string, unknown>).sessionId;
-        if (typeof sessionId !== "string" || sessionId.trim().length === 0) {
-          throw new Error("openRecordingsFolder requires sessionId");
+          const recordingRoot = storageLayoutResolver.resolveSessionLayout().recordingsRoot
+          await mkdir(recordingRoot, { recursive: true });
+          const openResult = await shell.openPath(recordingRoot);
+          if (openResult.length > 0) {
+            throw new Error(openResult);
+          }
+          return;
         }
-
         const recordingsRoot = storageLayoutResolver.resolveSessionLayout(
-          sessionId.trim(),
+          sessionId?.trim(),
         ).recordingsRoot;
         await mkdir(recordingsRoot, { recursive: true });
         const openResult = await shell.openPath(recordingsRoot);

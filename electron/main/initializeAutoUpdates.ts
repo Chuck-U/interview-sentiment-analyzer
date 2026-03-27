@@ -1,6 +1,6 @@
 import { app } from "electron";
 import { autoUpdater } from "electron-updater";
-import { log } from ".";
+import { log } from "@/lib/logger";
 
 export function initializeAutoUpdates(): void {
     if (!app.isPackaged) {

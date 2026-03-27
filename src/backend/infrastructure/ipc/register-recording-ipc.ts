@@ -53,14 +53,18 @@ export function registerRecordingIpc(
         buffer,
       });
 
-      await controller.registerMediaChunk({
-        sessionId,
-        chunkId: result.chunkId,
-        source,
-        relativePath: result.relativePath,
-        recordedAt,
-        byteSize: result.byteSize,
-      });
+      // Only register chunks that were actually written to disk.
+      // Skipped sources return byteSize: 0 from the persistence service.
+      if (result.byteSize > 0) {
+        await controller.registerMediaChunk({
+          sessionId,
+          chunkId: result.chunkId,
+          source,
+          relativePath: result.relativePath,
+          recordedAt,
+          byteSize: result.byteSize,
+        });
+      }
 
       return result;
     },
@@ -88,14 +92,16 @@ export function registerRecordingIpc(
         buffer,
       });
 
-      await controller.registerMediaChunk({
-        sessionId,
-        chunkId: result.chunkId,
-        source: "screenshot",
-        relativePath: result.relativePath,
-        recordedAt: capturedAt,
-        byteSize: result.byteSize,
-      });
+      if (result.byteSize > 0) {
+        await controller.registerMediaChunk({
+          sessionId,
+          chunkId: result.chunkId,
+          source: "screenshot",
+          relativePath: result.relativePath,
+          recordedAt: capturedAt,
+          byteSize: result.byteSize,
+        });
+      }
 
       return result;
     },

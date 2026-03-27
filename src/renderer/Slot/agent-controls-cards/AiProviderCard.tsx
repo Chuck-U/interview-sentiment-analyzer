@@ -204,41 +204,35 @@ export function AiProviderCard() {
   }
 
   return (
-    <Card className="flex h-full min-h-0 flex-col">
-      <CardHeader className="border-b">
-        <CardTitle>AI Provider</CardTitle>
-        <CardDescription>
-          Provider configuration and API key Management.</CardDescription>
-      </CardHeader>
-      <CardContent className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto py-1">
-        <div className="flex flex-col gap-3 rounded-md border border-yellow-contrast/30  p-3">
 
-          <div className="flex flex-col gap-1.5" style={noDragStyle}>
-            <Label htmlFor="ai-provider-select">Provider</Label>
-            <Select
-              value={selectedProvider}
-              onValueChange={(value) => {
-                void handleProviderChange(value as AiProvider);
-              }}
-              disabled={!hasLoaded || isSavingProvider}
+    <div className="flex flex-col gap-[24px]">
+      <div className="flex flex-col gap-3 rounded-md border gap-y-4 p-4 bg-ring/10 my-5">
 
-            >
-              <SelectTrigger id="ai-provider-select" className="w-full border border-yellow-a9/30 active:border-yellow-a9/50 border-2">
-                <SelectValue placeholder="Choose a provider" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup className="from-yellow-11/30 to-yellow-11/20 bg-gradient-to-b">
-                  {AI_PROVIDERS.map((provider) => (
-                    <SelectItem key={provider} value={provider}>
-                      {PROVIDER_LABELS[provider]}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </div>
+        <Label htmlFor="ai-provider-select">Provider</Label>
+        <Select
+          value={selectedProvider}
+          onValueChange={(value) => {
+            void handleProviderChange(value as AiProvider);
+          }}
+          disabled={!hasLoaded || isSavingProvider}
 
-          <div className="flex items-center justify-between gap-3">
+        >
+          <SelectTrigger id="ai-provider-select" className="w-full border border-yellow-a9/30 active:border-yellow-a9/50 border-2">
+            <SelectValue placeholder="Choose a provider" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup className="from-yellow-11/30 to-yellow-11/20 bg-gradient-to-b">
+              {AI_PROVIDERS.map((provider) => (
+                <SelectItem key={provider} value={provider}>
+                  {PROVIDER_LABELS[provider]}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between">
             <div className="flex flex-row items-center justify-start gap-1">
               <h3 className="text-sm font-medium text-nowrap leading-7">API key</h3>
             </div>
@@ -295,72 +289,74 @@ export function AiProviderCard() {
             </div>
           </div>
         </div>
+      </div>
 
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-center justify-between gap-3" style={noDragStyle}>
-            <Label htmlFor="ai-provider-model-select">Model</Label>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={!hasStoredKey || isRefreshingProviderData}
-              onClick={handleRefreshModels}
-            >
-              <RiRefreshLine data-icon="inline-start" />
-              Refresh
-            </Button>
-          </div>
+      <div className=" px-4 h-px bg-yellow-contrast/30 mx-3" />
 
-          {isRefreshingProviderData ? (
-            <Skeleton className="h-8 w-full rounded-md" />
-          ) : (
-            <div style={noDragStyle}>
-              <Select
-                value={selectedModelValue}
-                onValueChange={(value) => {
-                  void handleModelChange(value);
-                }}
-                disabled={!hasStoredKey || isSavingModel}
-              >
-                <SelectTrigger id="ai-provider-model-select" className="w-full">
-                  <SelectValue
-                    placeholder={
-                      hasStoredKey
-                        ? MODEL_PLACEHOLDERS[selectedProvider]
-                        : "Save an API key to load models"
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectItem value={DEFAULT_MODEL_VALUE}>
-                      Provider default
-                    </SelectItem>
-                    {hasSavedModelOutsideResults && config.modelId ? (
-                      <SelectItem value={config.modelId}>
-                        {config.modelId} (saved)
-                      </SelectItem>
-                    ) : null}
-                    {models.map((model) => (
-                      <SelectItem key={model.id} value={model.id}>
-                        {model.name}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          <p className="text-sm text-muted-foreground">
-            {hasStoredKey
-              ? models.length > 0
-                ? `Loaded ${models.length} ${selectedProviderLabel} models.`
-                : `No models are loaded yet for ${selectedProviderLabel}.`
-              : `Save a ${selectedProviderLabel} API key to fetch its models.`}
-          </p>
+      <div className="flex flex-col gap-1.5 mx-2 border-t my-5">
+        <div className="flex items-center justify-between gap-3" style={noDragStyle}>
+          <Label htmlFor="ai-provider-model-select">Model</Label>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={!hasStoredKey || isRefreshingProviderData}
+            onClick={handleRefreshModels}
+          >
+            <RiRefreshLine data-icon="inline-start" />
+            Refresh
+          </Button>
         </div>
-      </CardContent>
-    </Card>
+
+        {isRefreshingProviderData ? (
+          <Skeleton className="h-8 w-full rounded-md" />
+        ) : (
+          <div style={noDragStyle}>
+            <Select
+              value={selectedModelValue}
+              onValueChange={(value) => {
+                void handleModelChange(value);
+              }}
+              disabled={!hasStoredKey || isSavingModel}
+            >
+              <SelectTrigger id="ai-provider-model-select" className="w-full">
+                <SelectValue
+                  placeholder={
+                    hasStoredKey
+                      ? MODEL_PLACEHOLDERS[selectedProvider]
+                      : "Save an API key to load models"
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value={DEFAULT_MODEL_VALUE}>
+                    Provider default
+                  </SelectItem>
+                  {hasSavedModelOutsideResults && config.modelId ? (
+                    <SelectItem value={config.modelId}>
+                      {config.modelId} (saved)
+                    </SelectItem>
+                  ) : null}
+                  {models.map((model) => (
+                    <SelectItem key={model.id} value={model.id}>
+                      {model.name}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        <span className="text-sm text-muted-foreground">
+          {hasStoredKey
+            ? models.length > 0
+              ? `Loaded ${models.length} ${selectedProviderLabel} models.`
+              : `No models are loaded yet for ${selectedProviderLabel}.`
+            : `Save a ${selectedProviderLabel} API key to fetch its models.`}
+        </span>
+      </div>
+    </div>
   );
 }

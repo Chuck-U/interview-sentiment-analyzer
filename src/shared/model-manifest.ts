@@ -132,13 +132,6 @@ export const MODEL_MANIFEST = [
     label: "Whisper tiny English transcription",
   },
   {
-    id: "onnx-community/distilbert-base-uncased-mnli-ONNX",
-    task: "zero-shot-classification",
-    dtype: "q8",
-    priority: "required",
-    label: "DistilBERT MNLI topic and rambling classifier",
-  },
-  {
     id: "onnx-community/wav2vec2-base-Speech_Emotion_Recognition-ONNX",
     task: "audio-classification",
     dtype: "q8",

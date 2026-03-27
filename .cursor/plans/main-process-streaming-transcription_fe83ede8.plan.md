@@ -4,22 +4,22 @@ overview: Refactor audio processing into a source-aware main-process stream that
 todos:
   - id: define-source-aware-stream-contract
     content: Add shared source-aware audio stream and qualified-question IPC contracts
-    status: pending
+    status: completed
   - id: implement-source-stream-manager
     content: Create a main-process source stream manager that accumulates audio by source and runs continuous ASR windows
-    status: pending
+    status: completed
   - id: add-question-qualification
     content: Qualify desktop-capture questions from finalized utterances and publish them to the renderer
-    status: pending
+    status: completed
   - id: persist-diarization-and-question-files
     content: Persist source-level diarization artifacts and question annotations to disk and repository storage
-    status: pending
+    status: completed
   - id: wire-main-and-renderer-integration
     content: Update main/preload/renderer wiring so the renderer sends source audio but only consumes qualified-question events
-    status: pending
+    status: completed
   - id: add-source-aware-tests
     content: Add tests for source attribution, desktop-capture question qualification, diarization file persistence, and stop-time flush behavior
-    status: pending
+    status: completed
 isProject: false
 ---
 

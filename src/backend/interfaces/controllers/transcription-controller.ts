@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import type { LoggerProps } from "../../../lib/logger";
+import { logger } from "../../../lib/logger";
 import type { SessionTranscriptArtifactV1, TranscriptionResult } from "../../../shared/transcription";
 import { isAudioMediaChunkSource, type AudioMediaSource } from "../../../shared/session-lifecycle";
 import type { SessionStorageLayoutResolver } from "../../application/ports/session-lifecycle";
@@ -11,9 +11,9 @@ import { createTranscribeAudioUseCase } from "../../application/use-cases/transc
 export type TranscribeAudioIpcHandlerDependencies = {
   readonly getPipeline: (modelId: string) => Promise<unknown>;
   readonly storageLayoutResolver: SessionStorageLayoutResolver;
-  readonly logGer: (entry: LoggerProps) => void;
 };
 
+const Log = logger.forSource("TranscriptionController");
 export function createTranscribeAudioIpcHandler(
   dependencies: TranscribeAudioIpcHandlerDependencies,
 ) {
@@ -34,11 +34,10 @@ export function createTranscribeAudioIpcHandler(
     getPipeline: dependencies.getPipeline,
     storageLayoutResolver: dependencies.storageLayoutResolver,
     persistTranscriptToDisk,
-    logGer: dependencies.logGer,
   });
 
   return async (_event: unknown, input: unknown): Promise<TranscriptionResult> => {
-    dependencies.logGer({
+    Log.ger({
       type: "info",
       message: "[transcription] transcribeAudio IPC invoked",
       data: {
@@ -58,7 +57,7 @@ export function createTranscribeAudioIpcHandler(
       }
       const source: AudioMediaSource = parsedRequest.source;
 
-      dependencies.logGer({
+      Log.ger({
         type: "info",
         message: "[transcription] request accepted; running ASR",
         data: {
@@ -93,14 +92,14 @@ export function createTranscribeAudioIpcHandler(
         err instanceof Error &&
         err.message === "transcribeAudio requires a supported audio source"
       ) {
-        dependencies.logGer({
+        Log.ger({
           type: "error",
           message: "[transcription] rejected: unsupported audio source",
           data: { source: body?.source },
         });
       }
 
-      dependencies.logGer({
+      Log.ger({
         type: "error",
         message: "[transcription] transcribeAudio failed",
         data: {

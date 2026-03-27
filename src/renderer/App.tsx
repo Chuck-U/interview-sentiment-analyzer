@@ -21,6 +21,7 @@ export function AppRoot() {
 
   useEffect(() => {
     const handle = requestIdleCallback(() => {
+      // add ui indicator for model init
       void dispatch(startModelInit());
     });
     return () => cancelIdleCallback(handle);

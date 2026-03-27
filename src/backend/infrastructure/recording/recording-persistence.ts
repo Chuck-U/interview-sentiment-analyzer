@@ -9,6 +9,23 @@ import type {
   PersistScreenshotResponse,
 } from "../../../shared/recording";
 
+/**
+ * Default set of sources whose chunks are actually written to disk. All other
+ * sources get a synthetic response so callers stay happy, but no file I/O
+ * occurs. Override via the `persistedSources` option on the factory.
+ *
+ * TODO: promote to a runtime config flag (CAPTURE_PERSISTENCE_MODE) so the
+ *       set of persisted sources can be changed without a code change.
+ */
+const DEFAULT_PERSISTED_CHUNK_SOURCES: ReadonlySet<MediaChunkSource> = new Set([
+  "desktop-capture",
+]);
+
+export type RecordingPersistenceOptions = {
+  readonly persistedSources?: ReadonlySet<MediaChunkSource>;
+  readonly persistScreenshots?: boolean;
+};
+
 const MIME_TO_EXTENSION: Record<string, string> = {
   "audio/webm;codecs=opus": "webm",
   "audio/webm": "webm",
@@ -55,9 +72,21 @@ export type RecordingPersistenceService = {
 
 export function createRecordingPersistenceService(
   storageLayoutResolver: SessionStorageLayoutResolver,
+  options?: RecordingPersistenceOptions,
 ): RecordingPersistenceService {
+  const persistedSources = options?.persistedSources ?? DEFAULT_PERSISTED_CHUNK_SOURCES;
+  const persistScreenshots = options?.persistScreenshots ?? false;
+
   return {
     async persistChunk(input) {
+      if (!persistedSources.has(input.source)) {
+        return {
+          chunkId: randomUUID(),
+          relativePath: `${SOURCE_DIRECTORY[input.source]}/skipped`,
+          byteSize: 0,
+        };
+      }
+
       const ext = extensionForMime(input.mimeType);
       const filename = `${input.source}-${String(input.sequenceNumber).padStart(5, "0")}-${Date.now()}.${ext}`;
       const sourceDir = SOURCE_DIRECTORY[input.source];
@@ -78,6 +107,14 @@ export function createRecordingPersistenceService(
     },
 
     async persistScreenshot(input) {
+      if (!persistScreenshots) {
+        return {
+          chunkId: randomUUID(),
+          relativePath: "chunks/screenshots/skipped",
+          byteSize: 0,
+        };
+      }
+
       const ext = extensionForMime(input.mimeType);
       const filename = `screenshot-${String(input.sequenceNumber).padStart(5, "0")}-${Date.now()}.${ext}`;
       const relativePath = `chunks/screenshots/${filename}`;

@@ -1,3 +1,4 @@
+
 export interface LoggerProps {
   readonly type: "info" | "warn" | "error" | "debug" | "trace" | "fatal"
   readonly message: string
@@ -176,3 +177,11 @@ export class Log {
 
 /** Root singleton logger. */
 export const logger = Log.getInstance()
+export const log: Pick<typeof logger, "ger"> = {
+  ger(entry: LoggerProps): void {
+    logger.ger({
+      ...entry,
+      source: __filename,
+    });
+  },
+};

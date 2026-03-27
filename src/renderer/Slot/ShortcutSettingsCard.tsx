@@ -20,7 +20,7 @@ export function ShortcutSettingsCard({
 }: ShortcutSettingsCardProps) {
   return (
 
-    <div className="flex items-center justify-between gap-3 rounded-md border p-3">
+    <div className="flex flex-col items-start justify-between gap-3 rounded-md border p-3">
       <p className="text-sm">Keyboard Shortcuts</p>
       <div className="flex flex-col gap-1">
         <p className="text-sm">Recording toggle</p>

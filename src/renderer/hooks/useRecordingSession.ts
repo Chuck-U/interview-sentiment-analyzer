@@ -19,7 +19,8 @@ import type { SessionSnapshot } from "@/shared/session-lifecycle";
 import { logger } from "@/lib/logger";
 
 import { useAppDispatch, useAppSelector } from "../store/hooks";
-import { isAudioMediaChunkSource } from "@/shared/session-lifecycle";
+// TODO: restore when multi-source transcription is re-enabled
+// import { isAudioMediaChunkSource } from "@/shared/session-lifecycle";
 
 const log = logger.forSource("useRecordingSession");
 
@@ -70,7 +71,11 @@ export function useRecordingSession() {
           recordedAt,
           buffer,
         });
-        if (isAudioMediaChunkSource(source)) {
+        // Only transcribe the desktop-capture source (which carries mixed
+        // audio) to produce a single transcript stream. Other audio sources
+        // (microphone, system-audio) are gated out for now.
+        // TODO: restore multi-source transcription behind a config flag.
+        if (source === "desktop-capture") {
           void (async () => {
             log.ger({
               type: "info",

@@ -1,9 +1,10 @@
-import path from "node:path";
+// TODO: restore when per-chunk transcript persistence is re-enabled
+// import path from "node:path";
 
-import type { LoggerProps } from "../../../lib/logger";
+import { logger } from "../../../lib/logger";
 import {
-  buildSessionTranscriptArtifact,
-  getSessionTranscriptRelativePath,
+  // buildSessionTranscriptArtifact,
+  // getSessionTranscriptRelativePath,
   type SessionTranscriptArtifactV1,
   type TranscriptionResult,
 } from "../../../shared/transcription";
@@ -34,11 +35,10 @@ export type TranscribeAudioDependencies = {
     absolutePath: string,
     artifact: SessionTranscriptArtifactV1,
   ) => Promise<void>;
-  readonly logGer?: (entry: LoggerProps) => void;
 };
 
-const WHISPER_TINY_EN_ID = "onnx-community/whisper-tiny.en";
-
+const WHISPER_TINY_EN_ID = "onnx-community/whisper-tiny.en"; // make a better constant for this.
+const Log = logger.forSource("TranscribeAudioUseCase");
 export function createTranscribeAudioUseCase(
   dependencies: TranscribeAudioDependencies,
 ) {
@@ -58,7 +58,7 @@ export function createTranscribeAudioUseCase(
 
     const { text, chunks } = normalizeAsrOutput(raw);
 
-    dependencies.logGer?.({
+    Log.ger?.({
       type: "debug",
       message: "[transcription] ASR raw output",
       data: { textLength: text.length, hasChunks: Boolean(chunks?.length) },
@@ -72,43 +72,47 @@ export function createTranscribeAudioUseCase(
       ...(chunks && chunks.length > 0 ? { chunks } : {}),
     };
 
-    const artifact = buildSessionTranscriptArtifact({
-      chunkId: input.chunkId,
-      sessionId: input.sessionId,
-      source: input.source,
-      text,
-      chunks,
-      includeLegacyTranscriptField: true,
-    });
+    // Per-chunk transcript JSON writes are gated off. Only the video file
+    // and a single consolidated transcript are captured for now.
+    // TODO: re-enable per-chunk transcript persistence behind a config flag.
+    //
+    // const artifact = buildSessionTranscriptArtifact({
+    //   chunkId: input.chunkId,
+    //   sessionId: input.sessionId,
+    //   source: input.source,
+    //   text,
+    //   chunks,
+    //   includeLegacyTranscriptField: true,
+    // });
+    //
+    // const relativePath = getSessionTranscriptRelativePath(input.chunkId);
+    // const layout = dependencies.storageLayoutResolver.resolveSessionLayout(
+    //   input.sessionId,
+    // );
+    // const absolutePath = path.join(layout.sessionRoot, relativePath);
+    //
+    // try {
+    //   await dependencies.persistTranscriptToDisk(absolutePath, artifact);
+    //   Log.ger?.({
+    //     type: "info",
+    //     message: "[transcription] saved transcript artifact with segments",
+    //     data: {
+    //       relativePath,
+    //       segmentCount: chunks?.length ?? 0,
+    //     },
+    //   });
+    // } catch (persistErr) {
+    //   const pmsg =
+    //     persistErr instanceof Error ? persistErr.message : String(persistErr);
+    //   Log.ger?.({
+    //     type: "error",
+    //     message:
+    //       "[transcription] failed to write transcript JSON (ASR result still returned)",
+    //     data: { chunkId: input.chunkId, error: pmsg },
+    //   });
+    // }
 
-    const relativePath = getSessionTranscriptRelativePath(input.chunkId);
-    const layout = dependencies.storageLayoutResolver.resolveSessionLayout(
-      input.sessionId,
-    );
-    const absolutePath = path.join(layout.sessionRoot, relativePath);
-
-    try {
-      await dependencies.persistTranscriptToDisk(absolutePath, artifact);
-      dependencies.logGer?.({
-        type: "info",
-        message: "[transcription] saved transcript artifact with segments",
-        data: {
-          relativePath,
-          segmentCount: chunks?.length ?? 0,
-        },
-      });
-    } catch (persistErr) {
-      const pmsg =
-        persistErr instanceof Error ? persistErr.message : String(persistErr);
-      dependencies.logGer?.({
-        type: "error",
-        message:
-          "[transcription] failed to write transcript JSON (ASR result still returned)",
-        data: { chunkId: input.chunkId, error: pmsg },
-      });
-    }
-
-    dependencies.logGer?.({
+    Log.ger?.({
       type: "info",
       message: "[transcription] transcribeAudio complete",
       data: {

@@ -1,10 +1,11 @@
-import { createReadStream, createWriteStream } from "node:fs";
-import { copyFile, mkdir, readdir, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { PassThrough } from "node:stream";
-import { pipeline } from "node:stream/promises";
 
 import type { SessionStorageLayoutResolver } from "../../application/ports/session-lifecycle";
+import {
+  concatenateChunkFiles,
+  type ConcatenationProgress,
+} from "./recording-concatenation-pipeline";
 
 export type RecordingManifest = {
   readonly sessionId: string;
@@ -16,6 +17,7 @@ export type RecordingManifest = {
 export type RecordingManifestSource = {
   readonly source: string;
   readonly chunks: readonly RecordingManifestChunk[];
+  readonly exportFilePath?: string;
 };
 
 export type RecordingManifestChunk = {
@@ -27,11 +29,45 @@ export type RecordingManifestChunk = {
 export type RecordingExportResult = {
   readonly exportFilePath: string;
   readonly manifestPath: string;
+  readonly sourceExports: readonly SourceExportResult[];
+};
+
+export type SourceExportResult = {
+  readonly source: string;
+  readonly exportFilePath: string;
+  readonly totalBytes: number;
+  readonly chunksProcessed: number;
+  readonly skippedChunks: readonly string[];
+};
+
+export type RecordingExportOptions = {
+  readonly onProgress?: (
+    source: string,
+    progress: ConcatenationProgress,
+  ) => void;
 };
 
 export type RecordingExportService = {
-  exportSession(sessionId: string): Promise<RecordingExportResult>;
+  exportSession(
+    sessionId: string,
+    options?: RecordingExportOptions,
+  ): Promise<RecordingExportResult>;
 };
+
+const PRIMARY_SOURCES = new Set([
+  "desktop-capture",
+  "screen-video",
+  "webcam",
+  "microphone",
+]);
+
+const EXPORTABLE_SOURCES = new Set([
+  "desktop-capture",
+  "screen-video",
+  "webcam",
+  "microphone",
+  "system-audio",
+]);
 
 function extractSequenceNumber(filename: string): number {
   const match = /-(\d+)-\d+\./.exec(filename);
@@ -69,7 +105,7 @@ export function createRecordingExportService(
   storageLayoutResolver: SessionStorageLayoutResolver,
 ): RecordingExportService {
   return {
-    async exportSession(sessionId) {
+    async exportSession(sessionId, options) {
       const sessionLayout = storageLayoutResolver.resolveSessionLayout(sessionId);
       const recordingsRoot = sessionLayout.recordingsRoot;
       await mkdir(recordingsRoot, { recursive: true });
@@ -87,13 +123,48 @@ export function createRecordingExportService(
       ];
 
       const manifestSources: RecordingManifestSource[] = [];
-      let primaryExportSourceDir = "";
-      let primaryExportExt = "webm";
+      const sourceExports: SourceExportResult[] = [];
+      let primaryChosen = false;
+      let sessionExportExt = "webm";
 
       for (const { source, dir } of sourceDirectories) {
         const chunks = await listChunksInDirectory(dir);
         if (chunks.length === 0) {
           continue;
+        }
+
+        const firstFile = chunks[0]?.relativePath ?? "";
+        const ext = path.extname(firstFile).replace(".", "") || "webm";
+
+        let sourceExportFileName: string | undefined;
+
+        if (EXPORTABLE_SOURCES.has(source)) {
+          const isPrimary = !primaryChosen && PRIMARY_SOURCES.has(source);
+          if (isPrimary) {
+            primaryChosen = true;
+            sessionExportExt = ext;
+          }
+
+          sourceExportFileName = isPrimary
+            ? `session.${ext}`
+            : `${source}.${ext}`;
+
+          const outputPath = path.join(recordingsRoot, sourceExportFileName);
+          const chunkPaths = chunks.map((c) => path.join(dir, c.relativePath));
+
+          const result = await concatenateChunkFiles(chunkPaths, outputPath, {
+            onProgress: options?.onProgress
+              ? (progress) => options.onProgress!(source, progress)
+              : undefined,
+          });
+
+          sourceExports.push({
+            source,
+            exportFilePath: outputPath,
+            totalBytes: result.totalBytes,
+            chunksProcessed: result.chunksProcessed,
+            skippedChunks: result.skippedChunks,
+          });
         }
 
         manifestSources.push({
@@ -103,69 +174,28 @@ export function createRecordingExportService(
             byteSize: c.byteSize,
             sequenceNumber: c.sequenceNumber,
           })),
+          exportFilePath: sourceExportFileName,
         });
-
-        if (
-          !primaryExportSourceDir &&
-          (
-            source === "desktop-capture" ||
-            source === "screen-video" ||
-            source === "webcam" ||
-            source === "microphone"
-          )
-        ) {
-          primaryExportSourceDir = dir;
-          const firstFile = chunks[0]?.relativePath ?? "";
-          primaryExportExt = path.extname(firstFile).replace(".", "") || "webm";
-        }
       }
 
-      const exportFileName = `session.${primaryExportExt}`;
-      const exportFilePath = path.join(recordingsRoot, exportFileName);
-
-      if (primaryExportSourceDir) {
-        const chunks = await listChunksInDirectory(primaryExportSourceDir);
-
-        if (chunks.length === 1) {
-          await copyFile(
-            path.join(primaryExportSourceDir, chunks[0].relativePath),
-            exportFilePath,
-          );
-        } else if (chunks.length > 1) {
-          const output = createWriteStream(exportFilePath);
-          const passThrough = new PassThrough();
-
-          const pipelinePromise = pipeline(passThrough, output);
-
-          for (const chunk of chunks) {
-            const chunkPath = path.join(primaryExportSourceDir, chunk.relativePath);
-            const readable = createReadStream(chunkPath);
-            await new Promise<void>((resolve, reject) => {
-              readable.on("error", reject);
-              readable.on("end", resolve);
-              readable.pipe(passThrough, { end: false });
-            });
-          }
-
-          passThrough.end();
-          await pipelinePromise;
-        }
-      }
+      const sessionExportFileName = `session.${sessionExportExt}`;
+      const sessionExportFilePath = path.join(recordingsRoot, sessionExportFileName);
 
       const exportedAt = new Date().toISOString();
       const manifest: RecordingManifest = {
         sessionId,
         exportedAt,
         sources: manifestSources,
-        exportFilePath: exportFileName,
+        exportFilePath: sessionExportFileName,
       };
 
       const manifestPath = path.join(recordingsRoot, "manifest.json");
       await writeFile(manifestPath, JSON.stringify(manifest, null, 2), "utf8");
 
       return {
-        exportFilePath,
+        exportFilePath: sessionExportFilePath,
         manifestPath,
+        sourceExports,
       };
     },
   };
