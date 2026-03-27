@@ -140,7 +140,7 @@ function LauncherMain() {
         />
       </nav>
 
-      <div className="px-2 -mt-1">
+      <div className="relative bottom-0 h-full mb-1">
         <TranscriptionStreamPanel isRecording={isRecording} />
       </div>
     </div>
@@ -381,15 +381,9 @@ function Main() {
   if (role === WINDOW_ROLES.launcher) {
     return <LauncherMain />;
   }
+  // @cursor we'll refactor this to have different window handlers and split this file.
 
-  const layout: OptionsCardLayout =
-    role === WINDOW_ROLES.controls
-      ? "controls"
-      : role === WINDOW_ROLES.options
-        ? "options"
-        : "sandbox";
-
-  return <CardWindowMain layout={layout} id={role as string} />;
+  return <CardWindowMain layout={'options'} id={role as string} />;
 }
 
 export default Main;
