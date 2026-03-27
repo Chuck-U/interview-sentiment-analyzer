@@ -1,15 +1,8 @@
-// TODO: restore when per-chunk transcript persistence is re-enabled
-// import path from "node:path";
-
 import { logger } from "../../../lib/logger";
-import {
-  // buildSessionTranscriptArtifact,
-  // getSessionTranscriptRelativePath,
-  type SessionTranscriptArtifactV1,
-  type TranscriptionResult,
+import type {
+  TranscriptionResult,
 } from "../../../shared/transcription";
 import type { AudioMediaSource } from "../../../shared/session-lifecycle";
-import type { SessionStorageLayoutResolver } from "../ports/session-lifecycle";
 import { normalizeAsrOutput } from "../../guards/normalize-asr-output";
 
 export type TranscribeAudioInput = {
@@ -26,19 +19,11 @@ type AsrPipeline = (
 
 export type TranscribeAudioDependencies = {
   readonly getPipeline: (modelId: string) => Promise<unknown>;
-  readonly storageLayoutResolver: SessionStorageLayoutResolver;
-  /**
-   * Disk writer abstraction to keep this use-case unit-testable.
-   * Provide a mock in unit tests.
-   */
-  readonly persistTranscriptToDisk: (
-    absolutePath: string,
-    artifact: SessionTranscriptArtifactV1,
-  ) => Promise<void>;
 };
 
-const WHISPER_TINY_EN_ID = "onnx-community/whisper-tiny.en"; // make a better constant for this.
+const WHISPER_TINY_EN_ID = "onnx-community/whisper-tiny.en";
 const Log = logger.forSource("TranscribeAudioUseCase");
+
 export function createTranscribeAudioUseCase(
   dependencies: TranscribeAudioDependencies,
 ) {
@@ -50,18 +35,52 @@ export function createTranscribeAudioUseCase(
     );
     const asrPipeline = pipelineUnknown as AsrPipeline;
 
-    // whisper-tiny.en is English-only: do not pass `language` or `task`
-    // (transformers.js throws).
+    const pcmStats = {
+      length: input.pcm.length,
+      min: 0,
+      max: 0,
+      rms: 0,
+    };
+    let sumSq = 0;
+    for (let i = 0; i < input.pcm.length; i++) {
+      const v = input.pcm[i];
+      if (v < pcmStats.min) pcmStats.min = v;
+      if (v > pcmStats.max) pcmStats.max = v;
+      sumSq += v * v;
+    }
+    pcmStats.rms = Math.sqrt(sumSq / (input.pcm.length || 1));
+
+    Log.ger?.({
+      type: "info",
+      message: "[transcription] PCM stats before ASR",
+      data: {
+        sessionId: input.sessionId.slice(0, 8),
+        chunkId: input.chunkId,
+        samples: pcmStats.length,
+        min: pcmStats.min.toFixed(6),
+        max: pcmStats.max.toFixed(6),
+        rms: pcmStats.rms.toFixed(6),
+      },
+    });
+
     const raw: unknown = await asrPipeline(input.pcm, {
       return_timestamps: true,
+      chunk_length_s: 30,
+      stride_length_s: 5,
     });
 
     const { text, chunks } = normalizeAsrOutput(raw);
 
     Log.ger?.({
-      type: "debug",
+      type: "info",
       message: "[transcription] ASR raw output",
-      data: { textLength: text.length, hasChunks: Boolean(chunks?.length) },
+      data: {
+        textLength: text.length,
+        hasChunks: Boolean(chunks?.length),
+        textPreview: text.slice(0, 200),
+        rawType: typeof raw,
+        rawKeys: raw && typeof raw === "object" ? Object.keys(raw as Record<string, unknown>) : [],
+      },
     });
 
     const result: TranscriptionResult = {
@@ -71,46 +90,6 @@ export function createTranscribeAudioUseCase(
       chunkId: input.chunkId,
       ...(chunks && chunks.length > 0 ? { chunks } : {}),
     };
-
-    // Per-chunk transcript JSON writes are gated off. Only the video file
-    // and a single consolidated transcript are captured for now.
-    // TODO: re-enable per-chunk transcript persistence behind a config flag.
-    //
-    // const artifact = buildSessionTranscriptArtifact({
-    //   chunkId: input.chunkId,
-    //   sessionId: input.sessionId,
-    //   source: input.source,
-    //   text,
-    //   chunks,
-    //   includeLegacyTranscriptField: true,
-    // });
-    //
-    // const relativePath = getSessionTranscriptRelativePath(input.chunkId);
-    // const layout = dependencies.storageLayoutResolver.resolveSessionLayout(
-    //   input.sessionId,
-    // );
-    // const absolutePath = path.join(layout.sessionRoot, relativePath);
-    //
-    // try {
-    //   await dependencies.persistTranscriptToDisk(absolutePath, artifact);
-    //   Log.ger?.({
-    //     type: "info",
-    //     message: "[transcription] saved transcript artifact with segments",
-    //     data: {
-    //       relativePath,
-    //       segmentCount: chunks?.length ?? 0,
-    //     },
-    //   });
-    // } catch (persistErr) {
-    //   const pmsg =
-    //     persistErr instanceof Error ? persistErr.message : String(persistErr);
-    //   Log.ger?.({
-    //     type: "error",
-    //     message:
-    //       "[transcription] failed to write transcript JSON (ASR result still returned)",
-    //     data: { chunkId: input.chunkId, error: pmsg },
-    //   });
-    // }
 
     Log.ger?.({
       type: "info",
@@ -126,4 +105,3 @@ export function createTranscribeAudioUseCase(
     return result;
   };
 }
-

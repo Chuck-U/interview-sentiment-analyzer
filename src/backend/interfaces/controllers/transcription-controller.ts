@@ -1,39 +1,20 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import path from "node:path";
-
 import { logger } from "../../../lib/logger";
-import type { SessionTranscriptArtifactV1, TranscriptionResult } from "../../../shared/transcription";
+import type { TranscriptionResult } from "../../../shared/transcription";
 import { isAudioMediaChunkSource, type AudioMediaSource } from "../../../shared/session-lifecycle";
-import type { SessionStorageLayoutResolver } from "../../application/ports/session-lifecycle";
 import { parseTranscribeAudioRequest } from "../../guards/transcribe-audio-request";
 import { createTranscribeAudioUseCase } from "../../application/use-cases/transcribe-audio";
 
 export type TranscribeAudioIpcHandlerDependencies = {
   readonly getPipeline: (modelId: string) => Promise<unknown>;
-  readonly storageLayoutResolver: SessionStorageLayoutResolver;
 };
 
 const Log = logger.forSource("TranscriptionController");
+
 export function createTranscribeAudioIpcHandler(
   dependencies: TranscribeAudioIpcHandlerDependencies,
 ) {
-  async function persistTranscriptToDisk(
-    absolutePath: string,
-    artifact: SessionTranscriptArtifactV1,
-  ): Promise<void> {
-    // Keep the serialization format identical to the original inline handler.
-    await mkdir(path.dirname(absolutePath), { recursive: true });
-    await writeFile(
-      absolutePath,
-      JSON.stringify(artifact, null, 2),
-      "utf8",
-    );
-  }
-
   const transcribeAudioUseCase = createTranscribeAudioUseCase({
     getPipeline: dependencies.getPipeline,
-    storageLayoutResolver: dependencies.storageLayoutResolver,
-    persistTranscriptToDisk,
   });
 
   return async (_event: unknown, input: unknown): Promise<TranscriptionResult> => {
@@ -49,10 +30,7 @@ export function createTranscribeAudioIpcHandler(
       const parsedRequest = parseTranscribeAudioRequest(input);
       const { sessionId, chunkId, pcmSamples } = parsedRequest;
 
-      // parseTranscribeAudioRequest validates the source as audio-compatible,
-      // but the shared `TranscriptionRequest` type is broader (`MediaChunkSource`).
       if (!isAudioMediaChunkSource(parsedRequest.source)) {
-        // Should be unreachable if guard logic stays aligned.
         throw new Error("transcribeAudio requires a supported audio source");
       }
       const source: AudioMediaSource = parsedRequest.source;
@@ -118,4 +96,3 @@ export function createTranscribeAudioIpcHandler(
     }
   };
 }
-

@@ -87,6 +87,8 @@ export type PersistScreenshotResponse = {
 
 export type ExportRecordingRequest = {
   readonly sessionId: string;
+  readonly startedAt?: string;
+  readonly completedAt?: string;
 };
 
 export type ExportRecordingResponse = {

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 
 import { CaptureManager } from "@/renderer/recording/capture-manager";
-import { decodeAudioToPcm } from "@/renderer/recording/audio-decoder";
+import { AudioChunkAccumulator } from "@/renderer/recording/audio-chunk-accumulator";
 import { selectCaptureSources } from "@/renderer/store/slices/captureOptionsSlice";
 import {
   segmentReceived,
@@ -24,12 +24,20 @@ import { useAppDispatch, useAppSelector } from "../store/hooks";
 
 const log = logger.forSource("useRecordingSession");
 
-export function useRecordingSession() {
+type UseRecordingSessionOptions = {
+  readonly manageCapture?: boolean;
+};
+
+export function useRecordingSession(
+  options: UseRecordingSessionOptions = {},
+) {
+  const { manageCapture = true } = options;
   const dispatch = useAppDispatch();
   const currentSessionRef = useRef(
     store.getState().sessionRecording.currentSession,
   );
   const captureManagerRef = useRef<CaptureManager | null>(null);
+  const chunkAccumulatorRef = useRef(new AudioChunkAccumulator());
 
   const currentSession = useAppSelector(
     (state) => state.sessionRecording.currentSession,
@@ -71,9 +79,8 @@ export function useRecordingSession() {
           recordedAt,
           buffer,
         });
-        // Only transcribe the desktop-capture source (which carries mixed
-        // audio) to produce a single transcript stream. Other audio sources
-        // (microphone, system-audio) are gated out for now.
+        // Only transcribe the desktop-capture source because it already
+        // carries the mixed recording audio stream for a single transcript.
         // TODO: restore multi-source transcription behind a config flag.
         if (source === "desktop-capture") {
           void (async () => {
@@ -88,13 +95,30 @@ export function useRecordingSession() {
               },
             });
             try {
-              const pcm = await decodeAudioToPcm(buffer);
+              const pcm = await chunkAccumulatorRef.current.decodeChunk(buffer);
+              if (pcm.length === 0) {
+                log.ger({
+                  type: "debug",
+                  message: "[transcription] no new PCM samples after decode",
+                  data: {
+                    chunkId: result.chunkId,
+                  },
+                });
+                return;
+              }
+              let rms = 0;
+              for (let i = 0; i < pcm.length; i++) rms += pcm[i] * pcm[i];
+              rms = Math.sqrt(rms / (pcm.length || 1));
+
               log.ger({
-                type: "debug",
+                type: "info",
                 message: "[transcription] PCM decoded; invoking main process",
                 data: {
                   chunkId: result.chunkId,
                   pcmSamples: pcm.length,
+                  rms: rms.toFixed(6),
+                  min: Math.min(...pcm.slice(0, 1000)).toFixed(6),
+                  max: Math.max(...pcm.slice(0, 1000)).toFixed(6),
                 },
               });
               const transcription =
@@ -110,6 +134,8 @@ export function useRecordingSession() {
                 data: {
                   chunkId: transcription.chunkId,
                   textLength: transcription.text.length,
+                  textPreview: transcription.text.slice(0, 200),
+                  hasChunks: Boolean(transcription.chunks?.length),
                 },
               });
               dispatch(
@@ -123,6 +149,12 @@ export function useRecordingSession() {
             } catch (err) {
               const message = err instanceof Error ? err.message : String(err);
               const stack = err instanceof Error ? err.stack : undefined;
+              dispatch(
+                transcriptionChunkFailed({
+                  chunkId: result.chunkId,
+                  message,
+                }),
+              );
               log.ger({
                 type: "error",
                 message: "[transcription] decode or transcribeAudio failed",
@@ -133,12 +165,6 @@ export function useRecordingSession() {
                   stack,
                 },
               });
-              dispatch(
-                transcriptionChunkFailed({
-                  chunkId: result.chunkId,
-                  message,
-                }),
-              );
             }
           })();
         }
@@ -207,19 +233,23 @@ export function useRecordingSession() {
 
       if (captureManagerRef.current) {
         captureManagerRef.current.destroy();
+        captureManagerRef.current = null;
       }
+      chunkAccumulatorRef.current.reset();
 
-      const manager = createCaptureManager();
-      captureManagerRef.current = manager;
-      log.ger({
-        type: "info",
-        message: "recordingStart: capture attached for session",
-        data: {
-          sessionId: response.session.id.slice(0, 8),
-          captureSources,
-        },
-      });
-      await manager.startCapture(response.session.id, captureSources, config);
+      if (manageCapture) {
+        const manager = createCaptureManager();
+        captureManagerRef.current = manager;
+        log.ger({
+          type: "info",
+          message: "recordingStart: capture attached for session",
+          data: {
+            sessionId: response.session.id.slice(0, 8),
+            captureSources,
+          },
+        });
+        await manager.startCapture(response.session.id, captureSources, config);
+      }
     } catch (error) {
       dispatch(
         setFeedbackMessage(
@@ -229,7 +259,12 @@ export function useRecordingSession() {
     } finally {
       dispatch(setIsStarting(false));
     }
-  }, [createCaptureManager, dispatch, syncIncomingSessionFromMain]);
+  }, [
+    createCaptureManager,
+    dispatch,
+    manageCapture,
+    syncIncomingSessionFromMain,
+  ]);
 
   const handleStopRecording = useCallback(async () => {
     const session = currentSessionRef.current;
@@ -248,6 +283,7 @@ export function useRecordingSession() {
       if (captureManagerRef.current) {
         await captureManagerRef.current.stopCapture();
       }
+      chunkAccumulatorRef.current.reset();
 
       const response =
         await window.electronApp.sessionLifecycle.finalizeSession({
@@ -284,6 +320,8 @@ export function useRecordingSession() {
     try {
       const result = await window.electronApp.recording.exportRecording({
         sessionId: session.id,
+        startedAt: session.startedAt,
+        completedAt: session.completedAt,
       });
 
       if (captureManagerRef.current) {
@@ -393,6 +431,10 @@ export function useRecordingSession() {
   }, [dispatch]);
 
   useEffect(() => {
+    if (!manageCapture) {
+      return;
+    }
+
     const session = currentSession;
 
     if (!session) {
@@ -438,13 +480,18 @@ export function useRecordingSession() {
       captureManagerRef.current &&
       !isStopping
     ) {
-      void captureManagerRef.current.stopCapture().catch((error: unknown) => {
-        dispatch(
-          setFeedbackMessage(
-            error instanceof Error ? error.message : "Unable to stop capture.",
-          ),
-        );
-      });
+      void captureManagerRef.current
+        .stopCapture()
+        .then(() => {
+          chunkAccumulatorRef.current.reset();
+        })
+        .catch((error: unknown) => {
+          dispatch(
+            setFeedbackMessage(
+              error instanceof Error ? error.message : "Unable to stop capture.",
+            ),
+          );
+        });
     }
   }, [
     captureConfig,
@@ -453,6 +500,7 @@ export function useRecordingSession() {
     dispatch,
     isStarting,
     isStopping,
+    manageCapture,
   ]);
 
   useEffect(() => {
@@ -461,6 +509,7 @@ export function useRecordingSession() {
         captureManagerRef.current.destroy();
         captureManagerRef.current = null;
       }
+      chunkAccumulatorRef.current.reset();
     };
   }, []);
 

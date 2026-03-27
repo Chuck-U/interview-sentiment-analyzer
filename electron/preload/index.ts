@@ -201,6 +201,7 @@ const windowControlsBridge: WindowControlsBridge = {
       listener,
     );
   },
+
 };
 
 const shortcutsBridge: ShortcutsBridge = {

@@ -34,6 +34,12 @@ export type MoveWindowByRequest = {
   readonly deltaY: number;
 };
 
+export type MoveWindowToRequest = {
+  readonly x: number;
+  readonly y: number;
+  readonly screenId?: string;
+};
+
 export type ResizeWindowByRequest = {
   readonly deltaWidth: number;
   readonly deltaHeight: number;
@@ -82,6 +88,7 @@ export type WindowControlsBridge = {
   onPinnedChanged(listener: (pinned: boolean) => void): Unsubscribe;
   bringToFront(): void;
   sendToBack(): void;
+  // moveWindowTo(request: MoveWindowToRequest): Promise<void>;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {

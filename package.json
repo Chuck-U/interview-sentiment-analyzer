@@ -31,6 +31,7 @@
   "author": "Chuck Peters",
   "license": "MIT",
   "dependencies": {
+    "@audio/webm-decode": "^1.0.0",
     "@fontsource-variable/nunito-sans": "^5.2.7",
     "@huggingface/transformers": "^3.8.1",
     "@langchain/langgraph": "^1.2.2",
@@ -100,21 +101,19 @@
           ]
         }
       ],
-      "hardenedRuntime": true
+      "hardenedRuntime": true,
+      "extendInfo": {
+        "NSAudioCaptureUsageDescription": "This app captures system audio during screen recording for interview analysis.",
+        "NSMicrophoneUsageDescription": "This app uses the microphone to record interview audio for sentiment analysis."
+      }
     },
     "win": {
       "target": [
         {
-          "target": "nsis",
+          "target": "msi",
           "arch": [
             "x64",
             "ia32"
-          ]
-        },
-        {
-          "target": "portable",
-          "arch": [
-            "x64"
           ]
         }
       ],

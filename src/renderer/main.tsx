@@ -3,6 +3,7 @@ import { useCallback, useMemo } from "react";
 import { RiCloseFill } from "@remixicon/react";
 
 import { AgentNavigationMenu } from "@/components/ui/navigation-menu";
+import { TranscriptionStreamPanel } from "@/renderer/components/TranscriptionStreamPanel";
 import type { SessionSnapshot } from "@/shared/session-lifecycle";
 import {
   DEFAULT_SHORTCUT_ID_RECORDING_TOGGLE,
@@ -14,7 +15,6 @@ import { OptionsWorkspace } from "./Slot/OptionsWorkspace";
 import type { OptionsCardLayout } from "./Slot/Options";
 import { useCaptureOptions } from "./capture-options/useCaptureOptions";
 import { usePinnedWindowBehavior } from "./hooks/usePinnedWindowBehavior";
-import { useDiarizationTranscriptToasts } from "@/renderer/hooks/useDiarizationTranscriptToasts";
 import { useRecordingSession } from "./hooks/useRecordingSession";
 import { useShortcutsWindowEffects } from "./hooks/useShortcutsWindowEffects";
 import { useViews, VIEW_OPTIONS } from "./hooks/useViews";
@@ -97,7 +97,7 @@ function LauncherMain() {
   );
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-col justify-start bg-transparent pb-2" id="main-window">
+    <div className="flex h-full min-h-0 w-full flex-col justify-start bg-transparent" id="main-window">
       <nav
         className="z-[70] mx-2 inline-flex max-w-[calc(100vw-16px)] shrink-0 flex-col gap-2 bg-background/15 mt-4"
         style={dragRegionStyle}
@@ -139,6 +139,10 @@ function LauncherMain() {
           }}
         />
       </nav>
+
+      <div className="px-2 -mt-1">
+        <TranscriptionStreamPanel isRecording={isRecording} />
+      </div>
     </div>
   );
 }
@@ -151,7 +155,7 @@ function CardWindowMain({ layout, id }: { readonly layout: OptionsCardLayout, id
     handleToggleRecording,
     handleExportRecording,
     handleCloseApplication,
-  } = useRecordingSession();
+  } = useRecordingSession({ manageCapture: false });
 
   const platformLabel = useMemo(() => window.electronApp.platform, []);
   const currentSession = useAppSelector(
@@ -372,8 +376,6 @@ function CardWindowMain({ layout, id }: { readonly layout: OptionsCardLayout, id
 }
 
 function Main() {
-  useDiarizationTranscriptToasts();
-
   const role = parseWindowRoleFromLocation();
 
   if (role === WINDOW_ROLES.launcher) {

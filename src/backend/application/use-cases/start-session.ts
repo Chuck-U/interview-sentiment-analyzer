@@ -63,24 +63,8 @@ export function createStartSessionUseCase(
 
     await dependencies.fileSystem.ensureDirectory(storageLayout.sessionRoot);
     await dependencies.fileSystem.ensureDirectory(storageLayout.chunksRoot);
-    await dependencies.fileSystem.ensureDirectory(
-      `${storageLayout.chunksRoot}/audio`,
-    );
-    await dependencies.fileSystem.ensureDirectory(
-      `${storageLayout.chunksRoot}/webcam`,
-    );
-    await dependencies.fileSystem.ensureDirectory(
-      `${storageLayout.chunksRoot}/system-audio`,
-    );
-    await dependencies.fileSystem.ensureDirectory(
-      `${storageLayout.chunksRoot}/screen-video`,
-    );
-    await dependencies.fileSystem.ensureDirectory(
-      `${storageLayout.chunksRoot}/screenshots`,
-    );
     await dependencies.fileSystem.ensureDirectory(storageLayout.transcriptsRoot);
     await dependencies.fileSystem.ensureDirectory(storageLayout.summariesRoot);
-    await dependencies.fileSystem.ensureDirectory(storageLayout.tempRoot);
 
     const session = createSessionEntity({
       id: sessionId,

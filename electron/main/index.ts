@@ -79,12 +79,13 @@ import {
 import { TRANSCRIPTION_CHANNELS } from "../../src/shared/transcription";
 import * as modelLifecycle from "../../src/backend/infrastructure/ml/model-lifecycle-service";
 import { createTranscribeAudioIpcHandler } from "../../src/backend/interfaces/controllers/transcription-controller";
+import { cleanupStaleArtifacts } from "./cleanup-stale-artifacts";
 import { isNonEmptyObject, isNonEmptyString } from "@/backend/guards/checks";
 
 const devServerUrl = process.env.VITE_DEV_SERVER_URL ?? 'http://localhost:5180'; // TODO: fix handling of this env variable
 
-const pipelineOrchestrationMode =
-  process.env.PIPELINE_ORCHESTRATOR === "langchain" ? "langchain" : "built-in"; // slop code
+// const pipelineOrchestrationMode =
+//   process.env.PIPELINE_ORCHESTRATOR === "langchain" ? "langchain" : "built-in"; // slop code
 export const MAIN_WINDOW_MIN_WIDTH = 600;
 export const MAIN_WINDOW_MIN_HEIGHT = 104;
 const MAIN_WINDOW_DEFAULT_WIDTH = 700;
@@ -337,8 +338,7 @@ function createWindow(
       broadcastCardWindowOpenState();
     }
 
-    // Keep child windows visually associated with the launcher, but let
-    // the options window expand to the active display when it opens.
+  
     if (!isLauncher) {
       const launcher = BrowserWindow.getAllWindows().find(
         (window) => getWindowRole(window) === WINDOW_ROLES.launcher,
@@ -991,11 +991,14 @@ async function initializeApp() {
     );
     const storageLayoutResolver = createSessionStorageLayoutResolver(appDataRoot);
 
+    await cleanupStaleArtifacts(appDataRoot).catch((err) =>
+      log.ger({ type: "warn", message: "[cleanup] startup cleanup failed", data: err }),
+    );
+
     ipcMain.handle(
       TRANSCRIPTION_CHANNELS.transcribeAudio,
       createTranscribeAudioIpcHandler({
         getPipeline: modelLifecycle.getPipeline,
-        storageLayoutResolver,
       }),
     );
 
@@ -1257,9 +1260,9 @@ async function initializeApp() {
           );
         },
       },
-      {
-        orchestrationMode: pipelineOrchestrationMode,
-      },
+      // {
+      //   orchestrationMode: pipelineOrchestrationMode,
+      // },
     );
 
     registerSessionLifecycleIpc(ipcMain, sessionLifecycleBackend.controller);
@@ -1287,7 +1290,10 @@ async function initializeApp() {
         if (typeof input !== "object" || input === null) {
           throw new Error("exportRecording request must be an object");
         }
-        const sessionId = (input as Record<string, unknown>).sessionId as string;
+        const req = input as Record<string, unknown>;
+        const sessionId = req.sessionId as string;
+        const startedAt = typeof req.startedAt === "string" ? req.startedAt : undefined;
+        const completedAt = typeof req.completedAt === "string" ? req.completedAt : undefined;
 
         publishToAllWindows(RECORDING_EVENT_CHANNELS.exportProgress, {
           sessionId,
@@ -1295,7 +1301,10 @@ async function initializeApp() {
         });
 
         try {
-          const result = await recordingExport.exportSession(sessionId);
+          const result = await recordingExport.exportSession(sessionId, {
+            startedAt,
+            completedAt,
+          });
           publishToAllWindows(RECORDING_EVENT_CHANNELS.exportProgress, {
             sessionId,
             exportStatus: "completed",

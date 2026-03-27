@@ -6,23 +6,10 @@ import type {
   SandboxRecordingKind,
   SaveSandboxRecordingResponse,
 } from "../../../shared/recording";
-
-const MIME_TO_EXTENSION: Record<string, string> = {
-  "audio/webm;codecs=opus": "webm",
-  "audio/webm": "webm",
-  "audio/ogg;codecs=opus": "ogg",
-  "video/webm;codecs=vp9,opus": "webm",
-  "video/webm;codecs=vp8,opus": "webm",
-  "video/webm;codecs=av01,opus": "webm",
-  "video/webm": "webm",
-};
+import { extensionForMime } from "../../../shared/recording-constants";
 
 function sanitizeTimestamp(value: string): string {
   return value.replace(/[:.]/g, "-");
-}
-
-function extensionForMime(mimeType: string): string {
-  return MIME_TO_EXTENSION[mimeType] ?? "webm";
 }
 
 export type RecordingSandboxPersistenceService = {

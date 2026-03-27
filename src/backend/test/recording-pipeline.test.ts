@@ -38,7 +38,6 @@ import { OpenAIHostedAnalysisAdapter } from "../infrastructure/providers/openai/
 import { createSessionStorageLayoutResolver } from "../infrastructure/storage/session-storage-layout";
 import { createRecordingPersistenceService } from "../infrastructure/recording/recording-persistence";
 import { createRecordingExportService } from "../infrastructure/recording/recording-export";
-import { concatenateChunkFiles } from "../infrastructure/recording/recording-concatenation-pipeline";
 import { MEDIA_CHUNK_SOURCES, type MediaChunkSource } from "../../shared/session-lifecycle";
 
 const ALL_SOURCES = new Set<MediaChunkSource>(MEDIA_CHUNK_SOURCES);
@@ -204,7 +203,7 @@ async function createTestContext() {
   };
 }
 
-test("recording persistence writes chunks to correct source directories", async () => {
+test("recording persistence writes chunks to flat chunks directory", async () => {
   const ctx = await createTestContext();
 
   try {
@@ -222,9 +221,8 @@ test("recording persistence writes chunks to correct source directories", async 
       buffer: Buffer.from("fake-audio-data"),
     });
 
-    assert.ok(audioChunk.relativePath.startsWith("chunks/audio/"));
+    assert.ok(audioChunk.relativePath.startsWith("chunks/"));
     assert.ok(audioChunk.relativePath.endsWith(".webm"));
-    assert.ok(audioChunk.relativePath.includes("-00000-"));
     assert.equal(audioChunk.byteSize, Buffer.byteLength("fake-audio-data"));
 
     const videoChunk = await ctx.recordingPersistence.persistChunk({
@@ -236,7 +234,7 @@ test("recording persistence writes chunks to correct source directories", async 
       buffer: Buffer.from("fake-video-data"),
     });
 
-    assert.ok(videoChunk.relativePath.startsWith("chunks/screen-video/"));
+    assert.ok(videoChunk.relativePath.startsWith("chunks/"));
     assert.ok(videoChunk.relativePath.endsWith(".webm"));
 
     const screenshot = await ctx.recordingPersistence.persistScreenshot({
@@ -247,7 +245,7 @@ test("recording persistence writes chunks to correct source directories", async 
       buffer: Buffer.from("fake-png-data"),
     });
 
-    assert.ok(screenshot.relativePath.startsWith("chunks/screenshots/"));
+    assert.ok(screenshot.relativePath.startsWith("chunks/"));
     assert.ok(screenshot.relativePath.endsWith(".png"));
 
     const audioAbs = ctx.storageLayoutResolver.resolveAbsoluteArtifactPath(
@@ -266,6 +264,46 @@ test("recording persistence writes chunks to correct source directories", async 
     assert.ok(await ctx.fileSystem.pathExists(audioAbs));
     assert.ok(await ctx.fileSystem.pathExists(videoAbs));
     assert.ok(await ctx.fileSystem.pathExists(screenshotAbs));
+  } finally {
+    await ctx.cleanup();
+  }
+});
+
+test("append-mode persistence appends subsequent chunks to the same file", async () => {
+  const ctx = await createTestContext();
+
+  try {
+    const session = await ctx.startSession({
+      captureSources: ["microphone"],
+    });
+    const sessionId = session.session.id;
+
+    const first = await ctx.recordingPersistence.persistChunk({
+      sessionId,
+      source: "microphone",
+      sequenceNumber: 0,
+      mimeType: "audio/webm",
+      recordedAt: "2026-03-15T12:00:01.000Z",
+      buffer: Buffer.from("chunk-a"),
+    });
+
+    const second = await ctx.recordingPersistence.persistChunk({
+      sessionId,
+      source: "microphone",
+      sequenceNumber: 1,
+      mimeType: "audio/webm",
+      recordedAt: "2026-03-15T12:00:04.000Z",
+      buffer: Buffer.from("chunk-b"),
+    });
+
+    assert.equal(first.relativePath, second.relativePath);
+
+    const absPath = ctx.storageLayoutResolver.resolveAbsoluteArtifactPath(
+      sessionId,
+      first.relativePath,
+    );
+    const content = await readFile(absPath, "utf8");
+    assert.equal(content, "chunk-achunk-b");
   } finally {
     await ctx.cleanup();
   }
@@ -315,7 +353,7 @@ test("persist-then-register produces chunks the backend can process", async () =
   }
 });
 
-test("multi-chunk persist, register, finalize, and export produces a recording file", async () => {
+test("multi-source persist, finalize, and export produces recording files", async () => {
   const ctx = await createTestContext();
 
   try {
@@ -390,18 +428,18 @@ test("multi-chunk persist, register, finalize, and export produces a recording f
     );
 
     assert.ok(micSource);
-    assert.equal(micSource.chunks.length, 3);
+    assert.ok(micSource.file);
     assert.ok(videoSource);
-    assert.equal(videoSource.chunks.length, 2);
+    assert.ok(videoSource.file);
 
-    const exportedContent = await readFile(exportResult.exportFilePath);
-    assert.ok(exportedContent.length > 0);
+    const exportedContent = await readFile(exportResult.exportFilePath, "utf8");
+    assert.equal(exportedContent, "audio-chunk-0audio-chunk-1audio-chunk-2");
   } finally {
     await ctx.cleanup();
   }
 });
 
-test("export with a single chunk copies rather than concatenates", async () => {
+test("export with a single chunk copies the file", async () => {
   const ctx = await createTestContext();
 
   try {
@@ -536,11 +574,11 @@ test("recovery detects orphaned chunk files and missing registered chunks", asyn
       byteSize: persisted.byteSize,
     });
 
-    const orphanedDir = ctx.storageLayoutResolver.resolveAbsoluteArtifactPath(
+    const chunksDir = ctx.storageLayoutResolver.resolveAbsoluteArtifactPath(
       sessionId,
-      "chunks/audio",
+      "chunks",
     );
-    await writeFile(path.join(orphanedDir, "orphaned-file.webm"), "orphaned");
+    await writeFile(path.join(chunksDir, "orphaned-file.webm"), "orphaned");
 
     const recoveryService = createSessionRecoveryService({
       aggregateWriter: (ctx as Record<string, unknown>).pipelineAggregateWriter as never,
@@ -581,127 +619,6 @@ test("export with no chunks produces empty manifest", async () => {
     assert.equal(manifestContent.sources.length, 0);
   } finally {
     await ctx.cleanup();
-  }
-});
-
-test("concatenateChunkFiles with zero chunks produces empty result", async () => {
-  const root = await mkdtemp(path.join(tmpdir(), "concat-test-"));
-  const outputPath = path.join(root, "output.webm");
-
-  try {
-    const result = await concatenateChunkFiles([], outputPath);
-    assert.equal(result.totalBytes, 0);
-    assert.equal(result.chunksProcessed, 0);
-    assert.equal(result.skippedChunks.length, 0);
-  } finally {
-    await rm(root, { force: true, recursive: true });
-  }
-});
-
-test("concatenateChunkFiles with single chunk copies the file", async () => {
-  const root = await mkdtemp(path.join(tmpdir(), "concat-test-"));
-  const chunkPath = path.join(root, "chunk-00000.webm");
-  const outputPath = path.join(root, "output.webm");
-  const payload = "single-chunk-data";
-
-  try {
-    await writeFile(chunkPath, payload);
-    const result = await concatenateChunkFiles([chunkPath], outputPath);
-
-    assert.equal(result.totalBytes, Buffer.byteLength(payload));
-    assert.equal(result.chunksProcessed, 1);
-    assert.equal(result.skippedChunks.length, 0);
-
-    const content = await readFile(outputPath, "utf8");
-    assert.equal(content, payload);
-  } finally {
-    await rm(root, { force: true, recursive: true });
-  }
-});
-
-test("concatenateChunkFiles merges multiple chunks in order", async () => {
-  const root = await mkdtemp(path.join(tmpdir(), "concat-test-"));
-  const outputPath = path.join(root, "output.webm");
-  const parts = ["part-a-data", "part-b-data", "part-c-data"];
-
-  try {
-    const chunkPaths: string[] = [];
-    for (let i = 0; i < parts.length; i++) {
-      const chunkPath = path.join(root, `chunk-${i}.webm`);
-      await writeFile(chunkPath, parts[i]);
-      chunkPaths.push(chunkPath);
-    }
-
-    const result = await concatenateChunkFiles(chunkPaths, outputPath);
-
-    assert.equal(result.chunksProcessed, 3);
-    assert.equal(result.skippedChunks.length, 0);
-
-    const content = await readFile(outputPath, "utf8");
-    assert.equal(content, parts.join(""));
-    assert.equal(result.totalBytes, Buffer.byteLength(parts.join("")));
-  } finally {
-    await rm(root, { force: true, recursive: true });
-  }
-});
-
-test("concatenateChunkFiles skips missing chunks and continues", async () => {
-  const root = await mkdtemp(path.join(tmpdir(), "concat-test-"));
-  const outputPath = path.join(root, "output.webm");
-
-  try {
-    const existingChunk = path.join(root, "chunk-0.webm");
-    await writeFile(existingChunk, "valid-data");
-    const missingChunk = path.join(root, "chunk-missing.webm");
-    const anotherChunk = path.join(root, "chunk-2.webm");
-    await writeFile(anotherChunk, "more-data");
-
-    const result = await concatenateChunkFiles(
-      [existingChunk, missingChunk, anotherChunk],
-      outputPath,
-    );
-
-    assert.equal(result.chunksProcessed, 2);
-    assert.equal(result.skippedChunks.length, 1);
-    assert.ok(result.skippedChunks[0].includes("chunk-missing"));
-
-    const content = await readFile(outputPath, "utf8");
-    assert.equal(content, "valid-datamore-data");
-  } finally {
-    await rm(root, { force: true, recursive: true });
-  }
-});
-
-test("concatenateChunkFiles reports progress", async () => {
-  const root = await mkdtemp(path.join(tmpdir(), "concat-test-"));
-  const outputPath = path.join(root, "output.webm");
-
-  try {
-    const chunkPaths: string[] = [];
-    for (let i = 0; i < 3; i++) {
-      const chunkPath = path.join(root, `chunk-${i}.webm`);
-      await writeFile(chunkPath, `data-${i}`);
-      chunkPaths.push(chunkPath);
-    }
-
-    const progressUpdates: { completedChunks: number; bytesWritten: number }[] = [];
-    const result = await concatenateChunkFiles(chunkPaths, outputPath, {
-      onProgress(progress) {
-        progressUpdates.push({
-          completedChunks: progress.completedChunks,
-          bytesWritten: progress.bytesWritten,
-        });
-      },
-    });
-
-    assert.equal(result.chunksProcessed, 3);
-    assert.equal(progressUpdates.length, 3);
-    assert.equal(progressUpdates[0].completedChunks, 1);
-    assert.equal(progressUpdates[1].completedChunks, 2);
-    assert.equal(progressUpdates[2].completedChunks, 3);
-    assert.ok(progressUpdates[2].bytesWritten > 0);
-  } finally {
-    await rm(root, { force: true, recursive: true });
   }
 });
 
@@ -764,11 +681,11 @@ test("export produces per-source files in manifest", async () => {
     const videoExport = exportResult.sourceExports.find((s) => s.source === "screen-video");
 
     assert.ok(micExport);
-    assert.equal(micExport.chunksProcessed, 2);
+    assert.ok(micExport.totalBytes > 0);
     assert.ok(await ctx.fileSystem.pathExists(micExport.exportFilePath));
 
     assert.ok(videoExport);
-    assert.equal(videoExport.chunksProcessed, 2);
+    assert.ok(videoExport.totalBytes > 0);
     assert.ok(await ctx.fileSystem.pathExists(videoExport.exportFilePath));
 
     const manifestContent = JSON.parse(
@@ -782,7 +699,7 @@ test("export produces per-source files in manifest", async () => {
     );
 
     assert.ok(micManifestSource.exportFilePath);
-    assert.equal(micManifestSource.exportFilePath, "session.webm");
+    assert.match(micManifestSource.exportFilePath, /^interview-\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.webm$/);
     assert.ok(videoManifestSource.exportFilePath);
     assert.equal(videoManifestSource.exportFilePath, "screen-video.webm");
   } finally {

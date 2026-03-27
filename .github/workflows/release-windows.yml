@@ -23,7 +23,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: "pnpm"
 
       - name: Install dependencies
@@ -32,6 +32,4 @@ jobs:
       - name: Build and publish Windows artifacts
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CSC_LINK: ${{ secrets['WINDOWS_CSC_LINK'] }}
-          CSC_KEY_PASSWORD: ${{ secrets['WINDOWS_CSC_KEY_PASSWORD'] }}
-        run: pnpm exec electron-builder --win nsis portable --publish always
+        run: pnpm exec electron-builder --win msi --publish always
