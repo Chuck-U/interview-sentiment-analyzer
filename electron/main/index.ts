@@ -952,6 +952,7 @@ async function initializeApp() {
       CAPTURE_OPTIONS_CHANNELS.openMonitorPicker,
       async (_event, input) => {
         let selectedDisplayId: string | undefined;
+        log.ger({ type: "debug", message: "[app CAPTURE_OPTIONS_CHANNELS.openMonitorPicker] input", data: { input, _event: _event } })
         if (typeof input === "object" && input !== null) {
           const candidate = (input as Record<string, unknown>).selectedDisplayId;
           log.ger({ type: "debug", message: "[app CAPTURE_OPTIONS_CHANNELS.openMonitorPicker] candidate", data: candidate })
@@ -1324,7 +1325,7 @@ async function initializeApp() {
           log.ger({ type: "debug", message: "[app RECORDING_CHANNELS.openRecordingsFolder] with no sessionId" })
 
           const recordingRoot = storageLayoutResolver.resolveSessionLayout().recordingsRoot
-          await mkdir(recordingRoot, { recursive: true });
+
           const openResult = await shell.openPath(recordingRoot);
           if (openResult.length > 0) {
             throw new Error(openResult);

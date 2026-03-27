@@ -2,18 +2,25 @@
 import type { OptionsProps } from "./Options";
 import { ShortcutSettingsCard } from "./ShortcutSettingsCard";
 
-type OptionsOverviewCardProps = Pick<
-  OptionsProps,
-  | "statusLabel"
-  | "statusVariant"
-  | "platformLabel"
-  | "windowSizeLabel"
-  | "windowBoundsLabel"
-  | "shortcutLabel"
-  | "isShortcutEnabled"
-  | "onSetShortcutEnabled"
-  | "isBusy"
->;
+// type OptionsOverviewCardProps = Pick<
+//   OptionsProps,
+//   | "statusLabel"
+//   | "statusVariant"
+//   | "platformLabel"
+//   | "windowSizeLabel"
+//   | "windowBoundsLabel"
+//   | "shortcutLabel"
+//   | "isShortcutEnabled"
+//   | "onSetShortcutEnabled"
+//   | "isBusy"
+// >;
+
+interface OptionsOverviewCardProps {
+  shortcutLabel: string;
+  isShortcutEnabled: boolean;
+  onSetShortcutEnabled: (enabled: boolean) => void;
+  isBusy: boolean;
+}
 
 export function OptionsOverviewCard({
   shortcutLabel,
@@ -22,8 +29,7 @@ export function OptionsOverviewCard({
   isBusy,
 }: OptionsOverviewCardProps) {
   return (
-
-    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
+    <div>
       <ShortcutSettingsCard
         shortcutLabel={shortcutLabel}
         isShortcutEnabled={isShortcutEnabled}
