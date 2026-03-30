@@ -1,16 +1,10 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
-
+import { WINDOW_ROLES, type WindowRole } from "@/shared/window-registry";
 import type { WindowSizePreset } from "@/shared/window-controls";
 
-export const VIEW_OPTIONS = {
-  controls: "controls",
-  options: "options",
-  sandbox: "sandbox",
-} as const;
+export type ViewOption = WindowRole;
 
-export type ViewOption = (typeof VIEW_OPTIONS)[keyof typeof VIEW_OPTIONS];
-
-export type CardWindowId = "controls" | "options" | "sandbox";
+export type CardWindowId = WindowRole;
 
 /** Active sidebar section inside the options card window. */
 export type OptionsSectionId =
@@ -19,10 +13,11 @@ export type OptionsSectionId =
   | "ai-provider"
   | "options";
 
-const CARD_TAB_ORDER: readonly CardWindowId[] = [
-  "controls",
-  "options",
-  "sandbox",
+const CARD_TAB_ORDER: readonly WindowRole[] = [
+  WINDOW_ROLES.launcher,
+  WINDOW_ROLES.controls,
+  WINDOW_ROLES.options,
+  WINDOW_ROLES.sandbox
 ];
 
 /** Picks the first card tab that is open, or defaults to Controls. */
@@ -35,7 +30,7 @@ export function pickFirstOpenCardView(
     }
   }
 
-  return VIEW_OPTIONS.controls;
+  return WINDOW_ROLES.controls;
 }
 
 type ViewsState = {
@@ -45,12 +40,15 @@ type ViewsState = {
 };
 
 const initialState: ViewsState = {
-  activeView: VIEW_OPTIONS.controls,
+  activeView: WINDOW_ROLES.controls,
   activeOptionsSection: "capture-options",
   openWindowIds: {
-    controls: false,
-    options: false,
-    sandbox: false,
+    [WINDOW_ROLES.launcher]: false,
+    [WINDOW_ROLES.controls]: false,
+    [WINDOW_ROLES.options]: false,
+    [WINDOW_ROLES.sandbox]: false,
+    [WINDOW_ROLES.questionBox]: false,
+    [WINDOW_ROLES.speechBox]: false,
   },
 };
 

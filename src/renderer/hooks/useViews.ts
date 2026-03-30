@@ -3,7 +3,6 @@ import { useCallback, useMemo } from "react";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
 import {
   RESIZE_PRESET_OPTIONS,
-  VIEW_OPTIONS,
   closeView,
   openView,
   setActiveView,
@@ -13,7 +12,6 @@ import {
   type WindowSizePresetOption,
 } from "../store/slices/viewsSlice";
 
-export { VIEW_OPTIONS };
 export type { ViewOption, WindowSizePresetOption, CardWindowId };
 
 export function useViews() {

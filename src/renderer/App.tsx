@@ -2,7 +2,7 @@ import React, { useEffect } from "react";
 import ReactDom from "react-dom/client";
 import { Provider } from "react-redux";
 
-import { Toaster } from "@/components/ui/sonner";
+// import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 import Main from "./main";
@@ -35,7 +35,7 @@ ReactDom.createRoot(document.getElementById("root")!).render(
     <TooltipProvider>
       <Provider store={store}>
         <AppRoot />
-        <Toaster />
+        {/* <Toaster /> */}
       </Provider>
     </TooltipProvider>
   </React.StrictMode>,

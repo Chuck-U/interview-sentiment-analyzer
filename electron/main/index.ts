@@ -66,6 +66,7 @@ import {
   WINDOW_REGISTRY_CHANNELS,
   WINDOW_REGISTRY_EVENT_CHANNELS,
   WINDOW_ROLES,
+  CARD_WINDOW_ROLES,
   type CardWindowsOpenState,
   type CardWindowRole,
   isCardWindowRole,
@@ -76,7 +77,10 @@ import {
   MODEL_INIT_CHANNELS,
   MODEL_INIT_EVENT_CHANNELS,
 } from "../../src/shared/model-init";
-import { TRANSCRIPTION_CHANNELS } from "../../src/shared/transcription";
+import {
+  TRANSCRIPTION_CHANNELS,
+  TRANSCRIPTION_EVENT_CHANNELS,
+} from "../../src/shared/transcription";
 import * as modelLifecycle from "../../src/backend/infrastructure/ml/model-lifecycle-service";
 import { createTranscribeAudioIpcHandler } from "../../src/backend/interfaces/controllers/transcription-controller";
 import { cleanupStaleArtifacts } from "./cleanup-stale-artifacts";
@@ -200,6 +204,14 @@ let isQuitting = false;
 /** Set after tray sync is defined so every app window can refresh the tray menu on show/hide. */
 let syncTrayMenuRef: (() => void) | null = null;
 
+/**
+ * Set once the appConfigStore is available so that per-card-window preference
+ * writes (bounds, pinned) can happen from module-level helpers.
+ */
+let saveCardWindowPrefsRef:
+  | ((role: CardWindowRole, prefs: { bounds?: { x: number; y: number; width: number; height: number }; pinned?: boolean }) => void)
+  | null = null;
+
 export function getWindowRole(window: BrowserWindow): string | undefined {
   return roleByWebContentsId.get(window.webContents.id);
 }
@@ -213,6 +225,12 @@ function setWindowPinned(window: BrowserWindow, pinned: boolean): boolean {
   pinnedByWebContentsId.set(webContentsId, pinned);
   window.setMovable(!pinned);
   publishPinned(window);
+
+  const role = roleByWebContentsId.get(webContentsId);
+  if (role && isCardWindowRole(role)) {
+    saveCardWindowPrefsRef?.(role, { pinned });
+  }
+
   return pinned;
 }
 
@@ -220,17 +238,12 @@ function isCardWindowOpen(role: CardWindowRole): boolean {
   const target = cardWindows.get(role);
   return Boolean(target && !target.isDestroyed() && target.isVisible());
 }
-// we can remove control, sandbox from this
 function getCardOpenState(): CardWindowsOpenState {
-  return {
-    openIds: {
-      controls: isCardWindowOpen("controls"),
-      options: isCardWindowOpen("options"),
-      sandbox: isCardWindowOpen("sandbox"),
-      "question-box": isCardWindowOpen("question-box"),
-      "speech-box": isCardWindowOpen("speech-box"),
-    },
-  };
+  const openIds = {} as Record<CardWindowRole, boolean>;
+  for (const role of CARD_WINDOW_ROLES) {
+    openIds[role] = isCardWindowOpen(role);
+  }
+  return { openIds };
 }
 
 function broadcastCardWindowOpenState(): void {
@@ -241,11 +254,32 @@ function broadcastCardWindowOpenState(): void {
 }
 
 function registerWindowBoundsListeners(window: BrowserWindow): void {
+  let boundsDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function scheduleBoundsSave(): void {
+    if (boundsDebounceTimer !== null) {
+      clearTimeout(boundsDebounceTimer);
+    }
+    boundsDebounceTimer = setTimeout(() => {
+      boundsDebounceTimer = null;
+      if (window.isDestroyed()) {
+        return;
+      }
+      const role = roleByWebContentsId.get(window.webContents.id);
+      if (role && isCardWindowRole(role)) {
+        const { x, y, width, height } = window.getBounds();
+        saveCardWindowPrefsRef?.(role, { bounds: { x, y, width, height } });
+      }
+    }, 500);
+  }
+
   window.on("move", () => {
     publishWindowBounds(window);
+    scheduleBoundsSave();
   });
   window.on("resize", () => {
     publishWindowBounds(window);
+    scheduleBoundsSave();
   });
   window.webContents.on("did-finish-load", () => {
     publishWindowBounds(window);
@@ -260,14 +294,19 @@ function createWindow(
     readonly width: number;
     readonly height: number;
   },
+  savedPrefs?: {
+    readonly bounds?: { x: number; y: number; width: number; height: number };
+    readonly pinned?: boolean;
+  },
 ): BrowserWindow {
   const preloadPath = path.join(__dirname, "../preload/index.js");
 
   const isLauncher = role === WINDOW_ROLES.launcher;
-
+  const savedBounds = !isLauncher ? savedPrefs?.bounds : undefined;
+  log.ger({ type: 'info', message: 'attempting creating window', data: { role } })
   const browserWindow = new BrowserWindow({
-    width: isLauncher ? MAIN_WINDOW_DEFAULT_WIDTH : 520,
-    height: isLauncher ? MAIN_WINDOW_DEFAULT_HEIGHT : 640,
+    width: savedBounds?.width ?? (isLauncher ? MAIN_WINDOW_DEFAULT_WIDTH : 520),
+    height: savedBounds?.height ?? (isLauncher ? MAIN_WINDOW_DEFAULT_HEIGHT : 640),
     minWidth: isLauncher ? MAIN_WINDOW_MIN_WIDTH : 320,
     minHeight: isLauncher ? MAIN_WINDOW_MIN_HEIGHT : 240,
     alwaysOnTop: true,
@@ -281,8 +320,8 @@ function createWindow(
     hasShadow: true,
     focusable: true,
     movable: true,
-    x: isLauncher ? 0 : 40,
-    y: isLauncher ? 100 : 140,
+    x: savedBounds?.x ?? (isLauncher ? 0 : 40),
+    y: savedBounds?.y ?? (isLauncher ? 100 : 140),
     webPreferences: {
       preload: preloadPath,
       contextIsolation: true,
@@ -293,7 +332,11 @@ function createWindow(
 
   const webContentsId = browserWindow.webContents.id;
   roleByWebContentsId.set(webContentsId, role);
-  pinnedByWebContentsId.set(webContentsId, false);
+  const initialPinned = !isLauncher && (savedPrefs?.pinned ?? false);
+  pinnedByWebContentsId.set(webContentsId, initialPinned);
+  if (initialPinned) {
+    browserWindow.setMovable(false);
+  }
   log.ger({
     type: "debug",
     message: "[window createWindow] created",
@@ -337,6 +380,8 @@ function createWindow(
     });
     if (!isLauncher) {
       broadcastCardWindowOpenState();
+      browserWindow.focus();
+      browserWindow.setAlwaysOnTop(true);
     }
 
 
@@ -428,7 +473,6 @@ function createWindow(
       message: "[window ready-to-show]",
       data: {
         role,
-        webContentsId,
       },
     });
     browserWindow.show();
@@ -592,6 +636,16 @@ async function initializeApp() {
     let currentSession: SessionSnapshot | null = null;
     let sessionLifecycleController: SessionLifecycleController | null = null;
     const appConfigStore = createAppConfigStore(app);
+
+    saveCardWindowPrefsRef = (role, prefs) => {
+      appConfigStore.updateCardWindowPreferences(role, prefs).catch((err) => {
+        log.ger({
+          type: "warn",
+          message: "[app saveCardWindowPrefs] failed to persist window preferences",
+          data: err,
+        });
+      });
+    };
     const secretStore = createSecretStore(app);
     const monitorPicker = createMonitorPickerController({
       onSelectionChanged(displayId) {
@@ -761,7 +815,7 @@ async function initializeApp() {
       return getCardOpenState();
     });
 
-    ipcMain.handle(WINDOW_REGISTRY_CHANNELS.openWindow, (_event, input: unknown) => {
+    ipcMain.handle(WINDOW_REGISTRY_CHANNELS.openWindow, async (_event, input: unknown) => {
       if (typeof input !== "string" || !isCardWindowRole(input)) {
         throw new Error("Invalid card window role.");
       }
@@ -799,7 +853,11 @@ async function initializeApp() {
         broadcastCardWindowOpenState();
         return;
       }
-      createWindow(input, windowBounds);
+      const savedPrefs = await appConfigStore
+        .loadWindowPreferences()
+        .then((prefs) => prefs[input])
+        .catch(() => undefined);
+      createWindow(input, windowBounds, savedPrefs);
     });
 
     ipcMain.handle(WINDOW_REGISTRY_CHANNELS.closeWindow, (_event, input: unknown) => {
@@ -996,11 +1054,20 @@ async function initializeApp() {
       log.ger({ type: "warn", message: "[cleanup] startup cleanup failed", data: err }),
     );
 
+    const transcribeAudioHandler = createTranscribeAudioIpcHandler({
+      getPipeline: modelLifecycle.getPipeline,
+    });
+
     ipcMain.handle(
       TRANSCRIPTION_CHANNELS.transcribeAudio,
-      createTranscribeAudioIpcHandler({
-        getPipeline: modelLifecycle.getPipeline,
-      }),
+      async (event, input) => {
+        const result = await transcribeAudioHandler(event, input);
+        publishToAllWindows(
+          TRANSCRIPTION_EVENT_CHANNELS.transcriptSegment,
+          result,
+        );
+        return result;
+      },
     );
 
     session.defaultSession.setDisplayMediaRequestHandler(
