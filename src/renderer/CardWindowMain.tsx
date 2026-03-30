@@ -4,12 +4,13 @@ import { RiCloseFill } from "@remixicon/react";
 
 import toast from "@/components/molecules/Toast";
 import { cn } from "@/lib/utils";
+import { WINDOW_ROLES, type CardWindowRole } from "@/shared/window-registry";
 import type { SessionSnapshot } from "@/shared/session-lifecycle";
 import {
   DEFAULT_SHORTCUT_ID_RECORDING_TOGGLE,
   formatElectronAcceleratorLabel,
 } from "@/shared/shortcuts";
-import type { OptionsCardLayout } from "./Slot/Options";
+import { QuestionBoxMain } from "./QuestionBoxMain";
 import { OptionsWorkspace } from "./Slot/OptionsWorkspace";
 import { useCaptureOptions } from "./capture-options/useCaptureOptions";
 import { usePinnedWindowBehavior } from "./hooks/usePinnedWindowBehavior";
@@ -19,8 +20,10 @@ import { useAppDispatch, useAppSelector } from "./store/hooks";
 import { setFeedbackMessage } from "./store/slices/sessionRecordingSlice";
 import { setShortcutEnabled } from "./store/slices/shortcutsWindowSlice";
 import { WindowPinControl } from "./window-controls/window-pin-control";
-import { TranscriptionStreamPanel } from "./components/TranscriptionStreamPanel";
-import type { WindowRole } from "../shared/window-roles";
+
+function assertNever(value: never): never {
+  throw new Error(`Unhandled card window role: ${String(value)}`);
+}
 
 function getStatusCopy(session: SessionSnapshot | null): {
   readonly label: string;
@@ -53,7 +56,22 @@ function getStatusCopy(session: SessionSnapshot | null): {
   };
 }
 
-export function CardWindowMain({ layout, id }: { readonly layout: OptionsCardLayout, id: string }) {
+function UnsupportedCardWindow({
+  role,
+}: {
+  readonly role: Exclude<
+    CardWindowRole,
+    typeof WINDOW_ROLES.options | typeof WINDOW_ROLES.questionBox
+  >;
+}) {
+  return (
+    <div className="flex min-h-0 w-full flex-1 items-center justify-center p-4 text-sm text-muted-foreground">
+      `{role}` is not implemented yet.
+    </div>
+  );
+}
+
+export function CardWindowMain({ role }: { readonly role: CardWindowRole }) {
   const dispatch = useAppDispatch();
   useShortcutsWindowEffects();
   const {
@@ -90,8 +108,6 @@ export function CardWindowMain({ layout, id }: { readonly layout: OptionsCardLay
   const { dragRegionStyle, noDragRegionStyle, isPinned, pinControlProps } =
     usePinnedWindowBehavior();
 
-
-
   const handleCaptureOptionsError = useCallback(
     (message: string) => {
       dispatch(setFeedbackMessage(message));
@@ -100,7 +116,7 @@ export function CardWindowMain({ layout, id }: { readonly layout: OptionsCardLay
   );
 
   const captureOptions = useCaptureOptions({
-    isMenuActive: layout === "options",
+    isMenuActive: role === WINDOW_ROLES.options,
     onError: handleCaptureOptionsError,
   });
 
@@ -128,19 +144,15 @@ export function CardWindowMain({ layout, id }: { readonly layout: OptionsCardLay
     [dispatch, isShortcutEnabled],
   );
 
-
-
   const isRecording = currentSession?.status === "active";
   const statusCopy = getStatusCopy(currentSession);
   const isBusy = isStarting || isStopping;
   const windowSizeLabel = windowBounds
     ? `${windowBounds.width} x ${windowBounds.height}`
     : "Syncing window";
-
   const windowBoundsLabel = windowBounds
     ? `Position ${windowBounds.x}, ${windowBounds.y}`
     : undefined;
-
   const shortcutLabel = useMemo(
     () =>
       formatElectronAcceleratorLabel(
@@ -149,147 +161,151 @@ export function CardWindowMain({ layout, id }: { readonly layout: OptionsCardLay
       ),
     [platformLabel, recordingShortcutAccelerator],
   );
-  const handleDrag = (event: React.DragEvent<HTMLElement>) => {
-    console.log('event', event)
 
-    if (isPinned) {
-      console.error('You cannot drag the window while it is pinned')
-      event.preventDefault();
-      toast()
-      return;
-    }
-    console.log('not pinned')
-
-  }
-  const TranscriptionLayout = useMemo(() => {
-    return (
-      <TranscriptionStreamPanel isRecording={isRecording} />
-    )
-  }, [isRecording, layout])
-  const OptionsLayout =
+  const handleAttemptDrag = useCallback(
     (
-      <OptionsWorkspace
-        statusLabel={statusCopy.label}
-        statusVariant={statusCopy.variant}
-        platformLabel={platformLabel}
-        windowSizeLabel={windowSizeLabel}
-        windowBoundsLabel={windowBoundsLabel}
-        currentSessionId={currentSession?.id}
-        feedbackMessage={feedbackMessage}
-        isRecording={isRecording}
-        isBusy={isBusy}
-        onToggleRecording={(enabled) => {
-          void handleToggleRecording(enabled);
-        }}
-        shortcutLabel={shortcutLabel}
-        isShortcutEnabled={isShortcutEnabled}
-        onSetShortcutEnabled={handleSetShortcutEnabled}
-        recordingState={recordingState}
-        onExportRecording={() => {
-          void handleExportRecording();
-        }}
-        permissions={captureOptions.permissions}
-        microphoneDevices={captureOptions.microphoneDevices}
-        audioOutputDevices={captureOptions.audioOutputDevices}
-        webcamDevices={captureOptions.webcamDevices}
-        displays={captureOptions.displays}
-        microphoneEnabled={captureOptions.config.microphone.enabled}
-        webcamEnabled={captureOptions.config.webcam.enabled}
-        screenEnabled={captureOptions.config.screen.enabled}
-        systemAudioEnabled={captureOptions.config.systemAudio.enabled}
-        screenshotEnabled={captureOptions.config.screenshot.enabled}
-        microphoneLevel={captureOptions.microphoneLevel}
-        isWebcamPreviewVisible={captureOptions.isWebcamPreviewVisible}
-        isWebcamPreviewLoading={captureOptions.isWebcamPreviewLoading}
-        webcamPreviewStream={captureOptions.webcamPreviewStream}
-        isDesktopPreviewVisible={captureOptions.isDesktopPreviewVisible}
-        isDesktopPreviewLoading={captureOptions.isDesktopPreviewLoading}
-        desktopPreviewStream={captureOptions.desktopPreviewStream}
-        hasCaptureSourceEnabled={captureOptions.hasCaptureSourceEnabled}
-        onSetMicrophoneEnabled={captureOptions.setMicrophoneEnabled}
-        onSetWebcamEnabled={captureOptions.setWebcamEnabled}
-        onSetScreenEnabled={captureOptions.setScreenEnabled}
-        onSetSystemAudioEnabled={captureOptions.setSystemAudioEnabled}
-        onSetScreenshotEnabled={captureOptions.setScreenshotEnabled}
-        onSetMicrophoneDeviceId={captureOptions.setMicrophoneDeviceId}
-        onSetAudioOutputDeviceId={captureOptions.setAudioOutputDeviceId}
-        onSetWebcamDeviceId={captureOptions.setWebcamDeviceId}
-        onSetDisplayId={captureOptions.setDisplayId}
-        onSetWebcamPreviewVisible={captureOptions.setWebcamPreviewVisible}
-        onSetDesktopPreviewVisible={captureOptions.setDesktopPreviewVisible}
-        onOpenMonitorPicker={() => {
-          void captureOptions.openMonitorPicker();
-        }}
-        onOpenRecordingsFolder={() => {
-          const sessionId = recordingState?.sessionId || currentSession?.id;
-          if (!sessionId) {
-            dispatch(setFeedbackMessage("No recording session is available yet."));
-            return;
-          }
+      event:
+        | React.DragEvent<HTMLElement>
+        | React.MouseEvent<HTMLElement>
+        | React.PointerEvent<HTMLElement>,
+    ) => {
+      if (!isPinned) {
+        return;
+      }
 
-          void window.electronApp.recording
-            .openRecordingsFolder({ sessionId })
-            .catch((error: unknown) => {
-              dispatch(
-                setFeedbackMessage(
-                  error instanceof Error
-                    ? error.message
-                    : "Unable to open recordings folder.",
-                ),
-              );
-            });
-        }}
-        onQuit={() => {
-          void handleCloseApplication();
-        }}
-      />
-    )
+      event.preventDefault();
+      toast();
+    },
+    [isPinned],
+  );
 
+  let content: React.ReactNode;
+  switch (role) {
+    case WINDOW_ROLES.options:
+      content = (
+        <OptionsWorkspace
+          statusLabel={statusCopy.label}
+          statusVariant={statusCopy.variant}
+          platformLabel={platformLabel}
+          windowSizeLabel={windowSizeLabel}
+          windowBoundsLabel={windowBoundsLabel}
+          currentSessionId={currentSession?.id}
+          feedbackMessage={feedbackMessage}
+          isRecording={isRecording}
+          isBusy={isBusy}
+          onToggleRecording={(enabled) => {
+            void handleToggleRecording(enabled);
+          }}
+          shortcutLabel={shortcutLabel}
+          isShortcutEnabled={isShortcutEnabled}
+          onSetShortcutEnabled={handleSetShortcutEnabled}
+          recordingState={recordingState}
+          onExportRecording={() => {
+            void handleExportRecording();
+          }}
+          permissions={captureOptions.permissions}
+          microphoneDevices={captureOptions.microphoneDevices}
+          audioOutputDevices={captureOptions.audioOutputDevices}
+          webcamDevices={captureOptions.webcamDevices}
+          displays={captureOptions.displays}
+          microphoneEnabled={captureOptions.config.microphone.enabled}
+          webcamEnabled={captureOptions.config.webcam.enabled}
+          screenEnabled={captureOptions.config.screen.enabled}
+          systemAudioEnabled={captureOptions.config.systemAudio.enabled}
+          screenshotEnabled={captureOptions.config.screenshot.enabled}
+          microphoneLevel={captureOptions.microphoneLevel}
+          isWebcamPreviewVisible={captureOptions.isWebcamPreviewVisible}
+          isWebcamPreviewLoading={captureOptions.isWebcamPreviewLoading}
+          webcamPreviewStream={captureOptions.webcamPreviewStream}
+          isDesktopPreviewVisible={captureOptions.isDesktopPreviewVisible}
+          isDesktopPreviewLoading={captureOptions.isDesktopPreviewLoading}
+          desktopPreviewStream={captureOptions.desktopPreviewStream}
+          hasCaptureSourceEnabled={captureOptions.hasCaptureSourceEnabled}
+          onSetMicrophoneEnabled={captureOptions.setMicrophoneEnabled}
+          onSetWebcamEnabled={captureOptions.setWebcamEnabled}
+          onSetScreenEnabled={captureOptions.setScreenEnabled}
+          onSetSystemAudioEnabled={captureOptions.setSystemAudioEnabled}
+          onSetScreenshotEnabled={captureOptions.setScreenshotEnabled}
+          onSetMicrophoneDeviceId={captureOptions.setMicrophoneDeviceId}
+          onSetAudioOutputDeviceId={captureOptions.setAudioOutputDeviceId}
+          onSetWebcamDeviceId={captureOptions.setWebcamDeviceId}
+          onSetDisplayId={captureOptions.setDisplayId}
+          onSetWebcamPreviewVisible={captureOptions.setWebcamPreviewVisible}
+          onSetDesktopPreviewVisible={captureOptions.setDesktopPreviewVisible}
+          onOpenMonitorPicker={() => {
+            void captureOptions.openMonitorPicker();
+          }}
+          onOpenRecordingsFolder={() => {
+            const sessionId = recordingState?.sessionId ?? currentSession?.id;
+            if (!sessionId) {
+              dispatch(setFeedbackMessage("No recording session is available yet."));
+              return;
+            }
 
-
-  type ImplementedCardRoles = Exclude<WindowRole, "launcher" | "controls" | "sandbox" | "speech-box">
-
-  const layoutMap: Record<ImplementedCardRoles, React.ReactNode> = {
-    'question-box': TranscriptionLayout,
-    options: OptionsLayout
-  };
-
-
-
+            void window.electronApp.recording
+              .openRecordingsFolder({ sessionId })
+              .catch((error: unknown) => {
+                dispatch(
+                  setFeedbackMessage(
+                    error instanceof Error
+                      ? error.message
+                      : "Unable to open recordings folder.",
+                  ),
+                );
+              });
+          }}
+          onQuit={() => {
+            void handleCloseApplication();
+          }}
+        />
+      );
+      break;
+    case WINDOW_ROLES.questionBox:
+      content = <QuestionBoxMain />;
+      break;
+    case WINDOW_ROLES.controls:
+    case WINDOW_ROLES.sandbox:
+    case WINDOW_ROLES.speechBox:
+      content = <UnsupportedCardWindow role={role} />;
+      break;
+    default:
+      content = assertNever(role);
+  }
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-1 flex-col bg-transparent" id={id}>
+    <div
+      className="flex h-full min-h-0 w-full flex-1 flex-col bg-transparent"
+      id={role}
+    >
       <nav
-        className={cn("relative z-[70] flex w-full shrink-0 flex-col items-end justify-baseline mb-px shadow-b-md rounded-md transition-colors duration-200 ease-in-out group-hover:border-yellow-a10", isPinned ? "transition-colors duration-200 ease-in-out border-yellow-a10 border-dashed" : "border-transparent from-bg-yellow-a1/5 to-transparent linear-gradient-to-b")}
+        className={cn(
+          "relative z-[70] mb-px flex w-full shrink-0 flex-col items-end justify-baseline rounded-md shadow-b-md transition-colors duration-200 ease-in-out group-hover:border-yellow-a10",
+          isPinned
+            ? "border-dashed border-yellow-a10"
+            : "border-transparent from-bg-yellow-a1/5 to-transparent linear-gradient-to-b",
+        )}
         draggable={!isPinned}
         style={dragRegionStyle}
-        onClick={handleDrag}
-        onDragCapture={handleDrag}
-        onMouseDown={handleDrag}
+        onDragCapture={handleAttemptDrag}
+        onMouseDown={handleAttemptDrag}
       >
-        <div className="flex w-full items-center justify-between gap-2 leading-7 mx-2 py-1" style={dragRegionStyle}>
+        <div
+          className="mx-2 flex w-full items-center justify-between gap-2 py-1 leading-7"
+          style={dragRegionStyle}
+        >
           <div className="flex items-center gap-2">
             <div style={noDragRegionStyle}>
-
               <WindowPinControl {...pinControlProps} />
             </div>
-            {/* TODO: remove resize */}
-            {/* <div style={noDragRegionStyle}>
-              <WindowResizeControl
-                windowBounds={windowBounds}
-                presetOptions={resizePresetOptions}
-                onSelectPreset={handleResizePreset}
-              />
-            </div> */}
           </div>
           <button
             type="button"
             className="cursor-pointer rounded-full p-2 text-muted-foreground transition-colors duration-200 ease-in-out hover:bg-red-900/5 hover:text-red-500/50"
             onClick={() => {
-              void window.electronApp.windowRegistry.closeWindow(layout);
+              void window.electronApp.windowRegistry.closeWindow(role);
             }}
             style={noDragRegionStyle}
-            aria-label={`Close ${layout} window`}
+            aria-label={`Close ${role} window`}
           >
             <RiCloseFill className="size-6" />
           </button>
@@ -300,8 +316,11 @@ export function CardWindowMain({ layout, id }: { readonly layout: OptionsCardLay
         style={noDragRegionStyle}
       >
         <div className="flex min-h-0 flex-1">
-          <div className="flex min-h-0 flex-1 overflow-hidden" style={noDragRegionStyle}>
-            {layoutMap[id as keyof typeof layoutMap]}
+          <div
+            className="flex min-h-0 flex-1 overflow-hidden"
+            style={noDragRegionStyle}
+          >
+            {content}
           </div>
           <div className="w-1 shrink-0" style={dragRegionStyle} />
         </div>

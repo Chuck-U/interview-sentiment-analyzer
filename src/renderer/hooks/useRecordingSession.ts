@@ -4,9 +4,11 @@ import { CaptureManager } from "@/renderer/recording/capture-manager";
 import { AudioChunkAccumulator } from "@/renderer/recording/audio-chunk-accumulator";
 import { selectCaptureSources } from "@/renderer/store/slices/captureOptionsSlice";
 import {
+  clearTranscription,
   segmentReceived,
   transcriptionChunkFailed,
 } from "@/renderer/store/slices/diarizationSlice";
+import { clearDetectedQuestions } from "@/renderer/store/slices/questionSlice";
 import {
   setFeedbackMessage,
   setIsStarting,
@@ -224,6 +226,8 @@ export function useRecordingSession(
     }
 
     dispatch(setIsStarting(true));
+    dispatch(clearTranscription());
+    dispatch(clearDetectedQuestions());
     dispatch(setFeedbackMessage("Starting recording session."));
 
     try {

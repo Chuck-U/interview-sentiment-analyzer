@@ -81,6 +81,7 @@ import {
   TRANSCRIPTION_CHANNELS,
   TRANSCRIPTION_EVENT_CHANNELS,
 } from "../../src/shared/transcription";
+import { QUESTION_DETECTION_EVENT_CHANNELS } from "../../src/shared/question-detection";
 import * as modelLifecycle from "../../src/backend/infrastructure/ml/model-lifecycle-service";
 import { createTranscribeAudioIpcHandler } from "../../src/backend/interfaces/controllers/transcription-controller";
 import { cleanupStaleArtifacts } from "./cleanup-stale-artifacts";
@@ -303,10 +304,18 @@ function createWindow(
 
   const isLauncher = role === WINDOW_ROLES.launcher;
   const savedBounds = !isLauncher ? savedPrefs?.bounds : undefined;
+  const defaultCardWidth =
+    role === WINDOW_ROLES.questionBox ? 480 : 520;
+  const defaultCardHeight =
+    role === WINDOW_ROLES.questionBox ? 320 : 640;
   log.ger({ type: 'info', message: 'attempting creating window', data: { role } })
   const browserWindow = new BrowserWindow({
-    width: savedBounds?.width ?? (isLauncher ? MAIN_WINDOW_DEFAULT_WIDTH : 520),
-    height: savedBounds?.height ?? (isLauncher ? MAIN_WINDOW_DEFAULT_HEIGHT : 640),
+    width:
+      savedBounds?.width ??
+      (isLauncher ? MAIN_WINDOW_DEFAULT_WIDTH : defaultCardWidth),
+    height:
+      savedBounds?.height ??
+      (isLauncher ? MAIN_WINDOW_DEFAULT_HEIGHT : defaultCardHeight),
     minWidth: isLauncher ? MAIN_WINDOW_MIN_WIDTH : 320,
     minHeight: isLauncher ? MAIN_WINDOW_MIN_HEIGHT : 240,
     alwaysOnTop: true,
@@ -385,7 +394,7 @@ function createWindow(
     }
 
 
-    if (!isLauncher) {
+    if (!isLauncher && !savedBounds) {
       const launcher = BrowserWindow.getAllWindows().find(
         (window) => getWindowRole(window) === WINDOW_ROLES.launcher,
       );
@@ -396,6 +405,11 @@ function createWindow(
         applyOptionsWindowOpenBounds(
           browserWindow,
           anchorBounds ?? launcherBounds,
+        );
+      } else if (role === WINDOW_ROLES.questionBox && launcherBounds) {
+        browserWindow.setPosition(
+          launcherBounds.x + Math.max(launcherBounds.width + 24, 320),
+          launcherBounds.y + 56,
         );
       } else if (launcherBounds) {
         browserWindow.setPosition(launcherBounds.x, launcherBounds.y + 100);
@@ -830,9 +844,7 @@ async function initializeApp() {
           event: _event
         },
       });
-      // log.ger({ type: 'debug', message: '[windowRegistry openWindow] webContents', data: { webContents } });
-      // log.ger({ type: 'debug', message: '[windowRegistry openWindow] cardWindows', data: { cardWindows } });
-      // log.ger({ type: 'debug', message: '[windowRegistry openWindow] windowBounds', data: { windowBounds } });
+
       const existing = cardWindows.get(input);
       if (existing && !existing.isDestroyed()) {
         try {
@@ -1056,12 +1068,20 @@ async function initializeApp() {
 
     const transcribeAudioHandler = createTranscribeAudioIpcHandler({
       getPipeline: modelLifecycle.getPipeline,
+      publishQuestionDetected(payload) {
+        publishToAllWindows(
+          QUESTION_DETECTION_EVENT_CHANNELS.questionDetected,
+          payload,
+        );
+      },
     });
 
     ipcMain.handle(
       TRANSCRIPTION_CHANNELS.transcribeAudio,
       async (event, input) => {
         const result = await transcribeAudioHandler(event, input);
+        log.ger({ type: 'debug', message: '[app TRANSCRIPTION_CHANNELS.transcribeAudio] input', data: input });
+        log.ger({ type: 'debug', message: '[app TRANSCRIPTION_CHANNELS.transcribeAudio] result', data: result });
         publishToAllWindows(
           TRANSCRIPTION_EVENT_CHANNELS.transcriptSegment,
           result,

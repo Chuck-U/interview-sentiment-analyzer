@@ -6,6 +6,7 @@ import { Provider } from "react-redux";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 import Main from "./main";
+import { useQuestionDetectionEvents } from "./hooks/useQuestionDetectionEvents";
 import { loadCaptureOptions } from "./store/slices/captureOptionsSlice";
 import { startModelInit } from "./store/slices/modelInitSlice";
 import { useAppDispatch } from "./store/hooks";
@@ -14,6 +15,7 @@ import "./styles.css";
 
 export function AppRoot() {
   const dispatch = useAppDispatch();
+  useQuestionDetectionEvents();
 
   useEffect(() => {
     void dispatch(loadCaptureOptions());

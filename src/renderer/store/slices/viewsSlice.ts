@@ -17,7 +17,9 @@ const CARD_TAB_ORDER: readonly WindowRole[] = [
   WINDOW_ROLES.launcher,
   WINDOW_ROLES.controls,
   WINDOW_ROLES.options,
-  WINDOW_ROLES.sandbox
+  WINDOW_ROLES.sandbox,
+  WINDOW_ROLES.questionBox,
+  WINDOW_ROLES.speechBox,
 ];
 
 /** Picks the first card tab that is open, or defaults to Controls. */

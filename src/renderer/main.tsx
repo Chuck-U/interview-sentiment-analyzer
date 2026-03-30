@@ -1,17 +1,21 @@
 import { useMemo } from "react";
 
 import { AgentNavigationMenu } from "@/components/molecules/LauncherMenu";
+import {
+  WINDOW_ROLES,
+  type CardWindowRole,
+  type WindowRole,
+} from "@/shared/window-registry";
 import { formatElectronAcceleratorLabel } from "@/shared/shortcuts";
-import { WINDOW_ROLES, WindowRole } from "@/shared/window-registry";
 import { CardWindowMain } from "./CardWindowMain";
 import { usePinnedWindowBehavior } from "./hooks/usePinnedWindowBehavior";
 import { useRecordingSession } from "./hooks/useRecordingSession";
 import { useShortcutsWindowEffects } from "./hooks/useShortcutsWindowEffects";
 import { useViews } from "./hooks/useViews";
 import { useWindowRegistrySync } from "./hooks/useWindowRegistrySync";
-import { parseWindowRoleFromLocation } from "../lib/parseWindowRole";
 import { useAppSelector } from "./store/hooks";
 import { WindowPinControl } from "./window-controls/window-pin-control";
+import { parseWindowRoleFromLocation } from "../lib/parseWindowRole";
 
 function LauncherMain() {
   useShortcutsWindowEffects();
@@ -26,24 +30,29 @@ function LauncherMain() {
   const isStopping = useAppSelector(
     (state) => state.sessionRecording.isStopping,
   );
-
-  const { handleSetActiveView, resizePresetOptions } = useViews();
+  const { handleSetActiveView } = useViews();
   const openWindowIds = useAppSelector((state) => state.views.openWindowIds);
   const { dragRegionStyle, pinControlProps } = usePinnedWindowBehavior();
 
-
   const isRecording = currentSession?.status === "active";
   const isBusy = isStarting || isStopping;
-
   const platformLabel = useMemo(() => window.electronApp.platform, []);
   const visibilityShortcutLabel = useMemo(
-    () => formatElectronAcceleratorLabel("CommandOrControl+Shift+V", platformLabel),
-    [platformLabel]
+    () =>
+      formatElectronAcceleratorLabel(
+        "CommandOrControl+Shift+V",
+        platformLabel,
+      ),
+    [platformLabel],
   );
+
   return (
-    <div className="flex h-full min-h-0 w-full flex-col justify-start bg-transparent" id="main-window">
+    <div
+      className="flex h-full min-h-0 w-full flex-col justify-start bg-transparent"
+      id="main-window"
+    >
       <nav
-        className="z-[70] mx-2 inline-flex max-w-[calc(100vw-16px)] shrink-0 flex-col gap-2 bg-background/15 mt-4"
+        className="z-[70] mx-2 mt-4 inline-flex max-w-[calc(100vw-16px)] shrink-0 flex-col gap-2 bg-background/15"
         style={dragRegionStyle}
       >
         <AgentNavigationMenu
@@ -57,14 +66,7 @@ function LauncherMain() {
           }}
           visibilityShortcut={visibilityShortcutLabel}
           pinControl={<WindowPinControl {...pinControlProps} />}
-          // resizeControl={
-          //   <WindowResizeControl
-          //     windowBounds={windowBounds}
-          //     presetOptions={resizePresetOptions}
-          //     onSelectPreset={handleResizePreset}
-          //   />
-          // }
-          openWindowIds={openWindowIds as Record<Partial<WindowRole>, boolean>}
+          openWindowIds={openWindowIds as Record<WindowRole, boolean>}
           isWorkspaceOpen={openWindowIds.options}
           onWorkspaceToggle={() => {
             handleSetActiveView(WINDOW_ROLES.options);
@@ -79,7 +81,6 @@ function LauncherMain() {
             }
           }}
           onQuestionBoxToggle={() => {
-            console.log('onQuestionBoxToggle');
             handleSetActiveView(WINDOW_ROLES.questionBox);
             if (openWindowIds[WINDOW_ROLES.questionBox]) {
               void window.electronApp.windowRegistry.closeWindow(
@@ -97,22 +98,18 @@ function LauncherMain() {
           }}
         />
       </nav>
-
-      {/* <div className="relative bottom-0 h-full mb-1">
-        <TranscriptionStreamPanel isRecording={isRecording} />
-      </div> */}
     </div>
   );
 }
 
 function Main() {
   const role = parseWindowRoleFromLocation();
+
   if (role === WINDOW_ROLES.launcher) {
     return <LauncherMain />;
   }
-  // @cursor we'll refactor this to have different window handlers and split this file.
-  console.log('role', role)
-  return <CardWindowMain layout={'options'} id={role as string} />;
+
+  return <CardWindowMain role={role as CardWindowRole} />;
 }
 
 export default Main;

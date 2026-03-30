@@ -28,7 +28,7 @@ type AgentNavigationMenuProps = {
     readonly className?: string;
     readonly showOutline?: boolean;
     readonly recordingStartTime?: number | null;
-    readonly openWindowIds?: Record<Partial<WindowRole>, boolean>;
+    readonly openWindowIds?: Record<WindowRole, boolean>;
     readonly onQuestionBoxToggle?: () => void;
 };
 
@@ -126,7 +126,6 @@ function AgentNavigationMenu({
                 <button className={cn("rounded-none p-1 group/question-box text-muted-foreground  hover:border-red-400/70 transition-colors", isQuestionBoxOpen ? "text-red-500/50" : "text-muted-foreground")}
                     style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
                     onClick={() => {
-                        console.log('onQuestionBoxToggle');
                         onQuestionBoxToggle?.();
                     }}>
                     <RiDiscussLine className={cn("size-8 group-hover/question-box:text-red-500/50 group-active/question-box:text-red-500/50 transition-colors duration-200 ease-in-out group-hover/question-box:border-bg-red-300")} />

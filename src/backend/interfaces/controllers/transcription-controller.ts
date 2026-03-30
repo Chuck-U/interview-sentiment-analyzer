@@ -1,11 +1,16 @@
 import { logger } from "../../../lib/logger";
+import type { QuestionDetectionPayload } from "../../../shared/question-detection";
 import type { TranscriptionResult } from "../../../shared/transcription";
 import { isAudioMediaChunkSource, type AudioMediaSource } from "../../../shared/session-lifecycle";
+import { createDetectLiveQuestionUseCase } from "../../application/use-cases/detect-live-question";
 import { parseTranscribeAudioRequest } from "../../guards/transcribe-audio-request";
 import { createTranscribeAudioUseCase } from "../../application/use-cases/transcribe-audio";
 
 export type TranscribeAudioIpcHandlerDependencies = {
   readonly getPipeline: (modelId: string) => Promise<unknown>;
+  readonly publishQuestionDetected?: (
+    payload: QuestionDetectionPayload,
+  ) => void;
 };
 
 const Log = logger.forSource("TranscriptionController");
@@ -14,6 +19,9 @@ export function createTranscribeAudioIpcHandler(
   dependencies: TranscribeAudioIpcHandlerDependencies,
 ) {
   const transcribeAudioUseCase = createTranscribeAudioUseCase({
+    getPipeline: dependencies.getPipeline,
+  });
+  const detectLiveQuestionUseCase = createDetectLiveQuestionUseCase({
     getPipeline: dependencies.getPipeline,
   });
 
@@ -52,12 +60,72 @@ export function createTranscribeAudioIpcHandler(
         pcm[i] = typeof n === "number" && Number.isFinite(n) ? n : 0;
       }
 
-      return await transcribeAudioUseCase({
+      const transcription = await transcribeAudioUseCase({
         pcm,
         sessionId,
         chunkId,
         source,
       });
+
+      try {
+        Log.ger({
+          type: "info",
+          message: "[transcription] starting question detection",
+          data: {
+            sessionId: sessionId.slice(0, 8),
+            chunkId,
+            source,
+            transcriptPreview: transcription.text.slice(0, 200),
+            transcriptLength: transcription.text.length,
+          },
+        });
+        const detectedQuestion = await detectLiveQuestionUseCase({
+          sessionId,
+          chunkId,
+          source,
+          text: transcription.text,
+        });
+        if (detectedQuestion) {
+          Log.ger({
+            type: "info",
+            message: "[transcription] publishing detected question",
+            data: {
+              sessionId: sessionId.slice(0, 8),
+              chunkId,
+              source,
+              questionScore: detectedQuestion.questionScore.toFixed(4),
+              nonQuestionScore: detectedQuestion.nonQuestionScore.toFixed(4),
+              preview: detectedQuestion.text.slice(0, 200),
+            },
+          });
+          dependencies.publishQuestionDetected?.(detectedQuestion);
+        } else {
+          Log.ger({
+            type: "debug",
+            message: "[transcription] question detection returned no match",
+            data: {
+              sessionId: sessionId.slice(0, 8),
+              chunkId,
+            },
+          });
+        }
+      } catch (questionDetectionError) {
+        Log.ger({
+          type: "warn",
+          message: "[transcription] question detection failed",
+          data: {
+            sessionId: sessionId.slice(0, 8),
+            chunkId,
+            source,
+            error:
+              questionDetectionError instanceof Error
+                ? questionDetectionError.message
+                : String(questionDetectionError),
+          },
+        });
+      }
+
+      return transcription;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       const stack = err instanceof Error ? err.stack : undefined;
