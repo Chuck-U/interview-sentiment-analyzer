@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import type { SessionStorageLayoutResolver } from "../../application/ports/session-lifecycle";
@@ -8,30 +8,20 @@ import type {
   PersistChunkResponse,
   PersistScreenshotResponse,
 } from "../../../shared/recording";
+import { extensionForMime } from "../../../shared/recording-constants";
 
-const MIME_TO_EXTENSION: Record<string, string> = {
-  "audio/webm;codecs=opus": "webm",
-  "audio/webm": "webm",
-  "audio/ogg;codecs=opus": "ogg",
-  "video/webm;codecs=vp9,opus": "webm",
-  "video/webm;codecs=vp8,opus": "webm",
-  "video/webm;codecs=av01,opus": "webm",
-  "video/webm": "webm",
-  "image/png": "png",
-  "image/jpeg": "jpg",
-};
+/**
+ * Default set of sources whose chunks are actually written to disk. All other
+ * sources get a synthetic response so callers stay happy, but no file I/O
+ * occurs. Override via the `persistedSources` option on the factory.
+ */
+const DEFAULT_PERSISTED_CHUNK_SOURCES: ReadonlySet<MediaChunkSource> = new Set([
+  "desktop-capture",
+]);
 
-function extensionForMime(mimeType: string): string {
-  return MIME_TO_EXTENSION[mimeType] ?? "bin";
-}
-
-const SOURCE_DIRECTORY: Record<MediaChunkSource, string> = {
-  microphone: "chunks/audio",
-  webcam: "chunks/webcam",
-  "desktop-capture": "chunks/desktop-capture",
-  "system-audio": "chunks/system-audio",
-  "screen-video": "chunks/screen-video",
-  screenshot: "chunks/screenshots",
+export type RecordingPersistenceOptions = {
+  readonly persistedSources?: ReadonlySet<MediaChunkSource>;
+  readonly persistScreenshots?: boolean;
 };
 
 export type RecordingPersistenceService = {
@@ -55,20 +45,44 @@ export type RecordingPersistenceService = {
 
 export function createRecordingPersistenceService(
   storageLayoutResolver: SessionStorageLayoutResolver,
+  options?: RecordingPersistenceOptions,
 ): RecordingPersistenceService {
+  const persistedSources = options?.persistedSources ?? DEFAULT_PERSISTED_CHUNK_SOURCES;
+  const persistScreenshots = options?.persistScreenshots ?? false;
+
+  /**
+   * Tracks whether the first chunk for a session+source has been written.
+   * First chunk uses writeFile (create); subsequent chunks use appendFile.
+   */
+  const initializedFiles = new Set<string>();
+
   return {
     async persistChunk(input) {
+      if (!persistedSources.has(input.source)) {
+        return {
+          chunkId: randomUUID(),
+          relativePath: `chunks/skipped`,
+          byteSize: 0,
+        };
+      }
+
       const ext = extensionForMime(input.mimeType);
-      const filename = `${input.source}-${String(input.sequenceNumber).padStart(5, "0")}-${Date.now()}.${ext}`;
-      const sourceDir = SOURCE_DIRECTORY[input.source];
-      const relativePath = `${sourceDir}/${filename}`;
+      const filename = `${input.source}.${ext}`;
+      const relativePath = `chunks/${filename}`;
       const absolutePath = storageLayoutResolver.resolveAbsoluteArtifactPath(
         input.sessionId,
         relativePath,
       );
 
       await mkdir(path.dirname(absolutePath), { recursive: true });
-      await writeFile(absolutePath, input.buffer);
+
+      const fileKey = `${input.sessionId}:${input.source}`;
+      if (initializedFiles.has(fileKey)) {
+        await appendFile(absolutePath, input.buffer);
+      } else {
+        await writeFile(absolutePath, input.buffer);
+        initializedFiles.add(fileKey);
+      }
 
       return {
         chunkId: randomUUID(),
@@ -78,9 +92,17 @@ export function createRecordingPersistenceService(
     },
 
     async persistScreenshot(input) {
+      if (!persistScreenshots) {
+        return {
+          chunkId: randomUUID(),
+          relativePath: "chunks/skipped",
+          byteSize: 0,
+        };
+      }
+
       const ext = extensionForMime(input.mimeType);
       const filename = `screenshot-${String(input.sequenceNumber).padStart(5, "0")}-${Date.now()}.${ext}`;
-      const relativePath = `chunks/screenshots/${filename}`;
+      const relativePath = `chunks/${filename}`;
       const absolutePath = storageLayoutResolver.resolveAbsoluteArtifactPath(
         input.sessionId,
         relativePath,

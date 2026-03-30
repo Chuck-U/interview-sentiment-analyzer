@@ -66,7 +66,7 @@ export function RecordingControlCard({
       </div>
       {currentSessionId ? (
         <div className="mt-3">
-          <Badge variant="outline" className={`${recordingState?.sessionId ? 'bg-yellow-contrast/20 animate-pulse duration-400 ease-out' : 'bg-red-500'}`}>Session {currentSessionId.slice(0, 8)}</Badge>
+          <Badge variant="outline" className={`${currentSessionId ? 'bg-yellow-contrast/20 animate-pulse duration-400 ease-out' : 'bg-red-500'}`}>Session {currentSessionId.slice(0, 8)}</Badge>
         </div>
       ) : null}
     </div>

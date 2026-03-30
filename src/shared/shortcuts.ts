@@ -33,9 +33,17 @@ export type SetShortcutEnabledRequest = {
 
 export const DEFAULT_RECORDING_CAPTURE_SOURCES: readonly MediaChunkSource[] = [
   "microphone",
-  "screen-video",
+  "desktop-capture",
+  "system-audio",
+  "webcam",
   "screenshot",
+
 ];
+
+const SHORTCUT_ACTIONS_OPTIONS = ["focusWidnow", "bringToMainWindow", "ToggleRecording", "toggleVisibility"] as const;
+export type ShortcutActionOption = (typeof SHORTCUT_ACTIONS_OPTIONS)[number];
+
+export const SHORTCUT_ACTION_SCHEMA = z.enum(SHORTCUT_ACTIONS);
 
 export const DEFAULT_SHORTCUT_ID_RECORDING_TOGGLE = "recording-toggle";
 

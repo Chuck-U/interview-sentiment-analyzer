@@ -26,12 +26,12 @@ export type MediaChunkRepository = {
 };
 
 export type SessionStorageLayoutResolver = {
-  resolveSessionLayout(sessionId: string): SessionStorageLayout;
+  resolveSessionLayout(sessionId?: string): SessionStorageLayout;
   normalizeRelativeArtifactPath(
     source: MediaChunkSource,
     relativePath: string,
   ): string;
-  resolveAbsoluteArtifactPath(sessionId: string, relativePath: string): string;
+  resolveAbsoluteArtifactPath(relativePath: string, sessionId?: string): string;
 };
 
 export type FileMetadata = {
@@ -59,9 +59,9 @@ export type SessionLifecycleEventPublisher = {
   publishChunkRegistered(chunk: MediaChunkEntity): void;
   publishRecoveryIssue(issue: {
     readonly code:
-      | "missing-chunk-file"
-      | "orphaned-artifact"
-      | "finalization-interrupted";
+    | "missing-chunk-file"
+    | "orphaned-artifact"
+    | "finalization-interrupted";
     readonly message: string;
     readonly sessionId: string;
     readonly chunkId?: string;

@@ -24,6 +24,8 @@ import {
 } from "./domain";
 import { useCapturePreviewState } from "./useCapturePreviewState";
 
+import { isNonEmptyObject, isNonEmptyString } from "@/backend/guards/checks";
+
 type UseCaptureOptionsArgs = {
   readonly isMenuActive: boolean;
   readonly onError?: (message: string) => void;
@@ -99,15 +101,13 @@ export function useCaptureOptions(
           persistCaptureConfig({ nextConfig, previousConfig }),
         ).unwrap();
       } catch (error: unknown) {
-        const message =
-          error &&
-          typeof error === "object" &&
-          error !== null &&
-          "message" in error &&
-          typeof (error as { message: unknown }).message === "string"
-            ? (error as { message: string }).message
-            : "Unable to save capture options.";
-        onError?.(message);
+
+        if (isNonEmptyObject(error) && isNonEmptyString(error.message)) {
+          onError?.(error.message);
+          return;
+        }
+
+        onError?.("Unable to save capture options.");
       }
     },
     [dispatch, onError],

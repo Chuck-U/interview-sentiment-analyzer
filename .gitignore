@@ -12,5 +12,7 @@ release
 .yarn
 business-plan.md
 .agent
-.agents/
+.agents/agents/*
+.cursor/plans/old/
 localCache/
+.env

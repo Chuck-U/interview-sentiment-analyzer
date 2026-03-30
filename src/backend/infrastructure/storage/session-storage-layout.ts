@@ -6,21 +6,14 @@ import type {
   SessionStorageLayout,
 } from "../../../shared/session-lifecycle";
 
-const chunkSourceDirectories: Record<MediaChunkSource, string> = {
-  microphone: path.join("chunks", "audio"),
-  webcam: path.join("chunks", "webcam"),
-  "desktop-capture": path.join("chunks", "desktop-capture"),
-  "system-audio": path.join("chunks", "system-audio"),
-  "screen-video": path.join("chunks", "screen-video"),
-  screenshot: path.join("chunks", "screenshots"),
-};
+const CHUNKS_PREFIX = "chunks/";
 
 export function createSessionStorageLayoutResolver(
   appDataRoot: string,
 ): SessionStorageLayoutResolver {
   return {
-    resolveSessionLayout(sessionId: string): SessionStorageLayout {
-      const sessionRoot = path.join(appDataRoot, "sessions", sessionId);
+    resolveSessionLayout(sessionId?: string): SessionStorageLayout {
+      const sessionRoot = [appDataRoot, "sessions", sessionId ?? ""].filter(Boolean).join(path.sep);
 
       return {
         appDataRoot,
@@ -32,21 +25,20 @@ export function createSessionStorageLayoutResolver(
         tempRoot: path.join(sessionRoot, "temp"),
       };
     },
-    normalizeRelativeArtifactPath(source: MediaChunkSource, relativePath: string) {
+    normalizeRelativeArtifactPath(_source: MediaChunkSource, relativePath: string) {
       const normalizedRelativePath = path
         .normalize(relativePath)
         .replaceAll("\\", "/")
         .replace(/^\/+/, "");
-      const requiredPrefix = `${chunkSourceDirectories[source].replaceAll("\\", "/")}/`;
 
       if (
         normalizedRelativePath.length === 0 ||
         normalizedRelativePath.startsWith("../") ||
         normalizedRelativePath.includes("/../") ||
-        !normalizedRelativePath.startsWith(requiredPrefix)
+        !normalizedRelativePath.startsWith(CHUNKS_PREFIX)
       ) {
         throw new Error(
-          `Artifact path for ${source} must stay within ${requiredPrefix}`,
+          `Artifact path must stay within ${CHUNKS_PREFIX}`,
         );
       }
 

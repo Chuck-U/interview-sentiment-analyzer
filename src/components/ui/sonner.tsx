@@ -14,7 +14,13 @@ type ExpandedToasterProps = ToasterProps & {
     toastActionClassName?: string;
     toastActionIconClassName?: string;
     toastActionTextClassName?: string;
-  }
+    offset?: {
+      bottom?: string | number;
+      top?: string | number;
+      left?: string | number;
+      right?: string | number;
+    };
+  };
   icons?: {
     success?: React.ReactNode;
     info?: React.ReactNode;

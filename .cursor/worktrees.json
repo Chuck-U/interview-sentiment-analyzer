@@ -1,0 +1,13 @@
+{
+  "setup-worktree-windows": [
+    "pnpm install",
+    "pnpm build",
+    "copy %ROOT_WORKTREE_PATH%\\.env .env"
+  ],
+  "setup-worktree-unix": [
+    "pnpm install",
+    "pnpm build",
+    "cp $ROOT_WORKTREE_PATH/.env .env",
+    "chmod +x scripts/*.sh"
+  ]
+}

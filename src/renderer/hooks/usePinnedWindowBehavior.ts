@@ -22,7 +22,7 @@ export function usePinnedWindowBehavior() {
     return window.electronApp.windowControls.setPinned({
       pinned: nextValue,
     });
-  }, []);
+  }, [isPinned]);
 
   return {
     isPinned,

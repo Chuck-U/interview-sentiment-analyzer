@@ -7,6 +7,7 @@
   "main": "dist-electron/electron/main/index.js",
   "scripts": {
     "dev": "concurrently -k \"pnpm:dev:renderer\" \"pnpm:dev:electron\"",
+    "dev:log": "concurrently -k \"pnpm:dev:renderer\" \"pnpm:dev:electron --log-level=all\"",
     "dev:renderer": "vite --port 5183",
     "dev:electron": "wait-on tcp:5183 && cross-env VITE_DEV_SERVER_URL=http://localhost:5183 electron .",
     "clean": "node -e \"const fs=require('fs'); for (const d of ['dist-electron','dist']) { try { fs.rmSync(d,{recursive:true,force:true}); } catch (e) { if (e && e.code !== 'ENOENT') throw e; } }\"",
@@ -23,18 +24,24 @@
     "interview",
     "typescript",
     "javascript",
-    "electron"
+    "electron",
+    "neurodiversity",
+    "interview-coach"
   ],
   "author": "Chuck Peters",
   "license": "MIT",
   "dependencies": {
+    "@audio/webm-decode": "^1.0.0",
     "@fontsource-variable/nunito-sans": "^5.2.7",
+    "@huggingface/transformers": "^3.8.1",
     "@langchain/langgraph": "^1.2.2",
     "@reduxjs/toolkit": "^2.11.2",
     "@remixicon/react": "^4.9.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "dayjs": "^1.11.20",
     "drizzle-orm": "^0.45.1",
+    "electron-updater": "^6.8.3",
     "jest": "^30.3.0",
     "mermaid": "^11.13.0",
     "next-themes": "^0.4.6",
@@ -81,15 +88,8 @@
       "src/**"
     ],
     "directories": {
-      "output": "release",
-      "buildResources": "assets"
+      "output": "release"
     },
-    "extraResources": [
-      {
-        "from": "assets/",
-        "to": "assets/"
-      }
-    ],
     "mac": {
       "category": "public.app-category.productivity",
       "target": [
@@ -101,27 +101,22 @@
           ]
         }
       ],
-      "icon": "assets/icons/mac/icon.icns",
       "hardenedRuntime": true,
-      "entitlements": "assets/entitlements.mac.plist"
+      "extendInfo": {
+        "NSAudioCaptureUsageDescription": "This app captures system audio during screen recording for interview analysis.",
+        "NSMicrophoneUsageDescription": "This app uses the microphone to record interview audio for sentiment analysis."
+      }
     },
     "win": {
       "target": [
         {
-          "target": "nsis",
+          "target": "msi",
           "arch": [
             "x64",
             "ia32"
           ]
-        },
-        {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
         }
       ],
-      "icon": "assets/icons/win/icon.ico",
       "requestedExecutionLevel": "asInvoker"
     },
     "linux": {
@@ -139,7 +134,6 @@
           ]
         }
       ],
-      "icon": "assets/icons/png/",
       "category": "Office"
     },
     "nsis": {

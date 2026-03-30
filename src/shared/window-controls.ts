@@ -34,6 +34,12 @@ export type MoveWindowByRequest = {
   readonly deltaY: number;
 };
 
+export type MoveWindowToRequest = {
+  readonly x: number;
+  readonly y: number;
+  readonly screenId?: string;
+};
+
 export type ResizeWindowByRequest = {
   readonly deltaWidth: number;
   readonly deltaHeight: number;
@@ -44,7 +50,12 @@ export type SetWindowSizeRequest = {
   readonly height: number;
 };
 
-export type WindowSizePreset = "50%" | "75%" | "90%";
+export function WindowPresetUtil<T extends number>(value: T): `${T}%` {
+  return `${value}%`
+};
+type WindowPresetUtilType = ReturnType<typeof WindowPresetUtil>;
+
+export type WindowSizePreset = "50%" | "75%" | "90%" | WindowPresetUtilType;
 
 export type SetWindowSizePresetRequest = {
   readonly preset: WindowSizePreset;
@@ -77,6 +88,7 @@ export type WindowControlsBridge = {
   onPinnedChanged(listener: (pinned: boolean) => void): Unsubscribe;
   bringToFront(): void;
   sendToBack(): void;
+  // moveWindowTo(request: MoveWindowToRequest): Promise<void>;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -136,12 +148,10 @@ export function parseSetWindowSizePresetRequest(
   }
 
   const { preset } = input;
-  if (
-    preset !== "50%" &&
-    preset !== "75%" &&
-    preset !== "90%"
+  if (typeof preset !== "string" ||
+    isNaN(parseInt(preset)) || parseInt(preset) < 20 || parseInt(preset) > 100
   ) {
-    throw new Error("preset must be one of: 50%, 75%, 90%");
+    throw new Error("preset must be a number between 20 and 100");
   }
 
   return { preset: preset as WindowSizePreset };

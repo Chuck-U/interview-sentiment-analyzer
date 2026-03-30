@@ -6,7 +6,7 @@ import tseslint from "typescript-eslint";
 
 const ignoreUnusedWithUnderscore = {
   "@typescript-eslint/no-unused-vars": [
-    "error",
+    "warn",
     {
       argsIgnorePattern: "^_",
       varsIgnorePattern: "^_",

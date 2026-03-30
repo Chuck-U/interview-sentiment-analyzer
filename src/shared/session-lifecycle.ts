@@ -15,6 +15,12 @@ export const MEDIA_CHUNK_SOURCES = [
   "screenshot",
 ] as const;
 
+
+const audioMediaSources = ["microphone", "system-audio", "desktop-capture"] as const;
+
+export type AudioMediaSource = (typeof audioMediaSources)[number];
+
+
 export const MEDIA_CHUNK_STATUSES = [
   "registered",
   "queued",
@@ -24,6 +30,15 @@ export const MEDIA_CHUNK_STATUSES = [
 
 export type SessionStatus = (typeof SESSION_STATUSES)[number];
 export type MediaChunkSource = (typeof MEDIA_CHUNK_SOURCES)[number];
+
+
+export const isAudioMediaChunkSource = (source: unknown): source is AudioMediaSource => {
+  return (
+    typeof source === "string" &&
+    (audioMediaSources as readonly string[]).includes(source)
+  );
+};
+
 export type MediaChunkStatus = (typeof MEDIA_CHUNK_STATUSES)[number];
 
 export type SessionStorageLayout = {
@@ -92,9 +107,9 @@ export type FinalizeSessionResponse = {
 
 export type SessionLifecycleRecoveryIssue = {
   readonly code:
-    | "missing-chunk-file"
-    | "orphaned-artifact"
-    | "finalization-interrupted";
+  | "missing-chunk-file"
+  | "orphaned-artifact"
+  | "finalization-interrupted";
   readonly message: string;
   readonly sessionId: string;
   readonly chunkId?: string;

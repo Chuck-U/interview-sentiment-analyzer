@@ -1,12 +1,14 @@
 import type { AppControlsBridge } from "./app-controls";
 import type { AiProviderBridge } from "./ai-provider";
 import type { CaptureOptionsBridge } from "./capture-options";
+import type { ModelInitBridge } from "./model-init";
 import type { RecordingBridge, RecordingEventsBridge } from "./recording";
 import type {
   SessionLifecycleBridge,
   SessionLifecycleEventsBridge,
 } from "./session-lifecycle";
 import type { ShortcutsBridge } from "./shortcuts";
+import type { TranscriptionBridge } from "./transcription";
 import type { WindowControlsBridge } from "./window-controls";
 import type { WindowRegistryBridge } from "./window-registry";
 
@@ -22,4 +24,6 @@ export type ElectronAppBridge = {
   readonly windowControls: WindowControlsBridge;
   readonly shortcuts: ShortcutsBridge;
   readonly windowRegistry: WindowRegistryBridge;
+  readonly modelInit: ModelInitBridge;
+  readonly transcription: TranscriptionBridge;
 };

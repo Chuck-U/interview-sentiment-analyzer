@@ -14,7 +14,17 @@ import {
   normalizeAiProviderModels,
 } from "../../src/shared/ai-provider";
 import type { ElectronAppBridge } from "../../src/shared/electron-app";
+import type {
+  TranscriptionBridge,
+  TranscriptionResult,
+} from "../../src/shared/transcription";
+import { TRANSCRIPTION_CHANNELS } from "../../src/shared/transcription";
 import type { CaptureOptionsBridge } from "../../src/shared/capture-options";
+import type { ModelInitBridge } from "../../src/shared/model-init";
+import {
+  MODEL_INIT_CHANNELS,
+  MODEL_INIT_EVENT_CHANNELS,
+} from "../../src/shared/model-init";
 import type { ShortcutsBridge } from "../../src/shared/shortcuts";
 import { SHORTCUTS_IPC_CHANNELS } from "../../src/shared/shortcuts";
 import { normalizeSetShortcutEnabledRequest } from "../../src/shared/shortcuts";
@@ -191,6 +201,7 @@ const windowControlsBridge: WindowControlsBridge = {
       listener,
     );
   },
+
 };
 
 const shortcutsBridge: ShortcutsBridge = {
@@ -198,7 +209,6 @@ const shortcutsBridge: ShortcutsBridge = {
     return ipcRenderer.invoke(SHORTCUTS_IPC_CHANNELS.ensureConfig);
   },
   getConfig() {
-    console.log('[shortcutsBridge getConfig]')
     return ipcRenderer.invoke(SHORTCUTS_IPC_CHANNELS.getConfig);
   },
   setShortcutEnabled(request) {
@@ -210,24 +220,24 @@ const shortcutsBridge: ShortcutsBridge = {
 };
 
 const aiProviderBridge: AiProviderBridge = {
-  getConfig() {
-    return ipcRenderer
+  async getConfig() {
+    return await ipcRenderer
       .invoke(AI_PROVIDER_CHANNELS.getConfig)
       .then(normalizeAiProviderConfig);
   },
-  setConfig(config) {
-    return ipcRenderer
+  async setConfig(config) {
+    const providerConfig = await ipcRenderer
       .invoke(
         AI_PROVIDER_CHANNELS.setConfig,
         normalizeAiProviderConfig(config),
       )
-      .then(normalizeAiProviderConfig);
+    return normalizeAiProviderConfig(providerConfig);
   },
-  getApiKeyStatus(provider) {
-    return ipcRenderer.invoke(AI_PROVIDER_CHANNELS.getApiKey, provider);
+  async getApiKeyStatus(provider) {
+    return await ipcRenderer.invoke(AI_PROVIDER_CHANNELS.getApiKey, provider);
   },
-  setApiKey(provider, key) {
-    return ipcRenderer.invoke(AI_PROVIDER_CHANNELS.setApiKey, {
+  async setApiKey(provider, key) {
+    return await ipcRenderer.invoke(AI_PROVIDER_CHANNELS.setApiKey, {
       provider,
       key,
     }) as Promise<void>;
@@ -334,6 +344,33 @@ const recordingEventsBridge: RecordingEventsBridge = {
   },
 };
 
+const transcriptionBridge: TranscriptionBridge = {
+  transcribeAudio(request) {
+    return ipcRenderer.invoke(
+      TRANSCRIPTION_CHANNELS.transcribeAudio,
+      request,
+    ) as Promise<TranscriptionResult>;
+  },
+};
+
+const modelInitBridge: ModelInitBridge = {
+  startInit() {
+    return ipcRenderer.invoke(MODEL_INIT_CHANNELS.startInit) as Promise<void>;
+  },
+  getStatus() {
+    return ipcRenderer.invoke(MODEL_INIT_CHANNELS.getStatus);
+  },
+  onProgress(listener) {
+    return subscribeToChannel(MODEL_INIT_EVENT_CHANNELS.progress, listener);
+  },
+  onReady(listener) {
+    return subscribeToChannel(MODEL_INIT_EVENT_CHANNELS.ready, listener);
+  },
+  onError(listener) {
+    return subscribeToChannel(MODEL_INIT_EVENT_CHANNELS.error, listener);
+  },
+};
+
 const windowRegistryBridge: WindowRegistryBridge = {
   getContext() {
     return ipcRenderer.invoke(
@@ -374,6 +411,8 @@ const electronAppBridge: ElectronAppBridge = {
   windowControls: windowControlsBridge,
   shortcuts: shortcutsBridge,
   windowRegistry: windowRegistryBridge,
+  modelInit: modelInitBridge,
+  transcription: transcriptionBridge,
 };
 
 contextBridge.exposeInMainWorld("electronApp", electronAppBridge);

@@ -26,6 +26,7 @@ import type {
   IdGenerator,
   SessionStorageLayoutResolver,
 } from "../../application/ports/session-lifecycle";
+import { buildSessionTranscriptArtifact } from "../../../shared/transcription";
 
 type LocalPipelineAnalysisProviderDependencies = {
   readonly clock: Clock;
@@ -374,11 +375,14 @@ export class LocalPipelineAnalysisProvider implements AnalysisProvider {
     const chunkId = requireChunkId(request);
     const transcriptArtifact = await writeArtifact({
       content: JSON.stringify(
-        {
+        buildSessionTranscriptArtifact({
           chunkId,
-          transcript: `Transcript placeholder for ${chunkId}`,
-          generatedAt: completedAt,
-        },
+          sessionId: request.event.sessionId,
+          source: "microphone",
+          text: `Transcript placeholder for ${chunkId}`,
+          completedAt,
+          includeLegacyTranscriptField: true,
+        }),
         null,
         2,
       ),

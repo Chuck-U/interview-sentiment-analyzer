@@ -3,6 +3,7 @@ import { useCallback, useMemo } from "react";
 import { RiCloseFill } from "@remixicon/react";
 
 import { AgentNavigationMenu } from "@/components/ui/navigation-menu";
+import { TranscriptionStreamPanel } from "@/renderer/components/TranscriptionStreamPanel";
 import type { SessionSnapshot } from "@/shared/session-lifecycle";
 import {
   DEFAULT_SHORTCUT_ID_RECORDING_TOGGLE,
@@ -10,7 +11,7 @@ import {
 } from "@/shared/shortcuts";
 import type { WindowSizePreset } from "@/shared/window-controls";
 import { WINDOW_ROLES } from "@/shared/window-registry";
-import { Options } from "./Slot/Options";
+import { OptionsWorkspace } from "./Slot/OptionsWorkspace";
 import type { OptionsCardLayout } from "./Slot/Options";
 import { useCaptureOptions } from "./capture-options/useCaptureOptions";
 import { usePinnedWindowBehavior } from "./hooks/usePinnedWindowBehavior";
@@ -18,7 +19,7 @@ import { useRecordingSession } from "./hooks/useRecordingSession";
 import { useShortcutsWindowEffects } from "./hooks/useShortcutsWindowEffects";
 import { useViews, VIEW_OPTIONS } from "./hooks/useViews";
 import { useWindowRegistrySync } from "./hooks/useWindowRegistrySync";
-import { parseWindowRoleFromLocation } from "./parseWindowRole";
+import { parseWindowRoleFromLocation } from "../lib/parseWindowRole";
 import { useAppDispatch, useAppSelector } from "./store/hooks";
 import { setFeedbackMessage } from "./store/slices/sessionRecordingSlice";
 import { setShortcutEnabled } from "./store/slices/shortcutsWindowSlice";
@@ -96,7 +97,7 @@ function LauncherMain() {
   );
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-col justify-start bg-transparent pb-2" id="main-window">
+    <div className="flex h-full min-h-0 w-full flex-col justify-start bg-transparent" id="main-window">
       <nav
         className="z-[70] mx-2 inline-flex max-w-[calc(100vw-16px)] shrink-0 flex-col gap-2 bg-background/15 mt-4"
         style={dragRegionStyle}
@@ -138,6 +139,10 @@ function LauncherMain() {
           }}
         />
       </nav>
+
+      <div className="relative bottom-0 h-full mb-1">
+        <TranscriptionStreamPanel isRecording={isRecording} />
+      </div>
     </div>
   );
 }
@@ -150,7 +155,7 @@ function CardWindowMain({ layout, id }: { readonly layout: OptionsCardLayout, id
     handleToggleRecording,
     handleExportRecording,
     handleCloseApplication,
-  } = useRecordingSession();
+  } = useRecordingSession({ manageCapture: false });
 
   const platformLabel = useMemo(() => window.electronApp.platform, []);
   const currentSession = useAppSelector(
@@ -177,8 +182,10 @@ function CardWindowMain({ layout, id }: { readonly layout: OptionsCardLayout, id
   const windowBounds = useAppSelector(
     (state) => state.shortcutsWindow.windowBounds,
   );
-  const { dragRegionStyle, noDragRegionStyle, pinControlProps } =
+  const { dragRegionStyle, noDragRegionStyle, isPinned, pinControlProps } =
     usePinnedWindowBehavior();
+
+
 
   const handleCaptureOptionsError = useCallback(
     (message: string) => {
@@ -218,11 +225,13 @@ function CardWindowMain({ layout, id }: { readonly layout: OptionsCardLayout, id
 
   const handleResizePreset = useCallback(
     async (preset: WindowSizePreset) => {
-      return window.electronApp.windowControls.setWindowSizePreset({
+      console.log('handleResizePreset', preset);
+      const newBounds = await window.electronApp.windowControls.setWindowSizePreset({
         preset,
       });
+      return newBounds;
     },
-    [],
+    [windowBounds],
   );
 
   const isRecording = currentSession?.status === "active";
@@ -249,6 +258,7 @@ function CardWindowMain({ layout, id }: { readonly layout: OptionsCardLayout, id
     <div className="flex h-full min-h-0 w-full flex-1 flex-col bg-transparent" id={id}>
       <nav
         className="relative z-[70] flex w-full shrink-0 flex-col items-end justify-baseline rounded-r-md rounded-bl-md border transition-colors duration-200 ease-in-out group-hover:border-yellow-a10 active:bg-yellow-a10/70"
+        draggable={!isPinned}
         style={dragRegionStyle}
       >
         <div className="flex w-full items-center justify-between gap-2 leading-7 px-2 py-1">
@@ -281,8 +291,7 @@ function CardWindowMain({ layout, id }: { readonly layout: OptionsCardLayout, id
         <div className="flex min-h-0 flex-1">
           <div className="w-4 shrink-0" style={dragRegionStyle} />
           <div className="flex min-h-0 flex-1 overflow-hidden" style={noDragRegionStyle}>
-            <Options
-              layout={layout}
+            <OptionsWorkspace
               statusLabel={statusCopy.label}
               statusVariant={statusCopy.variant}
               platformLabel={platformLabel}
@@ -372,15 +381,9 @@ function Main() {
   if (role === WINDOW_ROLES.launcher) {
     return <LauncherMain />;
   }
+  // @cursor we'll refactor this to have different window handlers and split this file.
 
-  const layout: OptionsCardLayout =
-    role === WINDOW_ROLES.controls
-      ? "controls"
-      : role === WINDOW_ROLES.options
-        ? "options"
-        : "sandbox";
-
-  return <CardWindowMain layout={layout} id={role as string} />;
+  return <CardWindowMain layout={'options'} id={role as string} />;
 }
 
 export default Main;

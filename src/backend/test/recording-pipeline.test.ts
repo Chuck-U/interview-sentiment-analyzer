@@ -38,6 +38,9 @@ import { OpenAIHostedAnalysisAdapter } from "../infrastructure/providers/openai/
 import { createSessionStorageLayoutResolver } from "../infrastructure/storage/session-storage-layout";
 import { createRecordingPersistenceService } from "../infrastructure/recording/recording-persistence";
 import { createRecordingExportService } from "../infrastructure/recording/recording-export";
+import { MEDIA_CHUNK_SOURCES, type MediaChunkSource } from "../../shared/session-lifecycle";
+
+const ALL_SOURCES = new Set<MediaChunkSource>(MEDIA_CHUNK_SOURCES);
 
 function createHostedStageRouter() {
   return new StaticHostedAnalysisStageRouter({
@@ -117,7 +120,10 @@ async function createTestContext() {
   let nextId = 0;
   const idGenerator = { createId: () => `test-id-${++nextId}` };
 
-  const recordingPersistence = createRecordingPersistenceService(storageLayoutResolver);
+  const recordingPersistence = createRecordingPersistenceService(storageLayoutResolver, {
+    persistedSources: ALL_SOURCES,
+    persistScreenshots: true,
+  });
   const recordingExport = createRecordingExportService(storageLayoutResolver);
 
   const startSession = createStartSessionUseCase({
@@ -197,7 +203,7 @@ async function createTestContext() {
   };
 }
 
-test("recording persistence writes chunks to correct source directories", async () => {
+test("recording persistence writes chunks to flat chunks directory", async () => {
   const ctx = await createTestContext();
 
   try {
@@ -215,9 +221,8 @@ test("recording persistence writes chunks to correct source directories", async 
       buffer: Buffer.from("fake-audio-data"),
     });
 
-    assert.ok(audioChunk.relativePath.startsWith("chunks/audio/"));
+    assert.ok(audioChunk.relativePath.startsWith("chunks/"));
     assert.ok(audioChunk.relativePath.endsWith(".webm"));
-    assert.ok(audioChunk.relativePath.includes("-00000-"));
     assert.equal(audioChunk.byteSize, Buffer.byteLength("fake-audio-data"));
 
     const videoChunk = await ctx.recordingPersistence.persistChunk({
@@ -229,7 +234,7 @@ test("recording persistence writes chunks to correct source directories", async 
       buffer: Buffer.from("fake-video-data"),
     });
 
-    assert.ok(videoChunk.relativePath.startsWith("chunks/screen-video/"));
+    assert.ok(videoChunk.relativePath.startsWith("chunks/"));
     assert.ok(videoChunk.relativePath.endsWith(".webm"));
 
     const screenshot = await ctx.recordingPersistence.persistScreenshot({
@@ -240,7 +245,7 @@ test("recording persistence writes chunks to correct source directories", async 
       buffer: Buffer.from("fake-png-data"),
     });
 
-    assert.ok(screenshot.relativePath.startsWith("chunks/screenshots/"));
+    assert.ok(screenshot.relativePath.startsWith("chunks/"));
     assert.ok(screenshot.relativePath.endsWith(".png"));
 
     const audioAbs = ctx.storageLayoutResolver.resolveAbsoluteArtifactPath(
@@ -259,6 +264,46 @@ test("recording persistence writes chunks to correct source directories", async 
     assert.ok(await ctx.fileSystem.pathExists(audioAbs));
     assert.ok(await ctx.fileSystem.pathExists(videoAbs));
     assert.ok(await ctx.fileSystem.pathExists(screenshotAbs));
+  } finally {
+    await ctx.cleanup();
+  }
+});
+
+test("append-mode persistence appends subsequent chunks to the same file", async () => {
+  const ctx = await createTestContext();
+
+  try {
+    const session = await ctx.startSession({
+      captureSources: ["microphone"],
+    });
+    const sessionId = session.session.id;
+
+    const first = await ctx.recordingPersistence.persistChunk({
+      sessionId,
+      source: "microphone",
+      sequenceNumber: 0,
+      mimeType: "audio/webm",
+      recordedAt: "2026-03-15T12:00:01.000Z",
+      buffer: Buffer.from("chunk-a"),
+    });
+
+    const second = await ctx.recordingPersistence.persistChunk({
+      sessionId,
+      source: "microphone",
+      sequenceNumber: 1,
+      mimeType: "audio/webm",
+      recordedAt: "2026-03-15T12:00:04.000Z",
+      buffer: Buffer.from("chunk-b"),
+    });
+
+    assert.equal(first.relativePath, second.relativePath);
+
+    const absPath = ctx.storageLayoutResolver.resolveAbsoluteArtifactPath(
+      sessionId,
+      first.relativePath,
+    );
+    const content = await readFile(absPath, "utf8");
+    assert.equal(content, "chunk-achunk-b");
   } finally {
     await ctx.cleanup();
   }
@@ -308,7 +353,7 @@ test("persist-then-register produces chunks the backend can process", async () =
   }
 });
 
-test("multi-chunk persist, register, finalize, and export produces a recording file", async () => {
+test("multi-source persist, finalize, and export produces recording files", async () => {
   const ctx = await createTestContext();
 
   try {
@@ -383,18 +428,18 @@ test("multi-chunk persist, register, finalize, and export produces a recording f
     );
 
     assert.ok(micSource);
-    assert.equal(micSource.chunks.length, 3);
+    assert.ok(micSource.file);
     assert.ok(videoSource);
-    assert.equal(videoSource.chunks.length, 2);
+    assert.ok(videoSource.file);
 
-    const exportedContent = await readFile(exportResult.exportFilePath);
-    assert.ok(exportedContent.length > 0);
+    const exportedContent = await readFile(exportResult.exportFilePath, "utf8");
+    assert.equal(exportedContent, "audio-chunk-0audio-chunk-1audio-chunk-2");
   } finally {
     await ctx.cleanup();
   }
 });
 
-test("export with a single chunk copies rather than concatenates", async () => {
+test("export with a single chunk copies the file", async () => {
   const ctx = await createTestContext();
 
   try {
@@ -529,11 +574,11 @@ test("recovery detects orphaned chunk files and missing registered chunks", asyn
       byteSize: persisted.byteSize,
     });
 
-    const orphanedDir = ctx.storageLayoutResolver.resolveAbsoluteArtifactPath(
+    const chunksDir = ctx.storageLayoutResolver.resolveAbsoluteArtifactPath(
       sessionId,
-      "chunks/audio",
+      "chunks",
     );
-    await writeFile(path.join(orphanedDir, "orphaned-file.webm"), "orphaned");
+    await writeFile(path.join(chunksDir, "orphaned-file.webm"), "orphaned");
 
     const recoveryService = createSessionRecoveryService({
       aggregateWriter: (ctx as Record<string, unknown>).pipelineAggregateWriter as never,
@@ -572,6 +617,91 @@ test("export with no chunks produces empty manifest", async () => {
 
     assert.equal(manifestContent.sessionId, sessionId);
     assert.equal(manifestContent.sources.length, 0);
+  } finally {
+    await ctx.cleanup();
+  }
+});
+
+test("export produces per-source files in manifest", async () => {
+  const ctx = await createTestContext();
+
+  try {
+    const session = await ctx.startSession({
+      captureSources: ["microphone", "screen-video"],
+    });
+    const sessionId = session.session.id;
+
+    for (let i = 0; i < 2; i++) {
+      const chunk = await ctx.recordingPersistence.persistChunk({
+        sessionId,
+        source: "microphone",
+        sequenceNumber: i,
+        mimeType: "audio/webm",
+        recordedAt: new Date(Date.now() + i * 15_000).toISOString(),
+        buffer: Buffer.from(`audio-${i}`),
+      });
+      await ctx.registerMediaChunk({
+        sessionId,
+        chunkId: chunk.chunkId,
+        source: "microphone",
+        relativePath: chunk.relativePath,
+        recordedAt: new Date(Date.now() + i * 15_000).toISOString(),
+        byteSize: chunk.byteSize,
+      });
+    }
+
+    for (let i = 0; i < 2; i++) {
+      const chunk = await ctx.recordingPersistence.persistChunk({
+        sessionId,
+        source: "screen-video",
+        sequenceNumber: i,
+        mimeType: "video/webm",
+        recordedAt: new Date(Date.now() + i * 15_000).toISOString(),
+        buffer: Buffer.from(`video-${i}`),
+      });
+      await ctx.registerMediaChunk({
+        sessionId,
+        chunkId: chunk.chunkId,
+        source: "screen-video",
+        relativePath: chunk.relativePath,
+        recordedAt: new Date(Date.now() + i * 15_000).toISOString(),
+        byteSize: chunk.byteSize,
+      });
+    }
+
+    await ctx.pipelineOrchestrator.runUntilIdle();
+    await ctx.finalizeSession({ sessionId });
+    await ctx.pipelineOrchestrator.runUntilIdle();
+
+    const exportResult = await ctx.recordingExport.exportSession(sessionId);
+
+    assert.ok(exportResult.sourceExports.length >= 2);
+
+    const micExport = exportResult.sourceExports.find((s) => s.source === "microphone");
+    const videoExport = exportResult.sourceExports.find((s) => s.source === "screen-video");
+
+    assert.ok(micExport);
+    assert.ok(micExport.totalBytes > 0);
+    assert.ok(await ctx.fileSystem.pathExists(micExport.exportFilePath));
+
+    assert.ok(videoExport);
+    assert.ok(videoExport.totalBytes > 0);
+    assert.ok(await ctx.fileSystem.pathExists(videoExport.exportFilePath));
+
+    const manifestContent = JSON.parse(
+      await readFile(exportResult.manifestPath, "utf8"),
+    );
+    const micManifestSource = manifestContent.sources.find(
+      (s: { source: string }) => s.source === "microphone",
+    );
+    const videoManifestSource = manifestContent.sources.find(
+      (s: { source: string }) => s.source === "screen-video",
+    );
+
+    assert.ok(micManifestSource.exportFilePath);
+    assert.match(micManifestSource.exportFilePath, /^interview-\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.webm$/);
+    assert.ok(videoManifestSource.exportFilePath);
+    assert.equal(videoManifestSource.exportFilePath, "screen-video.webm");
   } finally {
     await ctx.cleanup();
   }

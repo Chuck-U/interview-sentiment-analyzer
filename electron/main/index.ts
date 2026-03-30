@@ -1,7 +1,6 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 
-import path from "node:path";
 import {
   app,
   BrowserWindow,
@@ -11,11 +10,12 @@ import {
   Menu,
   nativeImage,
   screen,
+  session,
   shell,
   systemPreferences,
   Tray,
 } from "electron";
-import { logger, type LoggerProps } from "../../src/lib/logger";
+import { log } from "../../src/lib/logger";
 import { createSessionLifecycleBackend } from "../../src/backend";
 import { createListAiProviderModelsUseCase } from "../../src/backend/application/use-cases/list-ai-provider-models";
 import { createSecretStore } from "../../src/backend/infrastructure/config/secretStore";
@@ -55,7 +55,7 @@ import {
   WINDOW_CONTROL_EVENT_CHANNELS,
   parseResizeWindowByRequest,
 } from "../../src/shared/window-controls";
-import type { MediaChunkSource, SessionSnapshot } from "../../src/shared/session-lifecycle";
+import { type MediaChunkSource, type SessionSnapshot } from "../../src/shared/session-lifecycle";
 import {
   SHORTCUTS_IPC_CHANNELS,
   DEFAULT_RECORDING_CAPTURE_SOURCES,
@@ -71,24 +71,25 @@ import {
   isCardWindowRole,
 } from "../../src/shared/window-registry";
 import { createMonitorPickerController } from "./monitor-picker";
-import { applyOptionsWindowOpenBounds, createWindowBoundsSnapshot, getClampedWindowPositionForSize, getMinimumWindowSize, getWindowSizeForPreset, publishWindowBounds } from "../electron-utils";
+import { applyOptionsWindowOpenBounds, getClampedWindowPositionForSize, getMinimumWindowSize, getWindowSizeForPreset, publishWindowBounds, createWindowBoundsSnapshot } from "../electron-utils";
+import {
+  MODEL_INIT_CHANNELS,
+  MODEL_INIT_EVENT_CHANNELS,
+} from "../../src/shared/model-init";
+import { TRANSCRIPTION_CHANNELS } from "../../src/shared/transcription";
+import * as modelLifecycle from "../../src/backend/infrastructure/ml/model-lifecycle-service";
+import { createTranscribeAudioIpcHandler } from "../../src/backend/interfaces/controllers/transcription-controller";
+import { cleanupStaleArtifacts } from "./cleanup-stale-artifacts";
+import { isNonEmptyObject, isNonEmptyString } from "@/backend/guards/checks";
 
 const devServerUrl = process.env.VITE_DEV_SERVER_URL ?? 'http://localhost:5180'; // TODO: fix handling of this env variable
 
-const pipelineOrchestrationMode =
-  process.env.PIPELINE_ORCHESTRATOR === "langchain" ? "langchain" : "built-in"; // slop code
+// const pipelineOrchestrationMode =
+//   process.env.PIPELINE_ORCHESTRATOR === "langchain" ? "langchain" : "built-in"; // slop code
 export const MAIN_WINDOW_MIN_WIDTH = 600;
 export const MAIN_WINDOW_MIN_HEIGHT = 104;
 const MAIN_WINDOW_DEFAULT_WIDTH = 700;
 const MAIN_WINDOW_DEFAULT_HEIGHT = 112;
-const log: Pick<typeof logger, "ger"> = {
-  ger(entry: LoggerProps): void {
-    logger.ger({
-      ...entry,
-      source: __filename,
-    });
-  },
-};
 const listAiProviderModels = createListAiProviderModelsUseCase({
   fetch: globalThis.fetch,
 });
@@ -142,199 +143,6 @@ function publishToAllWindows(channel: string, payload: unknown): void {
   }
 }
 
-function createWindowBoundsSnapshot(
-  window: BrowserWindow,
-): WindowBoundsSnapshot {
-  const bounds = window.getBounds();
-  const [rawMinWidth, rawMinHeight] = window.getMinimumSize();
-  const minWidth = rawMinWidth > 0 ? rawMinWidth : MAIN_WINDOW_MIN_WIDTH;
-  const minHeight = rawMinHeight > 0 ? rawMinHeight : MAIN_WINDOW_MIN_HEIGHT;
-
-  return {
-    x: bounds.x,
-    y: bounds.y,
-    width: bounds.width,
-    height: bounds.height,
-    minWidth,
-    minHeight,
-  };
-}
-
-function getMinimumWindowSize(window: BrowserWindow): {
-  readonly width: number;
-  readonly height: number;
-} {
-  const [rawMinWidth, rawMinHeight] = window.getMinimumSize();
-
-  return {
-    width: rawMinWidth > 0 ? rawMinWidth : MAIN_WINDOW_MIN_WIDTH,
-    height: rawMinHeight > 0 ? rawMinHeight : MAIN_WINDOW_MIN_HEIGHT,
-  };
-}
-
-function getWindowSizeForPreset(
-  window: BrowserWindow,
-  preset: WindowSizePreset,
-): {
-  readonly width: number;
-  readonly height: number;
-} {
-  const display = screen.getDisplayMatching(window.getBounds());
-  const { width: workAreaWidth, height: workAreaHeight } = display.workAreaSize;
-  const minimumSize = getMinimumWindowSize(window);
-  const [, currentHeight] = window.getSize();
-  const isLauncher = getWindowRole(window) === WINDOW_ROLES.launcher;
-
-  const widthRatio =
-    preset === "50%" ? 0.5 : preset === "75%" ? 0.75 : 0.9;
-
-  if (isLauncher) {
-    return clampWindowSize(
-      {
-        width: Math.round(workAreaWidth * widthRatio),
-        height: currentHeight,
-      },
-      minimumSize,
-    );
-  }
-
-  switch (preset) {
-    case "50%":
-      return clampWindowSize(
-        {
-          width: Math.round(workAreaWidth * 0.5),
-          height: Math.round(workAreaHeight * 0.5),
-        },
-        minimumSize,
-      );
-    case "75%":
-      return clampWindowSize(
-        {
-          width: Math.round(workAreaWidth * 0.75),
-          height: Math.round(workAreaHeight * 0.75),
-        },
-        minimumSize,
-      );
-    case "90%":
-      return clampWindowSize(
-        {
-          width: Math.round(workAreaWidth * 0.9),
-          height: Math.round(workAreaHeight * 0.9),
-        },
-        minimumSize,
-      );
-  }
-}
-
-function getClampedWindowPositionForSize(
-  window: BrowserWindow,
-  size: {
-    readonly width: number;
-    readonly height: number;
-  },
-): {
-  readonly x: number;
-  readonly y: number;
-} {
-  const display = screen.getDisplayMatching(window.getBounds());
-  const { x, y, width, height } = display.workArea;
-  const [currentX, currentY] = window.getPosition();
-  const maxX = Math.max(x, x + width - size.width);
-  const maxY = Math.max(y, y + height - size.height);
-
-  return {
-    x: Math.min(Math.max(currentX, x), maxX),
-    y: Math.min(Math.max(currentY, y), maxY),
-  };
-}
-
-function getClampedPositionWithinBounds(
-  bounds: {
-    readonly x: number;
-    readonly y: number;
-    readonly width: number;
-    readonly height: number;
-  },
-  size: {
-    readonly width: number;
-    readonly height: number;
-  },
-  preferredPosition: {
-    readonly x: number;
-    readonly y: number;
-  },
-): {
-  readonly x: number;
-  readonly y: number;
-} {
-  const maxX = Math.max(bounds.x, bounds.x + bounds.width - size.width);
-  const maxY = Math.max(bounds.y, bounds.y + bounds.height - size.height);
-
-  return {
-    x: Math.min(Math.max(preferredPosition.x, bounds.x), maxX),
-    y: Math.min(Math.max(preferredPosition.y, bounds.y), maxY),
-  };
-}
-
-function applyOptionsWindowOpenBounds(
-  window: BrowserWindow,
-  anchorBounds?: {
-    readonly x: number;
-    readonly y: number;
-    readonly width: number;
-    readonly height: number;
-  },
-): void {
-  const display = screen.getDisplayMatching(
-    anchorBounds ?? window.getBounds(),
-  );
-  const minimumSize = getMinimumWindowSize(window);
-  const targetSize = clampWindowSize(
-    {
-      width: 560,
-      height: 640,
-    },
-    minimumSize,
-  );
-  const targetPosition = getClampedPositionWithinBounds(
-    display.bounds,
-    targetSize,
-    anchorBounds
-      ? {
-        x: anchorBounds.x,
-        y: anchorBounds.y + 100,
-      }
-      : {
-        x: display.bounds.x,
-        y: display.bounds.y,
-      },
-  );
-
-  window.setBounds({
-    x: targetPosition.x,
-    y: targetPosition.y,
-    width: targetSize.width,
-    height: targetSize.height,
-  });
-}
-
-function publishWindowBounds(window: BrowserWindow): void {
-  if (window.isDestroyed()) {
-    return;
-  }
-  const contents = window.webContents;
-  if (contents.isDestroyed()) {
-    return;
-  }
-  try {
-    contents.send(
-      WINDOW_CONTROL_EVENT_CHANNELS.boundsChanged,
-      createWindowBoundsSnapshot(window),
-    );
-  } catch {
-    // Ignore if the window is tearing down.
-  }
-}
 
 function publishAlwaysOnTop(window: BrowserWindow): void {
   if (window.isDestroyed()) {
@@ -411,13 +219,15 @@ function isCardWindowOpen(role: CardWindowRole): boolean {
   const target = cardWindows.get(role);
   return Boolean(target && !target.isDestroyed() && target.isVisible());
 }
-
+// we can remove control, sandbox from this
 function getCardOpenState(): CardWindowsOpenState {
   return {
     openIds: {
       controls: isCardWindowOpen("controls"),
       options: isCardWindowOpen("options"),
       sandbox: isCardWindowOpen("sandbox"),
+      "question-box": isCardWindowOpen("question-box"),
+      "speech-box": isCardWindowOpen("speech-box"),
     },
   };
 }
@@ -528,8 +338,7 @@ function createWindow(
       broadcastCardWindowOpenState();
     }
 
-    // Keep child windows visually associated with the launcher, but let
-    // the options window expand to the active display when it opens.
+  
     if (!isLauncher) {
       const launcher = BrowserWindow.getAllWindows().find(
         (window) => getWindowRole(window) === WINDOW_ROLES.launcher,
@@ -737,9 +546,9 @@ function createTrayMenu(args: {
     { label: "Exit", click: () => onExit() },
   ]);
 }
+
 async function initializeApp() {
   process.on("warning", (warning) => {
-    console.warn("[electron warning]", warning);
     log.ger({
       type: "warn",
       message: `[process warning] ${warning.name}: ${warning.message}`,
@@ -748,7 +557,6 @@ async function initializeApp() {
   });
 
   process.on("unhandledRejection", (reason) => {
-    console.error("[electron unhandledRejection]", reason);
     log.ger({
       type: "error",
       message: "[process unhandledRejection]",
@@ -757,7 +565,6 @@ async function initializeApp() {
   });
 
   process.on("uncaughtException", (error) => {
-    console.error("[electron uncaughtException]", error);
     log.ger({
       type: "fatal",
       message: `[process uncaughtException] ${error.message}`,
@@ -766,8 +573,19 @@ async function initializeApp() {
   });
 
   app.whenReady().then(async () => {
+    // try {
+    //   initializeAutoUpdates();
+    // } catch (error) {
+    //   log.ger({
+    //     type: "error",
+    //     message: "[app initializeAutoUpdates] failed",
+    //     data: error,
+    //   });
+    // }
+
+
     const mainWindow = createWindow(WINDOW_ROLES.launcher);
-    log.ger({ type: "info", message: "[app createWindow]", data: mainWindow })
+    log.ger({ type: "debug", message: "Window created" })
     mainWindow.focus();
 
     let currentSession: SessionSnapshot | null = null;
@@ -1134,6 +952,7 @@ async function initializeApp() {
       CAPTURE_OPTIONS_CHANNELS.openMonitorPicker,
       async (_event, input) => {
         let selectedDisplayId: string | undefined;
+        log.ger({ type: "debug", message: "[app CAPTURE_OPTIONS_CHANNELS.openMonitorPicker] input", data: { input, _event: _event } })
         if (typeof input === "object" && input !== null) {
           const candidate = (input as Record<string, unknown>).selectedDisplayId;
           log.ger({ type: "debug", message: "[app CAPTURE_OPTIONS_CHANNELS.openMonitorPicker] candidate", data: candidate })
@@ -1151,7 +970,39 @@ async function initializeApp() {
       monitorPicker.close();
     });
 
-    mainWindow.webContents.session.setDisplayMediaRequestHandler(
+    ipcMain.handle(MODEL_INIT_CHANNELS.startInit, async () => {
+      await modelLifecycle.initAll((payload) => {
+        for (const win of BrowserWindow.getAllWindows()) {
+          win.webContents.send(MODEL_INIT_EVENT_CHANNELS.progress, payload);
+        }
+      });
+      for (const win of BrowserWindow.getAllWindows()) {
+        win.webContents.send(MODEL_INIT_EVENT_CHANNELS.ready);
+      }
+    });
+
+    ipcMain.handle(MODEL_INIT_CHANNELS.getStatus, () => {
+      return modelLifecycle.getStatus();
+    });
+
+    const appDataRoot = path.join(
+      app.getPath("appData"),
+      "interview-sentiment-analyzer",
+    );
+    const storageLayoutResolver = createSessionStorageLayoutResolver(appDataRoot);
+
+    await cleanupStaleArtifacts(appDataRoot).catch((err) =>
+      log.ger({ type: "warn", message: "[cleanup] startup cleanup failed", data: err }),
+    );
+
+    ipcMain.handle(
+      TRANSCRIPTION_CHANNELS.transcribeAudio,
+      createTranscribeAudioIpcHandler({
+        getPipeline: modelLifecycle.getPipeline,
+      }),
+    );
+
+    session.defaultSession.setDisplayMediaRequestHandler(
       async (_request, callback) => {
         const captureOptions = await appConfigStore.loadCaptureOptionsConfig();
         const sources = await desktopCapturer.getSources({
@@ -1211,7 +1062,7 @@ async function initializeApp() {
         y: currentY + request.deltaY,
       };
       log.ger({
-        type: "info",
+        type: "debug",
         message: "[app WINDOW_CONTROL_CHANNELS.moveWindowBy] next position",
         data: {
           role: getWindowRole(targetWindow),
@@ -1243,7 +1094,7 @@ async function initializeApp() {
         nextSize,
       );
       log.ger({
-        type: "info",
+        type: "debug",
         message: "[app WINDOW_CONTROL_CHANNELS.resizeWindowBy] next bounds",
         data: {
           role: getWindowRole(targetWindow),
@@ -1409,18 +1260,13 @@ async function initializeApp() {
           );
         },
       },
-      {
-        orchestrationMode: pipelineOrchestrationMode,
-      },
+      // {
+      //   orchestrationMode: pipelineOrchestrationMode,
+      // },
     );
 
     registerSessionLifecycleIpc(ipcMain, sessionLifecycleBackend.controller);
 
-    const appDataRoot = path.join(
-      app.getPath("appData"),
-      "interview-sentiment-analyzer",
-    );
-    const storageLayoutResolver = createSessionStorageLayoutResolver(appDataRoot);
     const recordingPersistence = createRecordingPersistenceService(storageLayoutResolver);
     const recordingExport = createRecordingExportService(storageLayoutResolver);
     const sandboxRecordingPersistence = createRecordingSandboxPersistenceService(
@@ -1444,7 +1290,10 @@ async function initializeApp() {
         if (typeof input !== "object" || input === null) {
           throw new Error("exportRecording request must be an object");
         }
-        const sessionId = (input as Record<string, unknown>).sessionId as string;
+        const req = input as Record<string, unknown>;
+        const sessionId = req.sessionId as string;
+        const startedAt = typeof req.startedAt === "string" ? req.startedAt : undefined;
+        const completedAt = typeof req.completedAt === "string" ? req.completedAt : undefined;
 
         publishToAllWindows(RECORDING_EVENT_CHANNELS.exportProgress, {
           sessionId,
@@ -1452,7 +1301,10 @@ async function initializeApp() {
         });
 
         try {
-          const result = await recordingExport.exportSession(sessionId);
+          const result = await recordingExport.exportSession(sessionId, {
+            startedAt,
+            completedAt,
+          });
           publishToAllWindows(RECORDING_EVENT_CHANNELS.exportProgress, {
             sessionId,
             exportStatus: "completed",
@@ -1474,17 +1326,23 @@ async function initializeApp() {
     ipcMain.handle(
       RECORDING_CHANNELS.openRecordingsFolder,
       async (_event, input: unknown) => {
-        if (typeof input !== "object" || input === null) {
+        if (!isNonEmptyObject(input)) {
           throw new Error("openRecordingsFolder request must be an object");
         }
+        const sessionId = input.sessionId;
+        if (!isNonEmptyString(sessionId)) {
+          log.ger({ type: "debug", message: "[app RECORDING_CHANNELS.openRecordingsFolder] with no sessionId" })
 
-        const sessionId = (input as Record<string, unknown>).sessionId;
-        if (typeof sessionId !== "string" || sessionId.trim().length === 0) {
-          throw new Error("openRecordingsFolder requires sessionId");
+          const recordingRoot = storageLayoutResolver.resolveSessionLayout().recordingsRoot
+
+          const openResult = await shell.openPath(recordingRoot);
+          if (openResult.length > 0) {
+            throw new Error(openResult);
+          }
+          return;
         }
-
         const recordingsRoot = storageLayoutResolver.resolveSessionLayout(
-          sessionId.trim(),
+          sessionId?.trim(),
         ).recordingsRoot;
         await mkdir(recordingsRoot, { recursive: true });
         const openResult = await shell.openPath(recordingsRoot);

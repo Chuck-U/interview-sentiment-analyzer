@@ -8,6 +8,7 @@ import type {
 import type { CaptureOptionsConfig } from "@/shared/capture-options";
 import type { MediaChunkSource } from "@/shared/session-lifecycle";
 import {
+  AUDIO_CHUNK_INTERVAL_MS,
   AUDIO_MIME_CANDIDATES,
   DEFAULT_CHUNK_INTERVAL_MS,
   DEFAULT_SCREENSHOT_INTERVAL_MS,
@@ -310,6 +311,7 @@ export class CaptureManager {
       {
         activeDeviceId,
       },
+      source === "microphone" ? AUDIO_CHUNK_INTERVAL_MS : DEFAULT_CHUNK_INTERVAL_MS,
     );
   }
 
@@ -392,6 +394,7 @@ export class CaptureManager {
           {
             activeDisplayId,
           },
+          AUDIO_CHUNK_INTERVAL_MS,
         );
       }
     }
@@ -434,6 +437,7 @@ export class CaptureManager {
           {
             activeDisplayId,
           },
+          AUDIO_CHUNK_INTERVAL_MS,
         );
       }
     }
@@ -587,6 +591,7 @@ export class CaptureManager {
       readonly activeDeviceId?: string;
       readonly activeDisplayId?: string;
     },
+    chunkIntervalMs: number = DEFAULT_CHUNK_INTERVAL_MS,
   ): Promise<void> {
     const supported = pickSupportedMimeType([...mimeCandidates]);
     if (!supported) {
@@ -660,7 +665,7 @@ export class CaptureManager {
       if (recorder.mediaRecorder.state === "recording") {
         recorder.mediaRecorder.requestData();
       }
-    }, DEFAULT_CHUNK_INTERVAL_MS);
+    }, chunkIntervalMs);
 
     this.publishState();
   }
