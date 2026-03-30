@@ -25,6 +25,11 @@ import { setFeedbackMessage } from "./store/slices/sessionRecordingSlice";
 import { setShortcutEnabled } from "./store/slices/shortcutsWindowSlice";
 import { WindowResizeControl } from "./window-controls/window-resize-control";
 import { WindowPinControl } from "./window-controls/window-pin-control";
+import { cn } from "@/lib/utils";
+import toast from "@/components/molecules/Toast"
+
+
+
 
 function getStatusCopy(session: SessionSnapshot | null): {
   readonly label: string;
@@ -60,7 +65,6 @@ function getStatusCopy(session: SessionSnapshot | null): {
 function LauncherMain() {
   useShortcutsWindowEffects();
   useWindowRegistrySync();
-
   const { handleToggleRecording, handleCloseApplication } = useRecordingSession();
   const currentSession = useAppSelector(
     (state) => state.sessionRecording.currentSession,
@@ -113,13 +117,13 @@ function LauncherMain() {
           }}
           visibilityShortcut={visibilityShortcutLabel}
           pinControl={<WindowPinControl {...pinControlProps} />}
-          resizeControl={
-            <WindowResizeControl
-              windowBounds={windowBounds}
-              presetOptions={resizePresetOptions}
-              onSelectPreset={handleResizePreset}
-            />
-          }
+          // resizeControl={
+          //   <WindowResizeControl
+          //     windowBounds={windowBounds}
+          //     presetOptions={resizePresetOptions}
+          //     onSelectPreset={handleResizePreset}
+          //   />
+          // }
           isWorkspaceOpen={openWindowIds.options}
           onWorkspaceToggle={() => {
             handleSetActiveView(VIEW_OPTIONS.options);
@@ -150,7 +154,6 @@ function LauncherMain() {
 function CardWindowMain({ layout, id }: { readonly layout: OptionsCardLayout, id: string }) {
   const dispatch = useAppDispatch();
   useShortcutsWindowEffects();
-  const { resizePresetOptions } = useViews();
   const {
     handleToggleRecording,
     handleExportRecording,
@@ -223,16 +226,7 @@ function CardWindowMain({ layout, id }: { readonly layout: OptionsCardLayout, id
     [dispatch, isShortcutEnabled],
   );
 
-  const handleResizePreset = useCallback(
-    async (preset: WindowSizePreset) => {
-      console.log('handleResizePreset', preset);
-      const newBounds = await window.electronApp.windowControls.setWindowSizePreset({
-        preset,
-      });
-      return newBounds;
-    },
-    [windowBounds],
-  );
+
 
   const isRecording = currentSession?.status === "active";
   const statusCopy = getStatusCopy(currentSession);
@@ -253,22 +247,43 @@ function CardWindowMain({ layout, id }: { readonly layout: OptionsCardLayout, id
       ),
     [platformLabel, recordingShortcutAccelerator],
   );
+  const handleDrag = (event: React.DragEvent<HTMLElement>) => {
+    console.log('event', event)
+
+    if (isPinned) {
+      console.error('You cannot drag the window while it is pinned')
+      event.preventDefault();
+      toast()
+      return;
+    }
+    console.log('not pinned')
+
+  }
 
   return (
     <div className="flex h-full min-h-0 w-full flex-1 flex-col bg-transparent" id={id}>
       <nav
-        className="relative z-[70] flex w-full shrink-0 flex-col items-end justify-baseline rounded-r-md rounded-bl-md border transition-colors duration-200 ease-in-out group-hover:border-yellow-a10 active:bg-yellow-a10/70"
+        className={cn("relative z-[70] flex w-full shrink-0 flex-col items-end justify-baseline mb-px shadow-b-md rounded-md transition-colors duration-200 ease-in-out group-hover:border-yellow-a10", isPinned ? "transition-colors duration-200 ease-in-out border-yellow-a10 border-dashed" : "border-transparent from-bg-yellow-a1/5 to-transparent linear-gradient-to-b")}
         draggable={!isPinned}
         style={dragRegionStyle}
+        onClick={handleDrag}
+        onDragCapture={handleDrag}
+        onMouseDown={handleDrag}
       >
-        <div className="flex w-full items-center justify-between gap-2 leading-7 px-2 py-1">
+        <div className="flex w-full items-center justify-between gap-2 leading-7 mx-2 py-1" style={dragRegionStyle}>
           <div className="flex items-center gap-2">
-            <WindowPinControl {...pinControlProps} />
-            <WindowResizeControl
-              windowBounds={windowBounds}
-              presetOptions={resizePresetOptions}
-              onSelectPreset={handleResizePreset}
-            />
+            <div style={noDragRegionStyle}>
+
+              <WindowPinControl {...pinControlProps} />
+            </div>
+            {/* TODO: remove resize */}
+            {/* <div style={noDragRegionStyle}>
+              <WindowResizeControl
+                windowBounds={windowBounds}
+                presetOptions={resizePresetOptions}
+                onSelectPreset={handleResizePreset}
+              />
+            </div> */}
           </div>
           <button
             type="button"
@@ -283,13 +298,11 @@ function CardWindowMain({ layout, id }: { readonly layout: OptionsCardLayout, id
           </button>
         </div>
       </nav>
-      <main
+      <div
         className="flex min-h-0 w-full flex-1 flex-col overflow-hidden bg-transparent"
         style={noDragRegionStyle}
       >
-        <div className="h-2 shrink-0" style={dragRegionStyle} />
         <div className="flex min-h-0 flex-1">
-          <div className="w-4 shrink-0" style={dragRegionStyle} />
           <div className="flex min-h-0 flex-1 overflow-hidden" style={noDragRegionStyle}>
             <OptionsWorkspace
               statusLabel={statusCopy.label}
@@ -367,10 +380,10 @@ function CardWindowMain({ layout, id }: { readonly layout: OptionsCardLayout, id
               }}
             />
           </div>
-          <div className="w-4 shrink-0" style={dragRegionStyle} />
+          <div className="w-1 shrink-0" style={dragRegionStyle} />
         </div>
         <div className="h-4 shrink-0" style={dragRegionStyle} />
-      </main>
+      </div>
     </div>
   );
 }

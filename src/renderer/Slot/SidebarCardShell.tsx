@@ -90,11 +90,11 @@ export function SidebarCardShell<TSectionId extends string>({
         </SidebarContent>
       </Sidebar>
       <SidebarInset
-        className="flex min-h-0 flex-1 p-0  overflow-hidden  py-0 -my-8"
+        className="flex min-h-0 flex-1 p-0  overflow-hidden"
         style={noDragStyle}
       >
         <div
-          className="flex min-h-0 flex-1 flex-col from-yellow-a6/30 via-yellow-a6/20 to-transparent bg-gradient-to-br"
+          className="flex min-h-0 flex-1 flex-col from-yellow-a6/30 via-yellow-a6/20 to-transparent bg-gradient-to-br mt-4"
           style={noDragStyle}
         >
           {activeContent}

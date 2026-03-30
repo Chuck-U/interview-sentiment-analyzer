@@ -182,6 +182,7 @@ function publishPinned(window: BrowserWindow): void {
   }
 
   try {
+    log.ger({ type: "info", message: 'publish pinned sending change event', data: { window, isPinned: isWindowPinned(window) } })
     contents.send(
       WINDOW_CONTROL_EVENT_CHANNELS.pinnedChanged,
       isWindowPinned(window),
@@ -274,7 +275,7 @@ function createWindow(
     transparent: true,
     backgroundColor: "#00000000",
     resizable: true,
-    show: false,
+    show: isLauncher ? false : true,
     fullscreenable: false,
     skipTaskbar: true,
     hasShadow: true,
@@ -338,7 +339,7 @@ function createWindow(
       broadcastCardWindowOpenState();
     }
 
-  
+
     if (!isLauncher) {
       const launcher = BrowserWindow.getAllWindows().find(
         (window) => getWindowRole(window) === WINDOW_ROLES.launcher,
