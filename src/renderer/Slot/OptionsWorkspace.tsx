@@ -3,6 +3,7 @@ import { useCallback } from "react";
 import {
   RiBrainLine,
   RiEqualizerLine,
+  RiFileList3Line,
   RiRecordCircleFill,
   RiSettings3Line,
 } from "@remixicon/react";
@@ -21,6 +22,7 @@ import { RecordingControlCard } from "./agent-controls-cards/RecordingControlCar
 import { DisplayCaptureCard } from "./capture-options-cards/DisplayCaptureCard";
 import { MicrophoneCaptureCard } from "./capture-options-cards/MicrophoneCaptureCard";
 import { WebcamCaptureCard } from "./capture-options-cards/WebcamCaptureCard";
+import { LicensesAndAcknowledgementsCard } from "./capture-options-cards/LicensesAndAcknowledgementsCard";
 import { OptionsCard } from "./capture-options-cards/OptionsCard";
 
 export type { OptionsSectionId as optionsSectionId };
@@ -144,7 +146,7 @@ export function OptionsWorkspace({
             isBusy={isBusy}
             onToggleRecording={onToggleRecording}
             onOpenRecordingsFolder={onOpenRecordingsFolder}
-            recordingState={recordingState as unknown as RecordingState}
+            recordingState={recordingState ?? undefined}
           />
 
         </OptionsCard>
@@ -173,6 +175,16 @@ export function OptionsWorkspace({
             onSetShortcutEnabled={onSetShortcutEnabled}
             isBusy={isBusy}
           />
+        </OptionsCard>
+      ),
+    },
+    {
+      id: "licenses",
+      label: "Licenses",
+      icon: RiFileList3Line,
+      content: (
+        <OptionsCard title="Licenses" description="Open-source notices and acknowledgements.">
+          <LicensesAndAcknowledgementsCard />
         </OptionsCard>
       ),
     },

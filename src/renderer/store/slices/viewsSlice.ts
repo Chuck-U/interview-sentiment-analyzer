@@ -11,7 +11,8 @@ export type OptionsSectionId =
   | "capture-options"
   | "recordings"
   | "ai-provider"
-  | "options";
+  | "options"
+  | "licenses";
 
 const CARD_TAB_ORDER: readonly WindowRole[] = [
   WINDOW_ROLES.launcher,

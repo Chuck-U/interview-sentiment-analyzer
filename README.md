@@ -1,27 +1,54 @@
-# Interview Sentiment Analysis 
+# Interview Sentiment Analyzer
 
+Desktop app for recording interviews and reviewing **offline**, **AI-assisted** feedback—built with **Electron**, **React**, and **TypeScript**. Capture microphone, webcam, and screen input, run a local analysis pipeline, and keep session data on your machine.
 
+## Highlights
 
-## Overview
-The purpose of this project is to help provide interview feedback for job seekers to help improve their interviewing skills. It has been inspired by my own **admittedly subpar** interviewing skills and the desire to get feedback on areas I'm able to improve on. It's built on electron, with a typescript based implementation. The objective is to help interviewees bring their own feedback tool, and to help AuDHD interviewees have better awareness of their own common patterns with realtime indicators to help improve their ability to converse in new and challenging settings. 
+- **Local-first workflow** — Session artifacts and analysis stay under your control; optional cloud AI providers are configured in-app.
+- **Rich capture** — Microphone metering, webcam preview, display capture, and recording lifecycle management.
+- **Modern stack** — Vite, Redux Toolkit, Tailwind CSS v4, Drizzle ORM, and in-process ML via [Transformers.js](https://github.com/huggingface/transformers.js) where applicable.
 
-### Features
+## Requirements
 
-- Offline data storage 
-- highlights from interview
-- overall analysis 
+- **Node.js** 20+ (recommended)
+- **pnpm** 10+ (`corepack enable` or install from [pnpm.io](https://pnpm.io))
 
+## Quick start
 
+```bash
+pnpm install
+pnpm dev
+```
 
-This is an evolving project. 
+This starts the Vite dev server and launches Electron against it.
 
+## Scripts
 
+| Command | Description |
+| -------- | ----------- |
+| `pnpm dev` | Run renderer + Electron in development |
+| `pnpm build` | Production build (renderer + main process) |
+| `pnpm dist` | Build and package installers via electron-builder |
+| `pnpm test` | Backend unit tests (Node test runner) |
+| `pnpm lint` | ESLint |
+| `pnpm typecheck` | TypeScript `--noEmit` for renderer and Electron |
+| `pnpm licenses list` | Dependency license summary (third-party notices) |
 
-### Development Methodology
+## Project layout
 
-A mix of vibe coding for scaffolding, and manual coding/modification for data, UI, and correction. Currently using GPT 5.4 as the principal agent, with a mixture for sub-tasks.  
+- `src/renderer/` — React UI, recording/capture UI, Redux store
+- `src/backend/` — Electron main process, services, ML pipeline hooks
+- `src/shared/` — Types, IPC contracts, and cross-layer utilities
 
+## License
 
+This project is licensed under the **MIT License** — see [`LICENSE`](./LICENSE).
 
-TODOs
-[] fix recording so that audio and video are merged.
+Bundled and runtime-downloaded third-party libraries have their own licenses. The in-app **Settings → Licenses** section summarizes major components; use `pnpm licenses list` for a machine-readable dependency report.
+
+## Acknowledgements
+
+- [Electron](https://www.electronjs.org/)
+- [Hugging Face Transformers.js](https://github.com/huggingface/transformers.js)
+- [Remix Icon](https://remixicon.com/)
+- [shadcn/ui](https://ui.shadcn.com/) and the broader open-source ecosystem this app builds on

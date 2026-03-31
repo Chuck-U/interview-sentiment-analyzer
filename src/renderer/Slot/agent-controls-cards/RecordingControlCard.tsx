@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 
 import { IconToggle } from "../IconToggle";
 import { Button } from "@/components/ui/button";
+import type { RecordingStateSnapshot } from "@/shared/recording";
 
 type RecordingControlCardProps = {
   readonly feedbackMessage: string;
@@ -14,7 +15,7 @@ type RecordingControlCardProps = {
   readonly isBusy: boolean;
   readonly onToggleRecording: (enabled: boolean) => void;
   readonly onOpenRecordingsFolder: () => void;
-  readonly recordingState?: RecordingState;
+  readonly recordingState?: RecordingStateSnapshot | null;
 };
 
 export function RecordingControlCard({
@@ -24,7 +25,7 @@ export function RecordingControlCard({
   isBusy,
   onToggleRecording,
   onOpenRecordingsFolder,
-  recordingState,
+  recordingState: _recordingState,
 }: RecordingControlCardProps) {
   return (
     <div className="flex h-stretch  flex-col justify-between gap-y-4 px-2 mt-4 h-full overflow-y-auto">
