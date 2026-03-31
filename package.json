@@ -85,6 +85,7 @@
       "dist/**",
       "dist-electron/**",
       "package.json",
+      "LICENSE",
       "src/**"
     ],
     "directories": {
