@@ -1,0 +1,331 @@
+import { useCallback, useMemo } from "react";
+
+import { RiCloseFill } from "@remixicon/react";
+
+import toast from "@/components/molecules/Toast";
+import { cn } from "@/lib/utils";
+import { WINDOW_ROLES, type CardWindowRole } from "@/shared/window-registry";
+import type { SessionSnapshot } from "@/shared/session-lifecycle";
+import {
+  DEFAULT_SHORTCUT_ID_RECORDING_TOGGLE,
+  formatElectronAcceleratorLabel,
+} from "@/shared/shortcuts";
+import { QuestionBoxMain } from "./QuestionBoxMain";
+import { OptionsWorkspace } from "./Slot/OptionsWorkspace";
+import { useCaptureOptions } from "./capture-options/useCaptureOptions";
+import { usePinnedWindowBehavior } from "./hooks/usePinnedWindowBehavior";
+import { useRecordingSession } from "./hooks/useRecordingSession";
+import { useShortcutsWindowEffects } from "./hooks/useShortcutsWindowEffects";
+import { useAppDispatch, useAppSelector } from "./store/hooks";
+import { setFeedbackMessage } from "./store/slices/sessionRecordingSlice";
+import { setShortcutEnabled } from "./store/slices/shortcutsWindowSlice";
+import { WindowPinControl } from "./window-controls/window-pin-control";
+
+function assertNever(value: never): never {
+  throw new Error(`Unhandled card window role: ${String(value)}`);
+}
+
+function getStatusCopy(session: SessionSnapshot | null): {
+  readonly label: string;
+  readonly variant: "default" | "secondary" | "outline";
+} {
+  if (!session) {
+    return {
+      label: "Idle",
+      variant: "outline",
+    };
+  }
+
+  if (session.status === "active") {
+    return {
+      label: "Recording",
+      variant: "default",
+    };
+  }
+
+  if (session.status === "finalizing") {
+    return {
+      label: "Stopping",
+      variant: "secondary",
+    };
+  }
+
+  return {
+    label: "Ready",
+    variant: "outline",
+  };
+}
+
+function UnsupportedCardWindow({
+  role,
+}: {
+  readonly role: Exclude<
+    CardWindowRole,
+    typeof WINDOW_ROLES.options | typeof WINDOW_ROLES.questionBox
+  >;
+}) {
+  return (
+    <div className="flex min-h-0 w-full flex-1 items-center justify-center p-4 text-sm text-muted-foreground">
+      `{role}` is not implemented yet.
+    </div>
+  );
+}
+
+export function CardWindowMain({ role }: { readonly role: CardWindowRole }) {
+  const dispatch = useAppDispatch();
+  useShortcutsWindowEffects();
+  const {
+    handleToggleRecording,
+    handleExportRecording,
+    handleCloseApplication,
+  } = useRecordingSession({ manageCapture: false });
+
+  const platformLabel = useMemo(() => window.electronApp.platform, []);
+  const currentSession = useAppSelector(
+    (state) => state.sessionRecording.currentSession,
+  );
+  const feedbackMessage = useAppSelector(
+    (state) => state.sessionRecording.feedbackMessage,
+  );
+  const isStarting = useAppSelector(
+    (state) => state.sessionRecording.isStarting,
+  );
+  const isStopping = useAppSelector(
+    (state) => state.sessionRecording.isStopping,
+  );
+  const recordingState = useAppSelector(
+    (state) => state.sessionRecording.recordingState,
+  );
+  const recordingShortcutAccelerator = useAppSelector(
+    (state) => state.shortcutsWindow.recordingShortcutAccelerator,
+  );
+  const isShortcutEnabled = useAppSelector(
+    (state) => state.shortcutsWindow.isShortcutEnabled,
+  );
+  const windowBounds = useAppSelector(
+    (state) => state.shortcutsWindow.windowBounds,
+  );
+  const { dragRegionStyle, noDragRegionStyle, isPinned, pinControlProps } =
+    usePinnedWindowBehavior();
+
+  const handleCaptureOptionsError = useCallback(
+    (message: string) => {
+      dispatch(setFeedbackMessage(message));
+    },
+    [dispatch],
+  );
+
+  const captureOptions = useCaptureOptions({
+    isMenuActive: role === WINDOW_ROLES.options,
+    onError: handleCaptureOptionsError,
+  });
+
+  const handleSetShortcutEnabled = useCallback(
+    (enabled: boolean) => {
+      const previous = isShortcutEnabled;
+      dispatch(setShortcutEnabled(enabled));
+
+      void window.electronApp.shortcuts
+        .setShortcutEnabled({
+          shortcutId: DEFAULT_SHORTCUT_ID_RECORDING_TOGGLE,
+          enabled,
+        })
+        .catch((error: unknown) => {
+          dispatch(setShortcutEnabled(previous));
+          dispatch(
+            setFeedbackMessage(
+              error instanceof Error
+                ? error.message
+                : "Unable to update shortcut.",
+            ),
+          );
+        });
+    },
+    [dispatch, isShortcutEnabled],
+  );
+
+  const isRecording = currentSession?.status === "active";
+  const statusCopy = getStatusCopy(currentSession);
+  const isBusy = isStarting || isStopping;
+  const windowSizeLabel = windowBounds
+    ? `${windowBounds.width} x ${windowBounds.height}`
+    : "Syncing window";
+  const windowBoundsLabel = windowBounds
+    ? `Position ${windowBounds.x}, ${windowBounds.y}`
+    : undefined;
+  const shortcutLabel = useMemo(
+    () =>
+      formatElectronAcceleratorLabel(
+        recordingShortcutAccelerator,
+        platformLabel,
+      ),
+    [platformLabel, recordingShortcutAccelerator],
+  );
+
+  const handleAttemptDrag = useCallback(
+    (
+      event:
+        | React.DragEvent<HTMLElement>
+        | React.MouseEvent<HTMLElement>
+        | React.PointerEvent<HTMLElement>,
+    ) => {
+      if (!isPinned) {
+        return;
+      }
+
+      event.preventDefault();
+      toast();
+    },
+    [isPinned],
+  );
+
+  let content: React.ReactNode;
+  switch (role) {
+    case WINDOW_ROLES.options:
+      content = (
+        <OptionsWorkspace
+          statusLabel={statusCopy.label}
+          statusVariant={statusCopy.variant}
+          platformLabel={platformLabel}
+          windowSizeLabel={windowSizeLabel}
+          windowBoundsLabel={windowBoundsLabel}
+          currentSessionId={currentSession?.id}
+          feedbackMessage={feedbackMessage}
+          isRecording={isRecording}
+          isBusy={isBusy}
+          onToggleRecording={(enabled) => {
+            void handleToggleRecording(enabled);
+          }}
+          shortcutLabel={shortcutLabel}
+          isShortcutEnabled={isShortcutEnabled}
+          onSetShortcutEnabled={handleSetShortcutEnabled}
+          recordingState={recordingState}
+          onExportRecording={() => {
+            void handleExportRecording();
+          }}
+          permissions={captureOptions.permissions}
+          microphoneDevices={captureOptions.microphoneDevices}
+          audioOutputDevices={captureOptions.audioOutputDevices}
+          webcamDevices={captureOptions.webcamDevices}
+          displays={captureOptions.displays}
+          microphoneEnabled={captureOptions.config.microphone.enabled}
+          webcamEnabled={captureOptions.config.webcam.enabled}
+          screenEnabled={captureOptions.config.screen.enabled}
+          systemAudioEnabled={captureOptions.config.systemAudio.enabled}
+          screenshotEnabled={captureOptions.config.screenshot.enabled}
+          microphoneLevel={captureOptions.microphoneLevel}
+          isWebcamPreviewVisible={captureOptions.isWebcamPreviewVisible}
+          isWebcamPreviewLoading={captureOptions.isWebcamPreviewLoading}
+          webcamPreviewStream={captureOptions.webcamPreviewStream}
+          isDesktopPreviewVisible={captureOptions.isDesktopPreviewVisible}
+          isDesktopPreviewLoading={captureOptions.isDesktopPreviewLoading}
+          desktopPreviewStream={captureOptions.desktopPreviewStream}
+          hasCaptureSourceEnabled={captureOptions.hasCaptureSourceEnabled}
+          onSetMicrophoneEnabled={captureOptions.setMicrophoneEnabled}
+          onSetWebcamEnabled={captureOptions.setWebcamEnabled}
+          onSetScreenEnabled={captureOptions.setScreenEnabled}
+          onSetSystemAudioEnabled={captureOptions.setSystemAudioEnabled}
+          onSetScreenshotEnabled={captureOptions.setScreenshotEnabled}
+          onSetMicrophoneDeviceId={captureOptions.setMicrophoneDeviceId}
+          onSetAudioOutputDeviceId={captureOptions.setAudioOutputDeviceId}
+          onSetWebcamDeviceId={captureOptions.setWebcamDeviceId}
+          onSetDisplayId={captureOptions.setDisplayId}
+          onSetWebcamPreviewVisible={captureOptions.setWebcamPreviewVisible}
+          onSetDesktopPreviewVisible={captureOptions.setDesktopPreviewVisible}
+          onOpenMonitorPicker={() => {
+            void captureOptions.openMonitorPicker();
+          }}
+          onOpenRecordingsFolder={() => {
+            const sessionId = recordingState?.sessionId ?? currentSession?.id;
+            if (!sessionId) {
+              dispatch(setFeedbackMessage("No recording session is available yet."));
+              return;
+            }
+
+            void window.electronApp.recording
+              .openRecordingsFolder({ sessionId })
+              .catch((error: unknown) => {
+                dispatch(
+                  setFeedbackMessage(
+                    error instanceof Error
+                      ? error.message
+                      : "Unable to open recordings folder.",
+                  ),
+                );
+              });
+          }}
+          onQuit={() => {
+            void handleCloseApplication();
+          }}
+        />
+      );
+      break;
+    case WINDOW_ROLES.questionBox:
+      content = <QuestionBoxMain />;
+      break;
+    case WINDOW_ROLES.controls:
+    case WINDOW_ROLES.sandbox:
+    case WINDOW_ROLES.speechBox:
+      content = <UnsupportedCardWindow role={role} />;
+      break;
+    default:
+      content = assertNever(role);
+  }
+
+  return (
+    <div
+      className="flex h-full min-h-0 w-full flex-1 flex-col bg-transparent"
+      id={role}
+    >
+      <nav
+        className={cn(
+          "relative z-[70] mb-px flex w-full shrink-0 flex-col items-end justify-baseline rounded-md shadow-b-md transition-colors duration-200 ease-in-out group-hover:border-yellow-a10",
+          isPinned
+            ? "border-dashed border-yellow-a10"
+            : "border-transparent from-bg-yellow-a1/5 to-transparent linear-gradient-to-b",
+        )}
+        draggable={!isPinned}
+        style={dragRegionStyle}
+        onDragCapture={handleAttemptDrag}
+        onMouseDown={handleAttemptDrag}
+      >
+        <div
+          className="mx-2 flex w-full items-center justify-between gap-2 py-1 leading-7"
+          style={dragRegionStyle}
+        >
+          <div className="flex items-center gap-2">
+            <div style={noDragRegionStyle}>
+              <WindowPinControl {...pinControlProps} />
+            </div>
+          </div>
+          <button
+            type="button"
+            className="cursor-pointer rounded-full p-2 text-muted-foreground transition-colors duration-200 ease-in-out hover:bg-red-900/5 hover:text-red-500/50"
+            onClick={() => {
+              void window.electronApp.windowRegistry.closeWindow(role);
+            }}
+            style={noDragRegionStyle}
+            aria-label={`Close ${role} window`}
+          >
+            <RiCloseFill className="size-6" />
+          </button>
+        </div>
+      </nav>
+      <div
+        className="flex min-h-0 w-full flex-1 flex-col overflow-hidden bg-transparent"
+        style={noDragRegionStyle}
+      >
+        <div className="flex min-h-0 flex-1">
+          <div
+            className="flex min-h-0 flex-1 overflow-hidden"
+            style={noDragRegionStyle}
+          >
+            {content}
+          </div>
+          <div className="w-1 shrink-0" style={dragRegionStyle} />
+        </div>
+        <div className="h-4 shrink-0" style={dragRegionStyle} />
+      </div>
+    </div>
+  );
+}

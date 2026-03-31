@@ -2,10 +2,11 @@ import React, { useEffect } from "react";
 import ReactDom from "react-dom/client";
 import { Provider } from "react-redux";
 
-import { Toaster } from "@/components/ui/sonner";
+// import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 import Main from "./main";
+import { useQuestionDetectionEvents } from "./hooks/useQuestionDetectionEvents";
 import { loadCaptureOptions } from "./store/slices/captureOptionsSlice";
 import { startModelInit } from "./store/slices/modelInitSlice";
 import { useAppDispatch } from "./store/hooks";
@@ -14,6 +15,7 @@ import "./styles.css";
 
 export function AppRoot() {
   const dispatch = useAppDispatch();
+  useQuestionDetectionEvents();
 
   useEffect(() => {
     void dispatch(loadCaptureOptions());
@@ -35,7 +37,7 @@ ReactDom.createRoot(document.getElementById("root")!).render(
     <TooltipProvider>
       <Provider store={store}>
         <AppRoot />
-        <Toaster />
+        {/* <Toaster /> */}
       </Provider>
     </TooltipProvider>
   </React.StrictMode>,

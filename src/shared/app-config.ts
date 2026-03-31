@@ -16,16 +16,20 @@ import {
   type ShortcutAction,
   type ShortcutConfigEntry,
 } from "./shortcuts";
+import {
+  DEFAULT_WINDOW_PREFERENCES_CONFIG,
+  windowPreferencesConfigSchema,
+  type WindowPreferencesConfig,
+} from "./window-preferences";
 
 export const APP_CONFIG_SCHEMA_VERSION = 1 as const;
 
 export type AppConfig = {
   readonly schemaVersion: typeof APP_CONFIG_SCHEMA_VERSION;
   readonly shortcuts: Record<string, ShortcutConfigEntry>;
-  // Future schema versions can add per-window pin and bounds preferences here
-  // so launcher/card lock state survives reopen without coupling it to capture options.
   readonly captureOptions: CaptureOptionsConfig;
   readonly aiProvider: AiProviderConfig;
+  readonly windowPreferences: WindowPreferencesConfig;
 };
 
 const shortcutActionSchema = z.enum(SHORTCUT_ACTIONS);
@@ -46,6 +50,7 @@ export const appConfigSchema = z.object({
   shortcuts: z.record(z.string(), shortcutConfigEntrySchema),
   captureOptions: captureOptionsConfigSchema,
   aiProvider: aiProviderConfigSchema.default(DEFAULT_AI_PROVIDER_CONFIG),
+  windowPreferences: windowPreferencesConfigSchema,
 });
 
 export const DEFAULT_APP_CONFIG: AppConfig = {
@@ -59,6 +64,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   },
   captureOptions: DEFAULT_CAPTURE_OPTIONS_CONFIG,
   aiProvider: DEFAULT_AI_PROVIDER_CONFIG,
+  windowPreferences: DEFAULT_WINDOW_PREFERENCES_CONFIG,
 };
 
 export function normalizeAppConfig(input: unknown): AppConfig {

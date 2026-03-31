@@ -15,6 +15,11 @@ import {
   type ShortcutsConfig,
   safeParseShortcutsConfig,
 } from "../../../shared/shortcuts";
+import type {
+  CardWindowPreferences,
+  WindowPreferencesConfig,
+} from "../../../shared/window-preferences";
+import type { CardWindowRole } from "../../../shared/window-roles";
 
 const APP_DATA_SUBDIR = "interview-sentiment-analyzer";
 const CONFIG_FILE_NAME = "config.json";
@@ -69,6 +74,11 @@ export type AppConfigStore = {
   updateShortcutEnabled(args: SetShortcutEnabledRequest): Promise<void>;
   saveCaptureOptionsConfig(config: CaptureOptionsConfig): Promise<CaptureOptionsConfig>;
   saveAiProviderConfig(config: AppConfig["aiProvider"]): Promise<AppConfig["aiProvider"]>;
+  loadWindowPreferences(): Promise<WindowPreferencesConfig>;
+  updateCardWindowPreferences(
+    role: CardWindowRole,
+    prefs: Partial<CardWindowPreferences>,
+  ): Promise<void>;
 };
 
 export function createAppConfigStore(
@@ -197,6 +207,22 @@ export function createAppConfigStore(
 
       await saveConfig(updated);
       return updated.aiProvider;
+    },
+    async loadWindowPreferences() {
+      const config = await loadConfig();
+      return config.windowPreferences;
+    },
+    async updateCardWindowPreferences(role, prefs) {
+      const current = await loadConfig();
+      const existing = current.windowPreferences[role] ?? {};
+      const updated: AppConfig = {
+        ...current,
+        windowPreferences: {
+          ...current.windowPreferences,
+          [role]: { ...existing, ...prefs },
+        },
+      };
+      await saveConfig(updated);
     },
   };
 }

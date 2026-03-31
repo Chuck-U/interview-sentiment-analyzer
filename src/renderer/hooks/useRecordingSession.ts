@@ -4,9 +4,11 @@ import { CaptureManager } from "@/renderer/recording/capture-manager";
 import { AudioChunkAccumulator } from "@/renderer/recording/audio-chunk-accumulator";
 import { selectCaptureSources } from "@/renderer/store/slices/captureOptionsSlice";
 import {
+  clearTranscription,
   segmentReceived,
   transcriptionChunkFailed,
 } from "@/renderer/store/slices/diarizationSlice";
+import { clearDetectedQuestions } from "@/renderer/store/slices/questionSlice";
 import {
   setFeedbackMessage,
   setIsStarting,
@@ -61,6 +63,21 @@ export function useRecordingSession(
     [dispatch],
   );
 
+  useEffect(() => {
+    const unsubscribe =
+      window.electronApp.transcriptionEvents.onTranscriptSegment((result) => {
+        dispatch(
+          segmentReceived({
+            sessionId: result.sessionId,
+            chunkId: result.chunkId,
+            text: result.text,
+            chunks: result.chunks,
+          }),
+        );
+      });
+    return unsubscribe;
+  }, [dispatch]);
+
   const createCaptureManager = useCallback(() => {
     return new CaptureManager({
       async onChunkAvailable(
@@ -111,7 +128,7 @@ export function useRecordingSession(
               rms = Math.sqrt(rms / (pcm.length || 1));
 
               log.ger({
-                type: "info",
+                type: "debug",
                 message: "[transcription] PCM decoded; invoking main process",
                 data: {
                   chunkId: result.chunkId,
@@ -138,14 +155,6 @@ export function useRecordingSession(
                   hasChunks: Boolean(transcription.chunks?.length),
                 },
               });
-              dispatch(
-                segmentReceived({
-                  sessionId: transcription.sessionId,
-                  chunkId: transcription.chunkId,
-                  text: transcription.text,
-                  chunks: transcription.chunks,
-                }),
-              );
             } catch (err) {
               const message = err instanceof Error ? err.message : String(err);
               const stack = err instanceof Error ? err.stack : undefined;
@@ -217,6 +226,8 @@ export function useRecordingSession(
     }
 
     dispatch(setIsStarting(true));
+    dispatch(clearTranscription());
+    dispatch(clearDetectedQuestions());
     dispatch(setFeedbackMessage("Starting recording session."));
 
     try {

@@ -11,25 +11,26 @@ export function TranscriptionStreamPanel({ isRecording }: { isRecording: boolean
 
   const transcriptText = useMemo(
     () => {
+      console.log('transcriptText', segments.map((segment) => segment.text.trim()).filter((text) => text.length > 0).join("\n\n"));
       return segments
         .map((segment) => segment.text.trim())
         .filter((text) => text.length > 0)
-        .join("\n\n")
     },
     [segments],
   );
 
   useEffect(() => {
     scrollAnchorRef.current?.scrollIntoView({
-      block: "end",
+      block: "nearest",
+      inline: "nearest",
       behavior: "smooth",
     });
   }, [transcriptText]);
 
   return (
-    <div className={cn("float-bottom overflow-y-auto px-3 py-2 flex-col flex  justify-center", "block max-h-[30px] line-clap-2 min-h-0  text-center overflow-hidden  shadow-sm backdrop-blur-sm")}>
+    <div className={cn("float-bottom overflow-y-auto px-3 py-2 flex-col flex  justify-center", "block max-h-36 line-clamp-5 min-h-0  text-center  shadow-sm backdrop-blur-sm")}>
       {transcriptText ? (
-        <span className="whitespace-pre-wrap break-words text-[20px] leading-6 text-white overflow-y-hidden">
+        <span className="whitespace-pre-wrap break-words text-[20px] leading-6 text-white overflow-y-auto">
           {transcriptText}
         </span>
       ) : (

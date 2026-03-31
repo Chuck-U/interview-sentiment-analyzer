@@ -4,6 +4,7 @@ import aiProviderReducer from "./slices/aiProviderSlice";
 import captureOptionsReducer from "./slices/captureOptionsSlice";
 import diarizationReducer from "./slices/diarizationSlice";
 import modelInitReducer from "./slices/modelInitSlice";
+import questionReducer from "./slices/questionSlice";
 import sessionRecordingReducer from "./slices/sessionRecordingSlice";
 import shortcutsWindowReducer from "./slices/shortcutsWindowSlice";
 import viewsReducer from "./slices/viewsSlice";
@@ -15,6 +16,7 @@ export const store = configureStore({
     sessionRecording: sessionRecordingReducer,
     captureOptions: captureOptionsReducer,
     diarization: diarizationReducer,
+    questions: questionReducer,
     shortcutsWindow: shortcutsWindowReducer,
     modelInit: modelInitReducer,
   },

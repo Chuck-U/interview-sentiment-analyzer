@@ -16,11 +16,17 @@ import {
 import type { ElectronAppBridge } from "../../src/shared/electron-app";
 import type {
   TranscriptionBridge,
+  TranscriptionEventsBridge,
   TranscriptionResult,
 } from "../../src/shared/transcription";
-import { TRANSCRIPTION_CHANNELS } from "../../src/shared/transcription";
+import {
+  TRANSCRIPTION_CHANNELS,
+  TRANSCRIPTION_EVENT_CHANNELS,
+} from "../../src/shared/transcription";
 import type { CaptureOptionsBridge } from "../../src/shared/capture-options";
 import type { ModelInitBridge } from "../../src/shared/model-init";
+import type { QuestionDetectionEventsBridge } from "../../src/shared/question-detection";
+import { QUESTION_DETECTION_EVENT_CHANNELS } from "../../src/shared/question-detection";
 import {
   MODEL_INIT_CHANNELS,
   MODEL_INIT_EVENT_CHANNELS,
@@ -353,6 +359,24 @@ const transcriptionBridge: TranscriptionBridge = {
   },
 };
 
+const transcriptionEventsBridge: TranscriptionEventsBridge = {
+  onTranscriptSegment(listener) {
+    return subscribeToChannel(
+      TRANSCRIPTION_EVENT_CHANNELS.transcriptSegment,
+      listener,
+    );
+  },
+};
+
+const questionDetectionEventsBridge: QuestionDetectionEventsBridge = {
+  onQuestionDetected(listener) {
+    return subscribeToChannel(
+      QUESTION_DETECTION_EVENT_CHANNELS.questionDetected,
+      listener,
+    );
+  },
+};
+
 const modelInitBridge: ModelInitBridge = {
   startInit() {
     return ipcRenderer.invoke(MODEL_INIT_CHANNELS.startInit) as Promise<void>;
@@ -413,6 +437,8 @@ const electronAppBridge: ElectronAppBridge = {
   windowRegistry: windowRegistryBridge,
   modelInit: modelInitBridge,
   transcription: transcriptionBridge,
+  transcriptionEvents: transcriptionEventsBridge,
+  questionDetectionEvents: questionDetectionEventsBridge,
 };
 
 contextBridge.exposeInMainWorld("electronApp", electronAppBridge);

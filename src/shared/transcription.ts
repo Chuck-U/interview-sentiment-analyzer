@@ -1,7 +1,12 @@
-import type { AudioMediaSource, MediaChunkSource } from "./session-lifecycle";
+import type { AudioMediaSource, MediaChunkSource, Unsubscribe } from "./session-lifecycle";
 
 export const TRANSCRIPTION_CHANNELS = {
   transcribeAudio: "transcription:transcribe-audio",
+} as const;
+
+/** Main broadcasts each successful ASR result so every BrowserWindow can mirror `diarization` state. */
+export const TRANSCRIPTION_EVENT_CHANNELS = {
+  transcriptSegment: "transcription:event-transcript-segment",
 } as const;
 
 /**
@@ -31,6 +36,12 @@ export type TranscriptionResult = {
 
 export type TranscriptionBridge = {
   transcribeAudio(request: TranscriptionRequest): Promise<TranscriptionResult>;
+};
+
+export type TranscriptionEventsBridge = {
+  onTranscriptSegment(
+    listener: (result: TranscriptionResult) => void,
+  ): Unsubscribe;
 };
 
 /** Stored under `sessions/<id>/transcripts/<chunkId>.json` — aligns with pipeline `transcript` artifacts. */

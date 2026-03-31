@@ -22,6 +22,7 @@ export type ModelEntry = {
 export type RealtimeAssessmentCapability =
   | "speech-to-text"
   | "speaker-diarization"
+  | "question-detection"
   | "topic-tracking"
   | "rambling-detection"
   | "engagement-detection";
@@ -74,8 +75,8 @@ export const MODEL_EVALUATION_MATRIX = [
     task: "zero-shot-classification",
     dtype: "q8",
     priority: "required",
-    label: "DistilBERT MNLI topic and rambling classifier",
-    capabilities: ["topic-tracking", "rambling-detection"],
+    label: "DistilBERT MNLI question and topic classifier",
+    capabilities: ["question-detection", "topic-tracking", "rambling-detection"],
     runtime: "pipeline",
     supportStatus: "ready",
     includedInManifest: true,
@@ -130,6 +131,13 @@ export const MODEL_MANIFEST = [
     dtype: "q8",
     priority: "required",
     label: "Whisper tiny English transcription",
+  },
+  {
+    id: "onnx-community/distilbert-base-uncased-mnli-ONNX",
+    task: "zero-shot-classification",
+    dtype: "q8",
+    priority: "required",
+    label: "DistilBERT MNLI question and topic classifier",
   },
   {
     id: "onnx-community/wav2vec2-base-Speech_Emotion_Recognition-ONNX",
