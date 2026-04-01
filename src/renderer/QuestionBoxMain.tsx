@@ -1,72 +1,74 @@
 import { useMemo } from "react";
 
-import { useAppSelector } from "./store/hooks";
+import { cn } from "@/lib/utils";
+
+import { QuestionStreamCard } from "./question-box/QuestionStreamCard";
+import { useQuestionBox } from "./question-box/QuestionBoxProvider";
 
 export function QuestionBoxMain() {
-  const currentSessionId = useAppSelector(
-    (state) => state.sessionRecording.currentSession?.id,
+  const { allQuestions, viewIndex } = useQuestionBox();
+
+  const hasQuestions = allQuestions.length > 0;
+
+  const stackItems = useMemo(
+    () =>
+      allQuestions.map((question, index) => ({
+        question,
+        index,
+        offset: (viewIndex - index) * 14,
+        isActive: index === viewIndex,
+        depth: Math.abs(viewIndex - index),
+      })),
+    [allQuestions, viewIndex],
   );
-  const detectedQuestions = useAppSelector((state) => state.questions.detected);
-
-  const sessionQuestions = useMemo(() => {
-    if (!currentSessionId) {
-      return [];
-    }
-
-    return detectedQuestions.filter(
-      (question) => question.sessionId === currentSessionId,
-    );
-  }, [currentSessionId, detectedQuestions]);
-
-  const latestQuestion = sessionQuestions.at(-1) ?? null;
 
   return (
-    <div className="flex min-h-0 w-full flex-1 flex-col gap-3 overflow-y-auto px-4 py-3 text-white">
-      <div className="flex flex-col gap-1">
+    <div className="flex min-h-0 w-full flex-1 flex-col gap-3 overflow-hidden px-4 py-3 text-white">
+      <div className="flex shrink-0 flex-col gap-1">
         <span className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
           Live Questions
         </span>
         <h2 className="text-lg font-semibold">
-          {latestQuestion ? "Latest interviewer question" : "No question detected yet"}
+          {hasQuestions
+            ? "Interviewer questions"
+            : "No question detected yet"}
         </h2>
       </div>
 
-      {latestQuestion ? (
-        <div className="rounded-md border border-border/50 bg-background/20 p-4 backdrop-blur-sm">
-          <p className="whitespace-pre-wrap text-lg leading-7">
-            {latestQuestion.text}
-          </p>
-          <p className="mt-3 text-xs text-muted-foreground">
-            Confidence {(latestQuestion.questionScore * 100).toFixed(0)}%
-          </p>
-        </div>
-      ) : (
-        <div className="rounded-md border border-dashed border-border/50 bg-background/10 p-4 text-sm text-muted-foreground">
-          Start recording to surface likely interview questions from the mixed
-          desktop audio stream.
-        </div>
-      )}
-
-      {sessionQuestions.length > 1 ? (
-        <div className="flex flex-col gap-2">
-          <span className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
-            Recent detections
-          </span>
-          {sessionQuestions
-            .slice(0, -1)
-            .reverse()
-            .map((question) => (
-              <div
-                key={question.chunkId}
-                className="rounded-md border border-border/40 bg-background/10 p-3"
-              >
-                <p className="whitespace-pre-wrap text-sm leading-6">
-                  {question.text}
-                </p>
-              </div>
-            ))}
-        </div>
-      ) : null}
+      <div className="relative min-h-0 flex-1">
+        {hasQuestions ? (
+          <div className="relative mx-auto flex h-full min-h-[200px] w-full max-w-lg items-start justify-center pt-2 pb-8">
+            <div className="relative h-[min(320px,45vh)] w-full">
+              {stackItems.map(({ question, offset, isActive, depth }) => (
+                <div
+                  key={question.chunkId}
+                  className={cn(
+                    "absolute left-0 right-0 top-0 origin-top transition-[transform,opacity] duration-300 ease-out",
+                    depth > 4 && "pointer-events-none opacity-0",
+                  )}
+                  style={{
+                    transform: `translateY(${offset}px) scale(${isActive ? 1 : Math.max(0.88, 1 - depth * 0.04)})`,
+                    zIndex: isActive ? 200 : 100 - depth,
+                    opacity: depth > 4 ? 0 : isActive ? 1 : Math.max(0.45, 1 - depth * 0.12),
+                  }}
+                >
+                  <QuestionStreamCard
+                    title={isActive ? "In view" : "Question"}
+                    body={question.text}
+                    meta={`Confidence ${(question.questionScore * 100).toFixed(0)}% · ${new Date(question.detectedAt).toLocaleTimeString()}`}
+                    isActive={isActive}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-md border border-dashed border-border/50 bg-background/10 p-4 text-sm text-muted-foreground">
+            Start recording to surface likely interview questions from the mixed
+            desktop audio stream, or use mock start to preview the card stack.
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -1,8 +1,22 @@
 import { useCallback, useMemo } from "react";
 
-import { RiCloseFill } from "@remixicon/react";
+import {
+  RiArrowDownSLine,
+  RiArrowUpSLine,
+  RiCloseFill,
+  RiPauseFill,
+  RiPlayFill,
+  RiStopFill,
+} from "@remixicon/react";
 
 import toast from "@/components/molecules/Toast";
+import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { WINDOW_ROLES, type CardWindowRole } from "@/shared/window-registry";
 import type { SessionSnapshot } from "@/shared/session-lifecycle";
@@ -11,6 +25,10 @@ import {
   formatElectronAcceleratorLabel,
 } from "@/shared/shortcuts";
 import { QuestionBoxMain } from "./QuestionBoxMain";
+import {
+  QuestionBoxProvider,
+  useQuestionBoxOptional,
+} from "./question-box/QuestionBoxProvider";
 import { OptionsWorkspace } from "./Slot/OptionsWorkspace";
 import { useCaptureOptions } from "./capture-options/useCaptureOptions";
 import { usePinnedWindowBehavior } from "./hooks/usePinnedWindowBehavior";
@@ -71,7 +89,122 @@ function UnsupportedCardWindow({
   );
 }
 
-export function CardWindowMain({ role }: { readonly role: CardWindowRole }) {
+function QuestionBoxNavControls() {
+  const qb = useQuestionBoxOptional();
+  if (!qb) {
+    return null;
+  }
+
+  const {
+    allQuestions,
+    viewIndex,
+    isPaused,
+    isMockRunning,
+    togglePauseResume,
+    goPrevious,
+    goNext,
+    startMockStream,
+    stopMockStream,
+  } = qb;
+
+  const n = allQuestions.length;
+  const canPrev = viewIndex > 0;
+  const canNext = viewIndex < n - 1;
+
+  return (
+    <TooltipProvider delayDuration={300}>
+      <div className="flex flex-1 items-center justify-center gap-0.5 px-1">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              className="text-muted-foreground hover:text-foreground"
+              onClick={togglePauseResume}
+              aria-label={isPaused ? "Resume" : "Pause"}
+            >
+              {isPaused ? (
+                <RiPlayFill className="size-4" />
+              ) : (
+                <RiPauseFill className="size-4" />
+              )}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            {isPaused ? "Resume (jump to latest)" : "Pause new cards on top"}
+          </TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              className="text-muted-foreground hover:text-foreground"
+              disabled={!canPrev}
+              onClick={goPrevious}
+              aria-label="Previous question"
+            >
+              <RiArrowUpSLine className="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Previous</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              className="text-muted-foreground hover:text-foreground"
+              disabled={!canNext}
+              onClick={goNext}
+              aria-label="Next question"
+            >
+              <RiArrowDownSLine className="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Next</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              className="text-muted-foreground hover:text-foreground"
+              disabled={isMockRunning}
+              onClick={startMockStream}
+              aria-label="Mock start"
+            >
+              <RiPlayFill className="size-3.5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Mock start</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              className="text-muted-foreground hover:text-foreground"
+              disabled={!isMockRunning}
+              onClick={stopMockStream}
+              aria-label="Mock stop"
+            >
+              <RiStopFill className="size-3.5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Mock stop</TooltipContent>
+        </Tooltip>
+      </div>
+    </TooltipProvider>
+  );
+}
+
+function CardWindowMainInner({ role }: { readonly role: CardWindowRole }) {
   const dispatch = useAppDispatch();
   useShortcutsWindowEffects();
   const {
@@ -293,10 +426,15 @@ export function CardWindowMain({ role }: { readonly role: CardWindowRole }) {
           className="mx-2 flex w-full items-center justify-between gap-2 py-1 leading-7"
           style={dragRegionStyle}
         >
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
             <div style={noDragRegionStyle}>
               <WindowPinControl {...pinControlProps} />
             </div>
+            {role === WINDOW_ROLES.questionBox ? (
+              <div className="min-w-0 flex-1" style={noDragRegionStyle}>
+                <QuestionBoxNavControls />
+              </div>
+            ) : null}
           </div>
           <button
             type="button"
@@ -328,4 +466,15 @@ export function CardWindowMain({ role }: { readonly role: CardWindowRole }) {
       </div>
     </div>
   );
+}
+
+export function CardWindowMain({ role }: { readonly role: CardWindowRole }) {
+  if (role === WINDOW_ROLES.questionBox) {
+    return (
+      <QuestionBoxProvider>
+        <CardWindowMainInner role={role} />
+      </QuestionBoxProvider>
+    );
+  }
+  return <CardWindowMainInner role={role} />;
 }
