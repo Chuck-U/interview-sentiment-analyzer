@@ -33,7 +33,7 @@ export type WebcamCaptureCardProps = CaptureCardBaseProps & {
 };
 
 export type DisplayCaptureCardProps = CaptureCardBaseProps & {
-  readonly displays: readonly CaptureDisplayOption[];
+  displays: readonly CaptureDisplayOption[];
   readonly screenEnabled: boolean;
   readonly isDesktopPreviewVisible: boolean;
   readonly isDesktopPreviewLoading: boolean;

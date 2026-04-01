@@ -62,9 +62,8 @@ export function createStartSessionUseCase(
       dependencies.storageLayoutResolver.resolveSessionLayout(sessionId);
 
     await dependencies.fileSystem.ensureDirectory(storageLayout.sessionRoot);
-    await dependencies.fileSystem.ensureDirectory(storageLayout.chunksRoot);
-    await dependencies.fileSystem.ensureDirectory(storageLayout.transcriptsRoot);
-    await dependencies.fileSystem.ensureDirectory(storageLayout.summariesRoot);
+    // await dependencies.fileSystem.ensureDirectory(storageLayout.chunksRoot);
+    // await dependencies.fileSystem.ensureDirectory(storageLayout.transcriptsRoot);
 
     const session = createSessionEntity({
       id: sessionId,

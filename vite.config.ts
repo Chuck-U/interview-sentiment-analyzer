@@ -9,6 +9,13 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      // Mirror tsconfig.json "paths" so Rollup resolves the same imports as tsc.
+      "@components": path.resolve(__dirname, "./src/components"),
+      "@electron": path.resolve(__dirname, "./electron"),
+      "@backend": path.resolve(__dirname, "./src/backend"),
+      "@workers": path.resolve(__dirname, "./src/workers"),
+      "@pipelines": path.resolve(__dirname, "./src/pipelines"),
+      "@shared": path.resolve(__dirname, "./src/shared"),
     },
   },
 });

@@ -7,7 +7,7 @@
   "main": "dist-electron/electron/main/index.js",
   "scripts": {
     "dev": "concurrently -k \"pnpm:dev:renderer\" \"pnpm:dev:electron\"",
-    "dev:log": "concurrently -k \"pnpm:dev:renderer\" \"pnpm:dev:electron --log-level=all\"",
+    "dev:log": "concurrently -k \"pnpm:dev:renderer\" \"pnpm:dev:electron --log-level=all --log-to-file\"",
     "dev:renderer": "vite --port 5183",
     "dev:electron": "wait-on tcp:5183 && cross-env VITE_DEV_SERVER_URL=http://localhost:5183 electron .",
     "clean": "node -e \"const fs=require('fs'); for (const d of ['dist-electron','dist']) { try { fs.rmSync(d,{recursive:true,force:true}); } catch (e) { if (e && e.code !== 'ENOENT') throw e; } }\"",
@@ -33,7 +33,7 @@
   "dependencies": {
     "@audio/webm-decode": "^1.0.0",
     "@fontsource-variable/nunito-sans": "^5.2.7",
-    "@huggingface/transformers": "^3.8.1",
+    "@huggingface/transformers": "^4.0.0",
     "@langchain/langgraph": "^1.2.2",
     "@reduxjs/toolkit": "^2.11.2",
     "@remixicon/react": "^4.9.0",

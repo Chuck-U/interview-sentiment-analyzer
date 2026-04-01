@@ -4,7 +4,7 @@ import { RiFolderOpenLine, RiRecordCircleLine, RiStopCircleLine } from "@remixic
 
 import { Badge } from "@/components/ui/badge";
 
-import { IconToggle } from "../IconToggle";
+import { IconToggle } from "../../../components/molecules/IconToggle";
 import { Button } from "@/components/ui/button";
 
 type RecordingControlCardProps = {

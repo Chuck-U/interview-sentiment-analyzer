@@ -1,0 +1,12 @@
+---
+alwaysApply: true
+---
+
+When working on agent pipeline, attempt to sandbox the particular function and code change and ensure that the model is correctly invoked. 
+
+Always use hf_mcp to look up model details and arcitecture before suggesting or changing. 
+
+### 
+User feedback 
+
+when summarizing, attempt to give more explanation for why something happened.

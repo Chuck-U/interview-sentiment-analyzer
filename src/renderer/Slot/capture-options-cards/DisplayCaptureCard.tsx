@@ -8,9 +8,10 @@ import {
   RiFullscreenLine,
 } from "@remixicon/react";
 
-import { IconToggle } from "../IconToggle";
-import { MediaStreamPreview } from "../WebcamPreview";
+import { IconToggle } from "../../../components/molecules/IconToggle";
+import { MediaStreamPreview } from "../../../components/molecules/WebcamPreview";
 import type { DisplayCaptureCardProps } from "./shared";
+import { CaptureDisplayOption } from "@/renderer/capture-options/domain";
 
 export function DisplayCaptureCard({
   isBusy,
@@ -69,7 +70,8 @@ export function DisplayCaptureCard({
           onValueChange={onSetDisplayId}
           className="gap-2"
         >
-          {displays.map((display) => (
+          {/* //@ts-expect-error - displays is readonly CaptureDisplayOption[] but we need to sort it */}
+          {(displays as CaptureDisplayOption[]).sort((a: CaptureDisplayOption, b: CaptureDisplayOption) => a.isPrimary ? -1 : b.isPrimary ? 1 : 0).map((display: CaptureDisplayOption) => (
             <div
               key={display.displayId}
               className="flex items-start gap-3 rounded-md border border-border/50 bg-background/40 p-2"
@@ -83,7 +85,7 @@ export function DisplayCaptureCard({
                 htmlFor={`display-${display.displayId}`}
                 className="flex flex-1 flex-col gap-1 text-left"
               >
-                <span>{display.label}</span>
+                <span>{display.label}</span><span className="text-xxs text-muted-foreground">{display.displayId}</span>
                 <span className="text-[11px] text-muted-foreground">
                   {display.bounds.width} x {display.bounds.height}
                   {display.isPrimary ? " • primary" : ""}

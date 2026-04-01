@@ -43,7 +43,7 @@ export type ModelMatrixEntry = {
   readonly includedInManifest: boolean;
   readonly approxRepositorySizeMb: number;
   readonly expectedLatencyPerChunk: string;
-  readonly notes: string;
+   notes?: string;
 };
 
 /**
@@ -55,20 +55,18 @@ export type ModelMatrixEntry = {
  */
 export const MODEL_EVALUATION_MATRIX = [
   {
-    id: "onnx-community/whisper-tiny.en",
+    id: "onnx-community/moonshine-base-ONNX",
     task: "automatic-speech-recognition",
     dtype: "q8",
     priority: "required",
-    label: "Whisper tiny English transcription",
+    label: "Moonshine Base English transcription",
     capabilities: ["speech-to-text"],
     runtime: "pipeline",
     supportStatus: "ready",
     includedInManifest: true,
-    approxRepositorySizeMb: 1251,
-    expectedLatencyPerChunk:
-      "Roughly 0.7-2.2s per 10s audio chunk on a typical laptop CPU/WASM path.",
-    notes:
-      "Best browser-supported ASR tradeoff in transformers.js today. English-only, but it keeps cold-start and per-chunk latency low enough for live transcript updates.",
+    approxRepositorySizeMb: 228,
+    expectedLatencyPerChunk: "Roughly 0.2-0.5s per 10s audio chunk on a typical laptop CPU/WASM path.",
+    notes: "Officially supported Moonshine ONNX model in transformers.js. Better WER than Whisper tiny, English-only, well-suited for live on-device transcription.",
   },
   {
     id: "onnx-community/distilbert-base-uncased-mnli-ONNX",
@@ -126,11 +124,11 @@ export const MODEL_EVALUATION_MATRIX = [
  */
 export const MODEL_MANIFEST = [
   {
-    id: "onnx-community/whisper-tiny.en",
+    id: "onnx-community/moonshine-base-ONNX",
     task: "automatic-speech-recognition",
     dtype: "q8",
     priority: "required",
-    label: "Whisper tiny English transcription",
+    label: "Moonshine Base English transcription",
   },
   {
     id: "onnx-community/distilbert-base-uncased-mnli-ONNX",

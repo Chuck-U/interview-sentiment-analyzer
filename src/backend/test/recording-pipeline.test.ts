@@ -31,25 +31,13 @@ import {
   SqliteSessionRepository,
 } from "../infrastructure/persistence/sqlite/sqlite-session-lifecycle";
 import { initializeSessionLifecycleDatabase } from "../infrastructure/persistence/sqlite/sqlite-database";
-import { GoogleHostedAnalysisAdapter } from "../infrastructure/providers/google/google-hosted-analysis-adapter";
-import { StaticHostedAnalysisStageRouter } from "../infrastructure/providers/hosted-analysis-stage-router";
 import { LocalPipelineAnalysisProvider } from "../infrastructure/providers/local-pipeline-analysis";
-import { OpenAIHostedAnalysisAdapter } from "../infrastructure/providers/openai/openai-hosted-analysis-adapter";
 import { createSessionStorageLayoutResolver } from "../infrastructure/storage/session-storage-layout";
 import { createRecordingPersistenceService } from "../infrastructure/recording/recording-persistence";
 import { createRecordingExportService } from "../infrastructure/recording/recording-export";
 import { MEDIA_CHUNK_SOURCES, type MediaChunkSource } from "../../shared/session-lifecycle";
 
 const ALL_SOURCES = new Set<MediaChunkSource>(MEDIA_CHUNK_SOURCES);
-
-function createHostedStageRouter() {
-  return new StaticHostedAnalysisStageRouter({
-    defaultAdapter: new OpenAIHostedAnalysisAdapter(),
-    stageAdapters: {
-      "condense_context.requested": new GoogleHostedAnalysisAdapter(),
-    },
-  });
-}
 
 async function createTestContext() {
   const root = await mkdtemp(path.join(tmpdir(), "recording-pipeline-test-"));
@@ -155,7 +143,6 @@ async function createTestContext() {
   const pipelineOrchestrator = new BuiltInPipelineOrchestrator({
     analysisProvider: new LocalPipelineAnalysisProvider({
       clock: fixedClock,
-      hostedStageRouter: createHostedStageRouter(),
       idGenerator,
       storageLayoutResolver,
     }),

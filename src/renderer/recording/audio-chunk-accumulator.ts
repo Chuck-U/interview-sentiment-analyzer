@@ -1,10 +1,6 @@
 import { decoder as createWebmDecoder } from "@audio/webm-decode";
 
-import { logger } from "@/lib/logger";
-
 const TARGET_SAMPLE_RATE = 16_000;
-
-const log = logger.forSource("AudioChunkAccumulator");
 
 /**
  * Feeds incremental WebM/Opus chunks through `@audio/webm-decode`'s streaming
@@ -60,18 +56,6 @@ export class AudioChunkAccumulator {
     const resampled = sampleRate !== TARGET_SAMPLE_RATE
       ? resampleLinear(delta, sampleRate, TARGET_SAMPLE_RATE)
       : delta;
-
-    log.ger({
-      type: "debug",
-      message: "[accumulator] chunk decoded (delta)",
-      data: {
-        channels: channelData.length,
-        sourceSampleRate: sampleRate,
-        deltaSamples: delta.length,
-        resampledSamples: resampled.length,
-        totalDecoded: totalAvailable,
-      },
-    });
 
     return resampled;
   }
