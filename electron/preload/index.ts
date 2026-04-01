@@ -444,16 +444,7 @@ const electronAppBridge: ElectronAppBridge = {
 };
 
 contextBridge.exposeInMainWorld("electronApp", electronAppBridge);
-contextBridge.exposeInMainWorld('electronAPI', {
-  // Expose a function to send an IPC message
-  //@ts-expect-error - callback is not typed
-  sendMessage: (message) => ipcRenderer.send('msg-from-renderer', message),
-  // Expose a function to invoke a main process handler and get a response
-  openDialog: () => ipcRenderer.invoke('open-dialog'),
-  // Expose a way to listen for messages from the main process
-  //@ts-expect-error - callback is not typed
-  handleResponse: (callback) => ipcRenderer.on('response-to-renderer', (event, ...args) => callback(...args))
-});
+
 // Ensure the shortcut config file exists before renderer reads it.
 void ipcRenderer.invoke(SHORTCUTS_IPC_CHANNELS.ensureConfig).catch(() => {
   // If config creation fails, renderer will still show defaults/error state
