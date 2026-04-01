@@ -25,6 +25,7 @@ type QuestionBoxContextValue = {
   readonly goNext: () => void;
   readonly startMockStream: () => void;
   readonly stopMockStream: () => void;
+  readonly resetQuestions: () => void;
 };
 
 const QuestionBoxContext = createContext<QuestionBoxContextValue | null>(null);
@@ -166,6 +167,10 @@ export function QuestionBoxProvider({ children }: { readonly children: ReactNode
     };
   }, [isMockRunning, currentSessionId]);
 
+  const resetQuestions = useCallback(() => {
+    setMockQuestions([]);
+  }, []);
+
   const value = useMemo<QuestionBoxContextValue>(
     () => ({
       allQuestions,
@@ -178,6 +183,7 @@ export function QuestionBoxProvider({ children }: { readonly children: ReactNode
       goNext,
       startMockStream,
       stopMockStream,
+      resetQuestions,
     }),
     [
       allQuestions,
@@ -190,6 +196,7 @@ export function QuestionBoxProvider({ children }: { readonly children: ReactNode
       goNext,
       startMockStream,
       stopMockStream,
+      resetQuestions,
     ],
   );
 

@@ -7,6 +7,7 @@ import {
   RiPauseFill,
   RiPlayFill,
   RiStopFill,
+  RiRefreshLine,
 } from "@remixicon/react";
 
 import toast from "@/components/molecules/Toast";
@@ -24,7 +25,7 @@ import {
   DEFAULT_SHORTCUT_ID_RECORDING_TOGGLE,
   formatElectronAcceleratorLabel,
 } from "@/shared/shortcuts";
-import { QuestionBoxMain } from "./QuestionBoxMain";
+import { QuestionBoxMain } from "../components/QuestionBoxMain";
 import {
   QuestionBoxProvider,
   useQuestionBoxOptional,
@@ -38,10 +39,6 @@ import { useAppDispatch, useAppSelector } from "./store/hooks";
 import { setFeedbackMessage } from "./store/slices/sessionRecordingSlice";
 import { setShortcutEnabled } from "./store/slices/shortcutsWindowSlice";
 import { WindowPinControl } from "./window-controls/window-pin-control";
-
-function assertNever(value: never): never {
-  throw new Error(`Unhandled card window role: ${String(value)}`);
-}
 
 function getStatusCopy(session: SessionSnapshot | null): {
   readonly label: string;
@@ -105,11 +102,20 @@ function QuestionBoxNavControls() {
     goNext,
     startMockStream,
     stopMockStream,
+    resetQuestions,
   } = qb;
 
   const n = allQuestions.length;
   const canPrev = viewIndex > 0;
   const canNext = viewIndex < n - 1;
+
+  const handleMockStream = () => {
+    if (isMockRunning) {
+      stopMockStream();
+    } else {
+      startMockStream();
+    }
+  };
 
   return (
     <TooltipProvider delayDuration={300}>
@@ -174,14 +180,14 @@ function QuestionBoxNavControls() {
               variant="ghost"
               size="icon-xs"
               className="text-muted-foreground hover:text-foreground"
-              disabled={isMockRunning}
-              onClick={startMockStream}
-              aria-label="Mock start"
+              onClick={handleMockStream}
+              aria-label={isMockRunning ? "Mock stop" : "Mock start"}
             >
-              <RiPlayFill className="size-3.5" />
+              {isMockRunning ? <RiStopFill className="size-3.5" /> : <RiPlayFill className="size-3.5" />}
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="bottom">Mock start</TooltipContent>
+          <TooltipContent side="bottom">{isMockRunning ? "Mock stop" : "Mock start"}</TooltipContent>
+
         </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -190,14 +196,13 @@ function QuestionBoxNavControls() {
               variant="ghost"
               size="icon-xs"
               className="text-muted-foreground hover:text-foreground"
-              disabled={!isMockRunning}
-              onClick={stopMockStream}
-              aria-label="Mock stop"
+              onClick={resetQuestions}
+              aria-label="clear questions"
             >
-              <RiStopFill className="size-3.5" />
+              <RiRefreshLine className="size-3.5" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="bottom">Mock stop</TooltipContent>
+          <TooltipContent side="bottom">Clear questions</TooltipContent>
         </Tooltip>
       </div>
     </TooltipProvider>
@@ -401,8 +406,10 @@ function CardWindowMainInner({ role }: { readonly role: CardWindowRole }) {
     case WINDOW_ROLES.speechBox:
       content = <UnsupportedCardWindow role={role} />;
       break;
-    default:
-      content = assertNever(role);
+    default: {
+      const exhaustiveRole: never = role;
+      throw new Error(`Unhandled card window role: ${String(exhaustiveRole)}`);
+    }
   }
 
   return (

@@ -92,9 +92,9 @@ const devServerUrl = process.env.VITE_DEV_SERVER_URL ?? 'http://localhost:5180';
 // const pipelineOrchestrationMode =
 //   process.env.PIPELINE_ORCHESTRATOR === "langchain" ? "langchain" : "built-in"; // slop code
 export const MAIN_WINDOW_MIN_WIDTH = 600;
-export const MAIN_WINDOW_MIN_HEIGHT = 104;
+export const MAIN_WINDOW_MIN_HEIGHT = 64;
 const MAIN_WINDOW_DEFAULT_WIDTH = 700;
-const MAIN_WINDOW_DEFAULT_HEIGHT = 112;
+const MAIN_WINDOW_DEFAULT_HEIGHT = 64;
 const listAiProviderModels = createListAiProviderModelsUseCase({
   fetch: globalThis.fetch,
 });
@@ -287,6 +287,37 @@ function registerWindowBoundsListeners(window: BrowserWindow): void {
   });
 }
 
+
+function getWindowBaseSize(role: typeof WINDOW_ROLES[keyof typeof WINDOW_ROLES]): {
+  readonly width: number;
+  readonly height: number;
+} {
+  switch (role) {
+    case WINDOW_ROLES.questionBox:
+      return {
+        width: MAIN_WINDOW_DEFAULT_WIDTH,
+        height: 320,
+      };
+    case WINDOW_ROLES.options:
+      return {
+        width: MAIN_WINDOW_DEFAULT_WIDTH,
+        height: 640,
+      };
+
+    case WINDOW_ROLES.launcher:
+      return {
+        width: MAIN_WINDOW_DEFAULT_WIDTH,
+        height: MAIN_WINDOW_DEFAULT_HEIGHT,
+      };
+    default:
+      return {
+        width: MAIN_WINDOW_DEFAULT_WIDTH,
+        height: 300,
+      };
+  }
+}
+
+
 function createWindow(
   role: typeof WINDOW_ROLES[keyof typeof WINDOW_ROLES],
   anchorBounds?: {
@@ -301,27 +332,22 @@ function createWindow(
   },
 ): BrowserWindow {
   const preloadPath = path.join(__dirname, "../preload/index.js");
-
+  // TODO: add helper for roles and base size
   const isLauncher = role === WINDOW_ROLES.launcher;
+  // we need to add different values for different roles.
   const savedBounds = !isLauncher ? savedPrefs?.bounds : undefined;
-  const defaultCardWidth =
-    role === WINDOW_ROLES.questionBox ? 480 : 520;
-  const defaultCardHeight =
-    role === WINDOW_ROLES.questionBox ? 320 : 640;
+  const { width, height } = getWindowBaseSize(role);
   log.ger({ type: 'info', message: 'attempting creating window', data: { role } })
   const browserWindow = new BrowserWindow({
-    width:
-      savedBounds?.width ??
-      (isLauncher ? MAIN_WINDOW_DEFAULT_WIDTH : defaultCardWidth),
-    height:
-      savedBounds?.height ??
-      (isLauncher ? MAIN_WINDOW_DEFAULT_HEIGHT : defaultCardHeight),
-    minWidth: isLauncher ? MAIN_WINDOW_MIN_WIDTH : 320,
-    minHeight: isLauncher ? MAIN_WINDOW_MIN_HEIGHT : 240,
+    width,
+    height,
+    minWidth: width,
+    minHeight: height,
     alwaysOnTop: true,
     frame: false,
     transparent: true,
-    backgroundColor: "#00000000",
+    backgroundColor: "#ffffff90",
+    backgroundMaterial: "mica",
     resizable: true,
     show: isLauncher ? false : true,
     fullscreenable: false,
@@ -329,6 +355,8 @@ function createWindow(
     hasShadow: true,
     focusable: true,
     movable: true,
+    // preload: we should split the preload into different files for different roles.
+
     x: savedBounds?.x ?? (isLauncher ? 0 : 40),
     y: savedBounds?.y ?? (isLauncher ? 100 : 140),
     webPreferences: {
@@ -378,15 +406,7 @@ function createWindow(
   });
 
   browserWindow.on("show", () => {
-    log.ger({
-      type: "debug",
-      message: "[window show]",
-      data: {
-        role,
-        webContentsId,
-        bounds: browserWindow.getBounds(),
-      },
-    });
+
     if (!isLauncher) {
       broadcastCardWindowOpenState();
       browserWindow.focus();

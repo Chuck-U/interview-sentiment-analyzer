@@ -26,19 +26,13 @@ export function QuestionStreamCard({
     <Card
       size="sm"
       className={cn(
-        "pointer-events-none w-full max-w-full border-border/50 bg-background/90 text-card-foreground shadow-xl backdrop-blur-sm transition-[transform,opacity,box-shadow] duration-300 ease-out",
+        "pointer-events-none w-full max-w-full border-border/50 text-card-foreground shadow-xl backdrop-blur-sm transition-[transform,opacity,box-shadow] duration-300 ease-out",
         isActive
-          ? "ring-2 ring-primary/40 shadow-primary/10"
-          : "opacity-75 ring-1 ring-foreground/5",
+          ? "ring-2 ring-primary/40 shadow-primary/10 bg-background/80"
+          : "opacity-75 ring-1 ring-foreground/5 bg-background/20",
         className,
       )}
     >
-      <CardHeader className="gap-0.5 pb-2">
-        <CardTitle className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
-          {title}
-        </CardTitle>
-        {meta ? <CardDescription>{meta}</CardDescription> : null}
-      </CardHeader>
       <CardContent className="pt-0">
         <p className="whitespace-pre-wrap text-sm leading-6 text-foreground">
           {body}
