@@ -1,9 +1,8 @@
 import { BrowserWindow, ipcMain, screen } from "electron";
-
 type MonitorPickerSelectionChangedHandler = (displayId?: string) => void;
 
 type MonitorPickerController = {
-  open(args: { readonly selectedDisplayId?: string }): string | undefined;
+  open(args: { readonly selectedDisplayId?: string }): Promise<string | undefined>;
   close(): void;
   isOpen(): boolean;
 };
@@ -14,6 +13,7 @@ type PointerEventPayload = {
   readonly screenX: number;
   readonly screenY: number;
 };
+
 
 const POINTER_EVENT_CHANNEL = "capture-options:monitor-picker:pointer";
 const WINDOW_STATE_CHANNEL = "capture-options:monitor-picker:state";
@@ -156,8 +156,17 @@ export function createMonitorPickerController(args: {
   readonly onSelectionChanged: MonitorPickerSelectionChangedHandler;
 }): MonitorPickerController {
   const overlayWindows = new Map<string, BrowserWindow>();
+  let initialDisplayId: string | undefined;
   let selectedDisplayId: string | undefined;
   let isDragging = false;
+  let resolvePendingOpen:
+    | ((displayId: string | undefined) => void)
+    | undefined;
+
+  function settlePendingOpen(displayId: string | undefined): void {
+    resolvePendingOpen?.(displayId);
+    resolvePendingOpen = undefined;
+  }
 
   function broadcastState(): void {
     for (const window of overlayWindows.values()) {
@@ -169,6 +178,11 @@ export function createMonitorPickerController(args: {
   }
 
   function updateSelectedDisplay(nextDisplayId: string | undefined): void {
+    selectedDisplayId = nextDisplayId;
+    broadcastState();
+  }
+
+  function commitSelectedDisplay(nextDisplayId: string | undefined): void {
     selectedDisplayId = nextDisplayId;
     args.onSelectionChanged(selectedDisplayId);
     broadcastState();
@@ -183,7 +197,7 @@ export function createMonitorPickerController(args: {
     return display ? String(display.id) : undefined;
   }
 
-  function close(): void {
+  function close(resolvedDisplayId: string | undefined = initialDisplayId): void {
     for (const window of overlayWindows.values()) {
       window.removeAllListeners("closed");
       window.close();
@@ -191,6 +205,7 @@ export function createMonitorPickerController(args: {
 
     overlayWindows.clear();
     isDragging = false;
+    settlePendingOpen(resolvedDisplayId);
   }
 
   ipcMain.removeAllListeners(POINTER_EVENT_CHANNEL);
@@ -217,30 +232,45 @@ export function createMonitorPickerController(args: {
         return;
       }
 
-      if (
-        (payload.phase === "pointerup" || payload.phase === "pointercancel") &&
-        isDragging
-      ) {
+      if (payload.phase === "pointerup" && isDragging) {
         isDragging = false;
-        updateSelectedDisplay(hoveredDisplayId ?? payload.displayId);
-        close();
+        const nextDisplayId = hoveredDisplayId ?? payload.displayId;
+        commitSelectedDisplay(nextDisplayId);
+        close(nextDisplayId);
+        return;
+      }
+
+      if (payload.phase === "pointercancel" && isDragging) {
+        isDragging = false;
+        updateSelectedDisplay(initialDisplayId);
+        close(initialDisplayId);
       }
     },
   );
 
   ipcMain.removeAllListeners(ESCAPE_CHANNEL);
   ipcMain.on(ESCAPE_CHANNEL, () => {
-    close();
+    updateSelectedDisplay(initialDisplayId);
+    close(initialDisplayId);
   });
 
   return {
-    open({ selectedDisplayId: initialDisplayId }) {
+    open({ selectedDisplayId: requestedDisplayId }) {
       close();
 
       const displays = screen.getAllDisplays();
-      selectedDisplayId =
-        initialDisplayId ??
+      initialDisplayId =
+        requestedDisplayId ??
         (displays.length > 0 ? String(displays[0].id) : undefined);
+      selectedDisplayId = initialDisplayId;
+
+      if (displays.length === 0) {
+        return Promise.resolve(undefined);
+      }
+
+      const pendingOpen = new Promise<string | undefined>((resolve) => {
+        resolvePendingOpen = resolve;
+      });
 
       for (const display of displays) {
         const displayId = String(display.id);
@@ -271,7 +301,7 @@ export function createMonitorPickerController(args: {
         overlayWindow.setVisibleOnAllWorkspaces(true, {
           visibleOnFullScreen: true,
         });
-        overlayWindow.setAlwaysOnTop(true, "screen-saver");
+        overlayWindow.setAlwaysOnTop(true, "torn-off-menu");
         overlayWindow.loadURL(
           `data:text/html;charset=utf-8,${encodeURIComponent(
             buildOverlayHtml(displayId, display.label || `Display ${displayId}`),
@@ -285,7 +315,7 @@ export function createMonitorPickerController(args: {
       }
 
       broadcastState();
-      return selectedDisplayId;
+      return pendingOpen;
     },
     close,
     isOpen() {

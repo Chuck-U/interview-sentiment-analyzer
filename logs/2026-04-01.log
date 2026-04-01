@@ -1,0 +1,330 @@
+info - Transformers.js env: filesystem cache and Hub access configured - {"cacheDir":"C:\\Users\\chuckp\\AppData\\Roaming\\interview-sentiment-analyzer\\models","useFSCache":true,"useBrowserCache":false,"allowRemoteModels":true,"allowLocalModels":true}
+warn - [process warning] ExperimentalWarning: SQLite is an experimental feature and might change at any time - ExperimentalWarning: SQLite is an experimental feature and might change at any time
+    at emitExperimentalWarning (node:internal/util:331:11)
+    at node:sqlite:4:1
+    at BuiltinModule.compileForInternalLoader (node:internal/bootstrap/realm:398:7)
+    at BuiltinModule.compileForPublicLoader (node:internal/bootstrap/realm:337:10)
+    at loadBuiltinModule (node:internal/modules/helpers:125:7)
+    at loadBuiltinWithHooks (node:internal/modules/cjs/loader:1209:15)
+    at Module._load (node:internal/modules/cjs/loader:1261:50)
+    at c._load (node:electron/js2c/node_init:2:18047)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:262:19)
+    at Module.require (node:internal/modules/cjs/loader:1563:12)
+info - attempting creating window - {"role":"launcher"}
+info - initAll: loading manifest models - {"count":3,"modelIds":["onnx-community/moonshine-base-ONNX","onnx-community/distilbert-base-uncased-mnli-ONNX","onnx-community/wav2vec2-base-Speech_Emotion_Recognition-ONNX"]}
+info - Starting model pipeline load (download if missing, then cache under userData) - {"modelId":"onnx-community/moonshine-base-ONNX","task":"automatic-speech-recognition","dtype":"q8"}
+info - Starting model pipeline load (download if missing, then cache under userData) - {"modelId":"onnx-community/distilbert-base-uncased-mnli-ONNX","task":"zero-shot-classification","dtype":"q8"}
+info - Starting model pipeline load (download if missing, then cache under userData) - {"modelId":"onnx-community/wav2vec2-base-Speech_Emotion_Recognition-ONNX","task":"audio-classification","dtype":"q8"}
+trace - resolveCapturerSourceForDisplay - {"sources":[{"display_id":"3009039356","id":"screen:3:0","name":"Screen 1"},{"display_id":"2274592781","id":"screen:4:0","name":"Screen 2"}]}
+trace - resolveCapturerSourceForDisplay - {"sources":[{"display_id":"3009039356","id":"screen:3:0","name":"Screen 1"},{"display_id":"2274592781","id":"screen:4:0","name":"Screen 2"}]}
+trace - resolveCapturerSourceForDisplay - {"sources":[{"display_id":"3009039356","id":"screen:3:0","name":"Screen 1"},{"display_id":"2274592781","id":"screen:4:0","name":"Screen 2"}]}
+trace - monitor not found - {"sources":[{"name":"Screen 1","id":"screen:3:0","thumbnail":{"isMacTemplateImage":false},"display_id":"3009039356","appIcon":null},{"name":"Screen 2","id":"screen:4:0","thumbnail":{"isMacTemplateImage":false},"display_id":"2274592781","appIcon":null}],"displayId":"573284213"}
+trace - resolveCapturerSourceForDisplay - {"sources":[{"display_id":"3009039356","id":"screen:3:0","name":"Screen 1"},{"display_id":"2274592781","id":"screen:4:0","name":"Screen 2"}]}
+trace - resolveCapturerSourceForDisplay - {"sources":[{"display_id":"3009039356","id":"screen:3:0","name":"Screen 1"},{"display_id":"2274592781","id":"screen:4:0","name":"Screen 2"}]}
+trace - resolveCapturerSourceForDisplay - {"sources":[{"display_id":"3009039356","id":"screen:3:0","name":"Screen 1"},{"display_id":"2274592781","id":"screen:4:0","name":"Screen 2"}]}
+trace - monitor not found - {"sources":[{"name":"Screen 1","id":"screen:3:0","thumbnail":{"isMacTemplateImage":false},"display_id":"3009039356","appIcon":null},{"name":"Screen 2","id":"screen:4:0","thumbnail":{"isMacTemplateImage":false},"display_id":"2274592781","appIcon":null}],"displayId":"573284213"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/distilbert-base-uncased-mnli-ONNX","status":"initiate","file":"config.json","name":"onnx-community/distilbert-base-uncased-mnli-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/distilbert-base-uncased-mnli-ONNX","status":"initiate","file":"tokenizer.json","name":"onnx-community/distilbert-base-uncased-mnli-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/distilbert-base-uncased-mnli-ONNX","status":"initiate","file":"tokenizer_config.json","name":"onnx-community/distilbert-base-uncased-mnli-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/distilbert-base-uncased-mnli-ONNX","status":"download","file":"config.json","name":"onnx-community/distilbert-base-uncased-mnli-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/distilbert-base-uncased-mnli-ONNX","status":"download","file":"tokenizer.json","name":"onnx-community/distilbert-base-uncased-mnli-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/distilbert-base-uncased-mnli-ONNX","status":"download","file":"tokenizer_config.json","name":"onnx-community/distilbert-base-uncased-mnli-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/wav2vec2-base-Speech_Emotion_Recognition-ONNX","status":"initiate","file":"config.json","name":"onnx-community/wav2vec2-base-Speech_Emotion_Recognition-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/wav2vec2-base-Speech_Emotion_Recognition-ONNX","status":"initiate","file":"preprocessor_config.json","name":"onnx-community/wav2vec2-base-Speech_Emotion_Recognition-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/wav2vec2-base-Speech_Emotion_Recognition-ONNX","status":"download","file":"config.json","name":"onnx-community/wav2vec2-base-Speech_Emotion_Recognition-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/wav2vec2-base-Speech_Emotion_Recognition-ONNX","status":"download","file":"preprocessor_config.json","name":"onnx-community/wav2vec2-base-Speech_Emotion_Recognition-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"initiate","file":"config.json","name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"download","file":"config.json","name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/distilbert-base-uncased-mnli-ONNX","status":"progress_total","progress":0,"name":"onnx-community/distilbert-base-uncased-mnli-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/distilbert-base-uncased-mnli-ONNX","status":"progress_total","progress":0,"name":"onnx-community/distilbert-base-uncased-mnli-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/distilbert-base-uncased-mnli-ONNX","status":"progress_total","progress":0,"name":"onnx-community/distilbert-base-uncased-mnli-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/wav2vec2-base-Speech_Emotion_Recognition-ONNX","status":"progress_total","progress":0,"name":"onnx-community/wav2vec2-base-Speech_Emotion_Recognition-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/wav2vec2-base-Speech_Emotion_Recognition-ONNX","status":"progress_total","progress":0,"name":"onnx-community/wav2vec2-base-Speech_Emotion_Recognition-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":0,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/distilbert-base-uncased-mnli-ONNX","status":"done","file":"config.json","name":"onnx-community/distilbert-base-uncased-mnli-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/distilbert-base-uncased-mnli-ONNX","status":"initiate","file":"onnx/model_quantized.onnx","name":"onnx-community/distilbert-base-uncased-mnli-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/distilbert-base-uncased-mnli-ONNX","status":"download","file":"onnx/model_quantized.onnx","name":"onnx-community/distilbert-base-uncased-mnli-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/distilbert-base-uncased-mnli-ONNX","status":"progress_total","progress":99,"name":"onnx-community/distilbert-base-uncased-mnli-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/distilbert-base-uncased-mnli-ONNX","status":"done","file":"onnx/model_quantized.onnx","name":"onnx-community/distilbert-base-uncased-mnli-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/distilbert-base-uncased-mnli-ONNX","status":"progress_total","progress":99,"name":"onnx-community/distilbert-base-uncased-mnli-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/distilbert-base-uncased-mnli-ONNX","status":"done","file":"tokenizer_config.json","name":"onnx-community/distilbert-base-uncased-mnli-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/wav2vec2-base-Speech_Emotion_Recognition-ONNX","status":"done","file":"config.json","name":"onnx-community/wav2vec2-base-Speech_Emotion_Recognition-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/wav2vec2-base-Speech_Emotion_Recognition-ONNX","status":"initiate","file":"onnx/model_quantized.onnx","name":"onnx-community/wav2vec2-base-Speech_Emotion_Recognition-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/wav2vec2-base-Speech_Emotion_Recognition-ONNX","status":"download","file":"onnx/model_quantized.onnx","name":"onnx-community/wav2vec2-base-Speech_Emotion_Recognition-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/wav2vec2-base-Speech_Emotion_Recognition-ONNX","status":"progress_total","progress":100,"name":"onnx-community/wav2vec2-base-Speech_Emotion_Recognition-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/wav2vec2-base-Speech_Emotion_Recognition-ONNX","status":"done","file":"onnx/model_quantized.onnx","name":"onnx-community/wav2vec2-base-Speech_Emotion_Recognition-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/wav2vec2-base-Speech_Emotion_Recognition-ONNX","status":"done","file":"preprocessor_config.json","name":"onnx-community/wav2vec2-base-Speech_Emotion_Recognition-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"done","file":"config.json","name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"initiate","file":"preprocessor_config.json","name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"initiate","file":"tokenizer.json","name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"initiate","file":"tokenizer_config.json","name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"download","file":"preprocessor_config.json","name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"initiate","file":"onnx/encoder_model_quantized.onnx","name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"initiate","file":"onnx/decoder_model_merged_quantized.onnx","name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"initiate","file":"generation_config.json","name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"download","file":"tokenizer.json","name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"download","file":"tokenizer_config.json","name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"download","file":"onnx/encoder_model_quantized.onnx","name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":31,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"done","file":"onnx/encoder_model_quantized.onnx","name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"download","file":"onnx/decoder_model_merged_quantized.onnx","name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":94,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"done","file":"onnx/decoder_model_merged_quantized.onnx","name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"download","file":"generation_config.json","name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/wav2vec2-base-Speech_Emotion_Recognition-ONNX","status":"ready"}
+info - Model pipeline ready (ONNX loaded; artifacts on disk cache when applicable) - {"modelId":"onnx-community/wav2vec2-base-Speech_Emotion_Recognition-ONNX","task":"audio-classification"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/distilbert-base-uncased-mnli-ONNX","status":"progress_total","progress":99,"name":"onnx-community/distilbert-base-uncased-mnli-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/distilbert-base-uncased-mnli-ONNX","status":"progress_total","progress":99,"name":"onnx-community/distilbert-base-uncased-mnli-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":94,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":94,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":94,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":94,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/distilbert-base-uncased-mnli-ONNX","status":"progress_total","progress":99,"name":"onnx-community/distilbert-base-uncased-mnli-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"done","file":"preprocessor_config.json","name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"initiate","file":"preprocessor_config.json","name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"initiate","file":"tokenizer.json","name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"initiate","file":"tokenizer_config.json","name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"download","file":"preprocessor_config.json","name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":94,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":95,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"done","file":"generation_config.json","name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/distilbert-base-uncased-mnli-ONNX","status":"progress_total","progress":100,"name":"onnx-community/distilbert-base-uncased-mnli-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":95,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":95,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/distilbert-base-uncased-mnli-ONNX","status":"progress_total","progress":100,"name":"onnx-community/distilbert-base-uncased-mnli-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":95,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":95,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"done","file":"tokenizer_config.json","name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/distilbert-base-uncased-mnli-ONNX","status":"progress_total","progress":100,"name":"onnx-community/distilbert-base-uncased-mnli-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"done","file":"preprocessor_config.json","name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":95,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/distilbert-base-uncased-mnli-ONNX","status":"progress_total","progress":100,"name":"onnx-community/distilbert-base-uncased-mnli-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":95,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/distilbert-base-uncased-mnli-ONNX","status":"progress_total","progress":100,"name":"onnx-community/distilbert-base-uncased-mnli-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":95,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/distilbert-base-uncased-mnli-ONNX","status":"progress_total","progress":100,"name":"onnx-community/distilbert-base-uncased-mnli-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":95,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/distilbert-base-uncased-mnli-ONNX","status":"done","file":"tokenizer.json","name":"onnx-community/distilbert-base-uncased-mnli-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/distilbert-base-uncased-mnli-ONNX","status":"ready"}
+info - Model pipeline ready (ONNX loaded; artifacts on disk cache when applicable) - {"modelId":"onnx-community/distilbert-base-uncased-mnli-ONNX","task":"zero-shot-classification"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":95,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":95,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":95,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":96,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":96,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":96,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":96,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":96,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":96,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":96,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":96,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":96,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":96,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":97,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":97,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":97,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":97,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":97,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":97,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":97,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":97,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":97,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":97,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":98,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":98,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":98,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":98,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":98,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":98,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":98,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":98,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":98,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":98,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":98,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":99,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":99,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":99,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":99,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":99,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":99,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":99,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":99,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":99,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":99,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":100,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":100,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":100,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":100,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":100,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"progress_total","progress":100,"name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"done","file":"tokenizer.json","name":"onnx-community/moonshine-base-ONNX"}
+info - Transformers load / cache activity - {"modelId":"onnx-community/moonshine-base-ONNX","status":"ready"}
+info - Model pipeline ready (ONNX loaded; artifacts on disk cache when applicable) - {"modelId":"onnx-community/moonshine-base-ONNX","task":"automatic-speech-recognition"}
+info - initAll finished; all manifest pipelines ready - {"overallStatus":"ready","failureCount":0,"failures":[]}
+info - initAll: loading manifest models - {"count":3,"modelIds":["onnx-community/moonshine-base-ONNX","onnx-community/distilbert-base-uncased-mnli-ONNX","onnx-community/wav2vec2-base-Speech_Emotion_Recognition-ONNX"]}
+info - Pipeline promise reused (already loading or built) - {"modelId":"onnx-community/moonshine-base-ONNX","task":"automatic-speech-recognition"}
+info - Pipeline promise reused (already loading or built) - {"modelId":"onnx-community/distilbert-base-uncased-mnli-ONNX","task":"zero-shot-classification"}
+info - Pipeline promise reused (already loading or built) - {"modelId":"onnx-community/wav2vec2-base-Speech_Emotion_Recognition-ONNX","task":"audio-classification"}
+info - initAll finished; all manifest pipelines ready - {"overallStatus":"ready","failureCount":0,"failures":[]}
+trace - resolveCapturerSourceForDisplay - {"sources":[{"display_id":"3009039356","id":"screen:3:0","name":"Screen 1"},{"display_id":"2274592781","id":"screen:4:0","name":"Screen 2"}]}
+trace - resolveCapturerSourceForDisplay - {"sources":[{"display_id":"3009039356","id":"screen:3:0","name":"Screen 1"},{"display_id":"2274592781","id":"screen:4:0","name":"Screen 2"}]}
+trace - resolveCapturerSourceForDisplay - {"sources":[{"display_id":"3009039356","id":"screen:3:0","name":"Screen 1"},{"display_id":"2274592781","id":"screen:4:0","name":"Screen 2"}]}
+trace - monitor not found - {"sources":[{"name":"Screen 1","id":"screen:3:0","thumbnail":{"isMacTemplateImage":false},"display_id":"3009039356","appIcon":null},{"name":"Screen 2","id":"screen:4:0","thumbnail":{"isMacTemplateImage":false},"display_id":"2274592781","appIcon":null}],"displayId":"573284213"}
+trace - resolveCapturerSourceForDisplay - {"sources":[{"display_id":"3009039356","id":"screen:3:0","name":"Screen 1"},{"display_id":"2274592781","id":"screen:4:0","name":"Screen 2"}]}
+trace - resolveCapturerSourceForDisplay - {"sources":[{"display_id":"3009039356","id":"screen:3:0","name":"Screen 1"},{"display_id":"2274592781","id":"screen:4:0","name":"Screen 2"}]}
+trace - resolveCapturerSourceForDisplay - {"sources":[{"display_id":"3009039356","id":"screen:3:0","name":"Screen 1"},{"display_id":"2274592781","id":"screen:4:0","name":"Screen 2"}]}
+trace - monitor not found - {"sources":[{"name":"Screen 1","id":"screen:3:0","thumbnail":{"isMacTemplateImage":false},"display_id":"3009039356","appIcon":null},{"name":"Screen 2","id":"screen:4:0","thumbnail":{"isMacTemplateImage":false},"display_id":"2274592781","appIcon":null}],"displayId":"573284213"}
+info - initAll: loading manifest models - {"count":3,"modelIds":["onnx-community/moonshine-base-ONNX","onnx-community/distilbert-base-uncased-mnli-ONNX","onnx-community/wav2vec2-base-Speech_Emotion_Recognition-ONNX"]}
+info - Pipeline promise reused (already loading or built) - {"modelId":"onnx-community/moonshine-base-ONNX","task":"automatic-speech-recognition"}
+info - Pipeline promise reused (already loading or built) - {"modelId":"onnx-community/distilbert-base-uncased-mnli-ONNX","task":"zero-shot-classification"}
+info - Pipeline promise reused (already loading or built) - {"modelId":"onnx-community/wav2vec2-base-Speech_Emotion_Recognition-ONNX","task":"audio-classification"}
+info - initAll finished; all manifest pipelines ready - {"overallStatus":"ready","failureCount":0,"failures":[]}
+trace - resolveCapturerSourceForDisplay - {"sources":[{"display_id":"3009039356","id":"screen:3:0","name":"Screen 1"},{"display_id":"2274592781","id":"screen:4:0","name":"Screen 2"}]}
+trace - resolveCapturerSourceForDisplay - {"sources":[{"display_id":"3009039356","id":"screen:3:0","name":"Screen 1"},{"display_id":"2274592781","id":"screen:4:0","name":"Screen 2"}]}
+trace - resolveCapturerSourceForDisplay - {"sources":[{"display_id":"3009039356","id":"screen:3:0","name":"Screen 1"},{"display_id":"2274592781","id":"screen:4:0","name":"Screen 2"}]}
+trace - monitor not found - {"sources":[{"name":"Screen 1","id":"screen:3:0","thumbnail":{"isMacTemplateImage":false},"display_id":"3009039356","appIcon":null},{"name":"Screen 2","id":"screen:4:0","thumbnail":{"isMacTemplateImage":false},"display_id":"2274592781","appIcon":null}],"displayId":"573284213"}
+trace - resolveCapturerSourceForDisplay - {"sources":[{"display_id":"3009039356","id":"screen:3:0","name":"Screen 1"},{"display_id":"2274592781","id":"screen:4:0","name":"Screen 2"}]}
+trace - resolveCapturerSourceForDisplay - {"sources":[{"display_id":"3009039356","id":"screen:3:0","name":"Screen 1"},{"display_id":"2274592781","id":"screen:4:0","name":"Screen 2"}]}
+trace - resolveCapturerSourceForDisplay - {"sources":[{"display_id":"3009039356","id":"screen:3:0","name":"Screen 1"},{"display_id":"2274592781","id":"screen:4:0","name":"Screen 2"}]}
+trace - monitor not found - {"sources":[{"name":"Screen 1","id":"screen:3:0","thumbnail":{"isMacTemplateImage":false},"display_id":"3009039356","appIcon":null},{"name":"Screen 2","id":"screen:4:0","thumbnail":{"isMacTemplateImage":false},"display_id":"2274592781","appIcon":null}],"displayId":"573284213"}
+info - attempting creating window - {"role":"question-box"}
+info - initAll: loading manifest models - {"count":3,"modelIds":["onnx-community/moonshine-base-ONNX","onnx-community/distilbert-base-uncased-mnli-ONNX","onnx-community/wav2vec2-base-Speech_Emotion_Recognition-ONNX"]}
+info - Pipeline promise reused (already loading or built) - {"modelId":"onnx-community/moonshine-base-ONNX","task":"automatic-speech-recognition"}
+info - Pipeline promise reused (already loading or built) - {"modelId":"onnx-community/distilbert-base-uncased-mnli-ONNX","task":"zero-shot-classification"}
+info - Pipeline promise reused (already loading or built) - {"modelId":"onnx-community/wav2vec2-base-Speech_Emotion_Recognition-ONNX","task":"audio-classification"}
+info - initAll finished; all manifest pipelines ready - {"overallStatus":"ready","failureCount":0,"failures":[]}
+trace - resolveCapturerSourceForDisplay - {"sources":[{"display_id":"3009039356","id":"screen:3:0","name":"Screen 1"},{"display_id":"2274592781","id":"screen:4:0","name":"Screen 2"}]}
+trace - resolveCapturerSourceForDisplay - {"sources":[{"display_id":"3009039356","id":"screen:3:0","name":"Screen 1"},{"display_id":"2274592781","id":"screen:4:0","name":"Screen 2"}]}
+trace - resolveCapturerSourceForDisplay - {"sources":[{"display_id":"3009039356","id":"screen:3:0","name":"Screen 1"},{"display_id":"2274592781","id":"screen:4:0","name":"Screen 2"}]}
+trace - monitor not found - {"sources":[{"name":"Screen 1","id":"screen:3:0","thumbnail":{"isMacTemplateImage":false},"display_id":"3009039356","appIcon":null},{"name":"Screen 2","id":"screen:4:0","thumbnail":{"isMacTemplateImage":false},"display_id":"2274592781","appIcon":null}],"displayId":"573284213"}
+trace - resolveCapturerSourceForDisplay - {"sources":[{"display_id":"3009039356","id":"screen:3:0","name":"Screen 1"},{"display_id":"2274592781","id":"screen:4:0","name":"Screen 2"}]}
+trace - resolveCapturerSourceForDisplay - {"sources":[{"display_id":"3009039356","id":"screen:3:0","name":"Screen 1"},{"display_id":"2274592781","id":"screen:4:0","name":"Screen 2"}]}
+trace - resolveCapturerSourceForDisplay - {"sources":[{"display_id":"3009039356","id":"screen:3:0","name":"Screen 1"},{"display_id":"2274592781","id":"screen:4:0","name":"Screen 2"}]}
+trace - monitor not found - {"sources":[{"name":"Screen 1","id":"screen:3:0","thumbnail":{"isMacTemplateImage":false},"display_id":"3009039356","appIcon":null},{"name":"Screen 2","id":"screen:4:0","thumbnail":{"isMacTemplateImage":false},"display_id":"2274592781","appIcon":null}],"displayId":"573284213"}
+trace - resolveCapturerSourceForDisplay - {"sources":[{"display_id":"3009039356","id":"screen:3:0","name":"Screen 1"},{"display_id":"2274592781","id":"screen:4:0","name":"Screen 2"}]}
+trace - resolveCapturerSourceForDisplay - {"sources":[{"display_id":"3009039356","id":"screen:3:0","name":"Screen 1"},{"display_id":"2274592781","id":"screen:4:0","name":"Screen 2"}]}
+trace - resolveCapturerSourceForDisplay - {"sources":[{"display_id":"3009039356","id":"screen:3:0","name":"Screen 1"},{"display_id":"2274592781","id":"screen:4:0","name":"Screen 2"}]}
+trace - monitor not found - {"sources":[{"name":"Screen 1","id":"screen:3:0","thumbnail":{"isMacTemplateImage":false},"display_id":"3009039356","appIcon":null},{"name":"Screen 2","id":"screen:4:0","thumbnail":{"isMacTemplateImage":false},"display_id":"2274592781","appIcon":null}],"displayId":"573284213"}
+trace - resolveCapturerSourceForDisplay - {"sources":[{"display_id":"3009039356","id":"screen:3:0","name":"Screen 1"},{"display_id":"2274592781","id":"screen:4:0","name":"Screen 2"}]}
+trace - resolveCapturerSourceForDisplay - {"sources":[{"display_id":"3009039356","id":"screen:3:0","name":"Screen 1"},{"display_id":"2274592781","id":"screen:4:0","name":"Screen 2"}]}
+trace - resolveCapturerSourceForDisplay - {"sources":[{"display_id":"3009039356","id":"screen:3:0","name":"Screen 1"},{"display_id":"2274592781","id":"screen:4:0","name":"Screen 2"}]}
+trace - monitor not found - {"sources":[{"name":"Screen 1","id":"screen:3:0","thumbnail":{"isMacTemplateImage":false},"display_id":"3009039356","appIcon":null},{"name":"Screen 2","id":"screen:4:0","thumbnail":{"isMacTemplateImage":false},"display_id":"2274592781","appIcon":null}],"displayId":"573284213"}
+info - [transcription] transcribeAudio IPC invoked - {"hasPayload":true}
+info - [transcription] request accepted; running ASR - {"sessionId":"f144f4fe","chunkId":"bc1f42b1-793d-4b1c-90bd-1894605c3ea4","source":"desktop-capture","pcmSamples":87360}
+trace - [transcription] transcribeAudio complete - {"sessionId":"f144f4fe","chunkId":"bc1f42b1-793d-4b1c-90bd-1894605c3ea4","source":"desktop-capture","textLength":88}
+info - [transcription] starting question detection - {"sessionId":"f144f4fe","chunkId":"bc1f42b1-793d-4b1c-90bd-1894605c3ea4","source":"desktop-capture","transcriptPreview":"With reality we are going to leave that fodder or your memoir and instead focus on a bit","transcriptLength":88}
+info - [question-detection] loading classifier pipeline - {"sessionId":"f144f4fe","chunkId":"bc1f42b1-793d-4b1c-90bd-1894605c3ea4","source":"desktop-capture","modelId":"onnx-community/distilbert-base-uncased-mnli-ONNX","textLength":88,"preview":"With reality we are going to leave that fodder or your memoir and instead focus on a bit"}
+info - [question-detection] classifier invoked - {"sessionId":"f144f4fe","chunkId":"bc1f42b1-793d-4b1c-90bd-1894605c3ea4","labels":["a spoken interview question","a spoken statement or answer"]}
+info - getScoreForLabel - {"output":{"labels":["a spoken statement or answer","a spoken interview question"],"scores":[0.6583049942303469,0.341695005769653]},"label":"a spoken interview question"}
+info - getScoreForLabel - {"output":{"labels":["a spoken statement or answer","a spoken interview question"],"scores":[0.6583049942303469,0.341695005769653]},"label":"a spoken statement or answer"}
+info - [question-detection] classifier scores computed - {"sessionId":"f144f4fe","chunkId":"bc1f42b1-793d-4b1c-90bd-1894605c3ea4","source":"desktop-capture","textLength":88,"questionScore":"0.3417","nonQuestionScore":"0.6583","margin":"-0.3166","minScore":0.3,"minMargin":0.12}
+info - [transcription] transcribeAudio IPC invoked - {"hasPayload":true}
+info - [transcription] request accepted; running ASR - {"sessionId":"f144f4fe","chunkId":"7ae39665-86dd-459d-96d2-e8b71a58fcd1","source":"desktop-capture","pcmSamples":93120}
+trace - [transcription] transcribeAudio complete - {"sessionId":"f144f4fe","chunkId":"7ae39665-86dd-459d-96d2-e8b71a58fcd1","source":"desktop-capture","textLength":71}
+info - [transcription] starting question detection - {"sessionId":"f144f4fe","chunkId":"7ae39665-86dd-459d-96d2-e8b71a58fcd1","source":"desktop-capture","transcriptPreview":"More of a secondary reason what could that be well first you could move","transcriptLength":71}
+info - [question-detection] loading classifier pipeline - {"sessionId":"f144f4fe","chunkId":"7ae39665-86dd-459d-96d2-e8b71a58fcd1","source":"desktop-capture","modelId":"onnx-community/distilbert-base-uncased-mnli-ONNX","textLength":71,"preview":"More of a secondary reason what could that be well first you could move"}
+info - [question-detection] classifier invoked - {"sessionId":"f144f4fe","chunkId":"7ae39665-86dd-459d-96d2-e8b71a58fcd1","labels":["a spoken interview question","a spoken statement or answer"]}
+info - getScoreForLabel - {"output":{"labels":["a spoken interview question","a spoken statement or answer"],"scores":[0.55488123597107,0.44511876402893]},"label":"a spoken interview question"}
+info - getScoreForLabel - {"output":{"labels":["a spoken interview question","a spoken statement or answer"],"scores":[0.55488123597107,0.44511876402893]},"label":"a spoken statement or answer"}
+info - [question-detection] classifier scores computed - {"sessionId":"f144f4fe","chunkId":"7ae39665-86dd-459d-96d2-e8b71a58fcd1","source":"desktop-capture","textLength":71,"questionScore":"0.5549","nonQuestionScore":"0.4451","margin":"0.1098","minScore":0.3,"minMargin":0.12}
+info - [transcription] transcribeAudio IPC invoked - {"hasPayload":true}
+info - [transcription] request accepted; running ASR - {"sessionId":"f144f4fe","chunkId":"28309502-773a-450c-b583-f553c34e137d","source":"desktop-capture","pcmSamples":103680}
+trace - [transcription] transcribeAudio complete - {"sessionId":"f144f4fe","chunkId":"28309502-773a-450c-b583-f553c34e137d","source":"desktop-capture","textLength":137}
+info - [transcription] starting question detection - {"sessionId":"f144f4fe","chunkId":"28309502-773a-450c-b583-f553c34e137d","source":"desktop-capture","transcriptPreview":"it on the company's financial situation. My current company is going through some tough financial finances, so I'm looking for a specific","transcriptLength":137}
+info - [question-detection] loading classifier pipeline - {"sessionId":"f144f4fe","chunkId":"28309502-773a-450c-b583-f553c34e137d","source":"desktop-capture","modelId":"onnx-community/distilbert-base-uncased-mnli-ONNX","textLength":137,"preview":"it on the company's financial situation. My current company is going through some tough financial finances, so I'm looking for a specific"}
+info - [question-detection] classifier invoked - {"sessionId":"f144f4fe","chunkId":"28309502-773a-450c-b583-f553c34e137d","labels":["a spoken interview question","a spoken statement or answer"]}
+info - getScoreForLabel - {"output":{"labels":["a spoken statement or answer","a spoken interview question"],"scores":[0.7737582737644132,0.22624172623558678]},"label":"a spoken interview question"}
+info - getScoreForLabel - {"output":{"labels":["a spoken statement or answer","a spoken interview question"],"scores":[0.7737582737644132,0.22624172623558678]},"label":"a spoken statement or answer"}
+info - [question-detection] classifier scores computed - {"sessionId":"f144f4fe","chunkId":"28309502-773a-450c-b583-f553c34e137d","source":"desktop-capture","textLength":137,"questionScore":"0.2262","nonQuestionScore":"0.7738","margin":"-0.5475","minScore":0.3,"minMargin":0.12}
+info - [transcription] transcribeAudio IPC invoked - {"hasPayload":true}
+info - [transcription] request accepted; running ASR - {"sessionId":"f144f4fe","chunkId":"efa0bf1d-1f29-421a-b1b5-cdd5d9ec1b1e","source":"desktop-capture","pcmSamples":99840}
+trace - [transcription] transcribeAudio complete - {"sessionId":"f144f4fe","chunkId":"efa0bf1d-1f29-421a-b1b5-cdd5d9ec1b1e","source":"desktop-capture","textLength":103}
+info - [transcription] starting question detection - {"sessionId":"f144f4fe","chunkId":"efa0bf1d-1f29-421a-b1b5-cdd5d9ec1b1e","source":"desktop-capture","transcriptPreview":"something more stable and secure in a company that has a really strong future. It's also really easy to","transcriptLength":103}
+info - [question-detection] loading classifier pipeline - {"sessionId":"f144f4fe","chunkId":"efa0bf1d-1f29-421a-b1b5-cdd5d9ec1b1e","source":"desktop-capture","modelId":"onnx-community/distilbert-base-uncased-mnli-ONNX","textLength":103,"preview":"something more stable and secure in a company that has a really strong future. It's also really easy to"}
+info - [question-detection] classifier invoked - {"sessionId":"f144f4fe","chunkId":"efa0bf1d-1f29-421a-b1b5-cdd5d9ec1b1e","labels":["a spoken interview question","a spoken statement or answer"]}
+info - getScoreForLabel - {"output":{"labels":["a spoken statement or answer","a spoken interview question"],"scores":[0.5458592534367833,0.45414074656321674]},"label":"a spoken interview question"}
+info - getScoreForLabel - {"output":{"labels":["a spoken statement or answer","a spoken interview question"],"scores":[0.5458592534367833,0.45414074656321674]},"label":"a spoken statement or answer"}
+info - [question-detection] classifier scores computed - {"sessionId":"f144f4fe","chunkId":"efa0bf1d-1f29-421a-b1b5-cdd5d9ec1b1e","source":"desktop-capture","textLength":103,"questionScore":"0.4541","nonQuestionScore":"0.5459","margin":"-0.0917","minScore":0.3,"minMargin":0.12}
+info - [transcription] transcribeAudio IPC invoked - {"hasPayload":true}
+info - [transcription] request accepted; running ASR - {"sessionId":"f144f4fe","chunkId":"43cb608a-5cf3-408e-8b3d-549fab3b2dcd","source":"desktop-capture","pcmSamples":92160}
+trace - [transcription] transcribeAudio complete - {"sessionId":"f144f4fe","chunkId":"43cb608a-5cf3-408e-8b3d-549fab3b2dcd","source":"desktop-capture","textLength":98}
+info - [transcription] starting question detection - {"sessionId":"f144f4fe","chunkId":"43cb608a-5cf3-408e-8b3d-549fab3b2dcd","source":"desktop-capture","transcriptPreview":"Blame it on the commute i know the work but the commute is long and it's taking a toll on me to my","transcriptLength":98}
+info - [question-detection] loading classifier pipeline - {"sessionId":"f144f4fe","chunkId":"43cb608a-5cf3-408e-8b3d-549fab3b2dcd","source":"desktop-capture","modelId":"onnx-community/distilbert-base-uncased-mnli-ONNX","textLength":98,"preview":"Blame it on the commute i know the work but the commute is long and it's taking a toll on me to my"}
+info - [question-detection] classifier invoked - {"sessionId":"f144f4fe","chunkId":"43cb608a-5cf3-408e-8b3d-549fab3b2dcd","labels":["a spoken interview question","a spoken statement or answer"]}
+info - getScoreForLabel - {"output":{"labels":["a spoken statement or answer","a spoken interview question"],"scores":[0.6532835929340014,0.3467164070659986]},"label":"a spoken interview question"}
+info - getScoreForLabel - {"output":{"labels":["a spoken statement or answer","a spoken interview question"],"scores":[0.6532835929340014,0.3467164070659986]},"label":"a spoken statement or answer"}
+info - [question-detection] classifier scores computed - {"sessionId":"f144f4fe","chunkId":"43cb608a-5cf3-408e-8b3d-549fab3b2dcd","source":"desktop-capture","textLength":98,"questionScore":"0.3467","nonQuestionScore":"0.6533","margin":"-0.3066","minScore":0.3,"minMargin":0.12}
+info - [transcription] transcribeAudio IPC invoked - {"hasPayload":true}
+info - [transcription] request accepted; running ASR - {"sessionId":"f144f4fe","chunkId":"5f2573f7-0d47-40b2-99e5-7ca18b265739","source":"desktop-capture","pcmSamples":82560}
+trace - [transcription] transcribeAudio complete - {"sessionId":"f144f4fe","chunkId":"5f2573f7-0d47-40b2-99e5-7ca18b265739","source":"desktop-capture","textLength":101}
+info - [transcription] starting question detection - {"sessionId":"f144f4fe","chunkId":"5f2573f7-0d47-40b2-99e5-7ca18b265739","source":"desktop-capture","transcriptPreview":"family. I'm looking for a position closer to home to reduce my Canadian time. You could blame it on a","transcriptLength":101}
+info - [question-detection] loading classifier pipeline - {"sessionId":"f144f4fe","chunkId":"5f2573f7-0d47-40b2-99e5-7ca18b265739","source":"desktop-capture","modelId":"onnx-community/distilbert-base-uncased-mnli-ONNX","textLength":101,"preview":"family. I'm looking for a position closer to home to reduce my Canadian time. You could blame it on a"}
+info - [question-detection] classifier invoked - {"sessionId":"f144f4fe","chunkId":"5f2573f7-0d47-40b2-99e5-7ca18b265739","labels":["a spoken interview question","a spoken statement or answer"]}
+info - getScoreForLabel - {"output":{"labels":["a spoken statement or answer","a spoken interview question"],"scores":[0.6912650722127746,0.3087349277872254]},"label":"a spoken interview question"}
+info - getScoreForLabel - {"output":{"labels":["a spoken statement or answer","a spoken interview question"],"scores":[0.6912650722127746,0.3087349277872254]},"label":"a spoken statement or answer"}
+info - [question-detection] classifier scores computed - {"sessionId":"f144f4fe","chunkId":"5f2573f7-0d47-40b2-99e5-7ca18b265739","source":"desktop-capture","textLength":101,"questionScore":"0.3087","nonQuestionScore":"0.6913","margin":"-0.3825","minScore":0.3,"minMargin":0.12}
+info - [transcription] transcribeAudio IPC invoked - {"hasPayload":true}
+info - [transcription] request accepted; running ASR - {"sessionId":"f144f4fe","chunkId":"9f928a53-2402-4f67-bfde-6a95cc13a82d","source":"desktop-capture","pcmSamples":103680}
+trace - [transcription] transcribeAudio complete - {"sessionId":"f144f4fe","chunkId":"9f928a53-2402-4f67-bfde-6a95cc13a82d","source":"desktop-capture","textLength":115}
+info - [transcription] starting question detection - {"sessionId":"f144f4fe","chunkId":"9f928a53-2402-4f67-bfde-6a95cc13a82d","source":"desktop-capture","transcriptPreview":"recent merger the company underwent significant changes due to a merger that changed my team and will significantly","transcriptLength":115}
+info - [question-detection] loading classifier pipeline - {"sessionId":"f144f4fe","chunkId":"9f928a53-2402-4f67-bfde-6a95cc13a82d","source":"desktop-capture","modelId":"onnx-community/distilbert-base-uncased-mnli-ONNX","textLength":115,"preview":"recent merger the company underwent significant changes due to a merger that changed my team and will significantly"}
+info - [question-detection] classifier invoked - {"sessionId":"f144f4fe","chunkId":"9f928a53-2402-4f67-bfde-6a95cc13a82d","labels":["a spoken interview question","a spoken statement or answer"]}
+info - getScoreForLabel - {"output":{"labels":["a spoken statement or answer","a spoken interview question"],"scores":[0.5536800446071745,0.44631995539282554]},"label":"a spoken interview question"}
+info - getScoreForLabel - {"output":{"labels":["a spoken statement or answer","a spoken interview question"],"scores":[0.5536800446071745,0.44631995539282554]},"label":"a spoken statement or answer"}
+info - [question-detection] classifier scores computed - {"sessionId":"f144f4fe","chunkId":"9f928a53-2402-4f67-bfde-6a95cc13a82d","source":"desktop-capture","textLength":115,"questionScore":"0.4463","nonQuestionScore":"0.5537","margin":"-0.1074","minScore":0.3,"minMargin":0.12}
+info - [transcription] transcribeAudio IPC invoked - {"hasPayload":true}
+info - [transcription] request accepted; running ASR - {"sessionId":"f144f4fe","chunkId":"0578e13c-9d78-4830-95e8-8743f934f55e","source":"desktop-capture","pcmSamples":96960}
+trace - [transcription] transcribeAudio complete - {"sessionId":"f144f4fe","chunkId":"0578e13c-9d78-4830-95e8-8743f934f55e","source":"desktop-capture","textLength":100}
+info - [transcription] starting question detection - {"sessionId":"f144f4fe","chunkId":"0578e13c-9d78-4830-95e8-8743f934f55e","source":"desktop-capture","transcriptPreview":"repeatedly and shifted away from my career goals. Or talk about how do we want to change industries?","transcriptLength":100}
+info - [question-detection] loading classifier pipeline - {"sessionId":"f144f4fe","chunkId":"0578e13c-9d78-4830-95e8-8743f934f55e","source":"desktop-capture","modelId":"onnx-community/distilbert-base-uncased-mnli-ONNX","textLength":100,"preview":"repeatedly and shifted away from my career goals. Or talk about how do we want to change industries?"}
+info - [question-detection] classifier invoked - {"sessionId":"f144f4fe","chunkId":"0578e13c-9d78-4830-95e8-8743f934f55e","labels":["a spoken interview question","a spoken statement or answer"]}
+info - getScoreForLabel - {"output":{"labels":["a spoken statement or answer","a spoken interview question"],"scores":[0.8369621935780089,0.16303780642199103]},"label":"a spoken interview question"}
+info - getScoreForLabel - {"output":{"labels":["a spoken statement or answer","a spoken interview question"],"scores":[0.8369621935780089,0.16303780642199103]},"label":"a spoken statement or answer"}
+info - [question-detection] classifier scores computed - {"sessionId":"f144f4fe","chunkId":"0578e13c-9d78-4830-95e8-8743f934f55e","source":"desktop-capture","textLength":100,"questionScore":"0.1630","nonQuestionScore":"0.8370","margin":"-0.6739","minScore":0.3,"minMargin":0.12}
+info - [transcription] transcribeAudio IPC invoked - {"hasPayload":true}
+info - [transcription] request accepted; running ASR - {"sessionId":"f144f4fe","chunkId":"9303ddc5-8fa5-421e-b5a8-fe372c980d76","source":"desktop-capture","pcmSamples":91200}
+trace - [transcription] transcribeAudio complete - {"sessionId":"f144f4fe","chunkId":"9303ddc5-8fa5-421e-b5a8-fe372c980d76","source":"desktop-capture","textLength":99}
+info - [transcription] starting question detection - {"sessionId":"f144f4fe","chunkId":"9303ddc5-8fa5-421e-b5a8-fe372c980d76","source":"desktop-capture","transcriptPreview":"Something more exciting such as i have a deep passion for artificial intelligence and it's my dream","transcriptLength":99}
+info - [question-detection] loading classifier pipeline - {"sessionId":"f144f4fe","chunkId":"9303ddc5-8fa5-421e-b5a8-fe372c980d76","source":"desktop-capture","modelId":"onnx-community/distilbert-base-uncased-mnli-ONNX","textLength":99,"preview":"Something more exciting such as i have a deep passion for artificial intelligence and it's my dream"}
+info - [question-detection] classifier invoked - {"sessionId":"f144f4fe","chunkId":"9303ddc5-8fa5-421e-b5a8-fe372c980d76","labels":["a spoken interview question","a spoken statement or answer"]}
+info - getScoreForLabel - {"output":{"labels":["a spoken statement or answer","a spoken interview question"],"scores":[0.6362664887135762,0.3637335112864239]},"label":"a spoken interview question"}
+info - getScoreForLabel - {"output":{"labels":["a spoken statement or answer","a spoken interview question"],"scores":[0.6362664887135762,0.3637335112864239]},"label":"a spoken statement or answer"}
+info - [question-detection] classifier scores computed - {"sessionId":"f144f4fe","chunkId":"9303ddc5-8fa5-421e-b5a8-fe372c980d76","source":"desktop-capture","textLength":99,"questionScore":"0.3637","nonQuestionScore":"0.6363","margin":"-0.2725","minScore":0.3,"minMargin":0.12}
+info - [transcription] transcribeAudio IPC invoked - {"hasPayload":true}
+info - [transcription] request accepted; running ASR - {"sessionId":"f144f4fe","chunkId":"5bd5f621-59fe-4f36-85b7-09f8e265f889","source":"desktop-capture","pcmSamples":96000}
+trace - [transcription] transcribeAudio complete - {"sessionId":"f144f4fe","chunkId":"5bd5f621-59fe-4f36-85b7-09f8e265f889","source":"desktop-capture","textLength":103}
+info - [transcription] starting question detection - {"sessionId":"f144f4fe","chunkId":"5bd5f621-59fe-4f36-85b7-09f8e265f889","source":"desktop-capture","transcriptPreview":"To working that industry or the absolute banger of an answer that so many people have said works really","transcriptLength":103}
+info - [question-detection] loading classifier pipeline - {"sessionId":"f144f4fe","chunkId":"5bd5f621-59fe-4f36-85b7-09f8e265f889","source":"desktop-capture","modelId":"onnx-community/distilbert-base-uncased-mnli-ONNX","textLength":103,"preview":"To working that industry or the absolute banger of an answer that so many people have said works really"}
+info - [question-detection] classifier invoked - {"sessionId":"f144f4fe","chunkId":"5bd5f621-59fe-4f36-85b7-09f8e265f889","labels":["a spoken interview question","a spoken statement or answer"]}
+info - getScoreForLabel - {"output":{"labels":["a spoken statement or answer","a spoken interview question"],"scores":[0.9961174492262412,0.0038825507737586928]},"label":"a spoken interview question"}
+info - getScoreForLabel - {"output":{"labels":["a spoken statement or answer","a spoken interview question"],"scores":[0.9961174492262412,0.0038825507737586928]},"label":"a spoken statement or answer"}
+info - [question-detection] classifier scores computed - {"sessionId":"f144f4fe","chunkId":"5bd5f621-59fe-4f36-85b7-09f8e265f889","source":"desktop-capture","textLength":103,"questionScore":"0.0039","nonQuestionScore":"0.9961","margin":"-0.9922","minScore":0.3,"minMargin":0.12}
+info - [transcription] transcribeAudio IPC invoked - {"hasPayload":true}
+info - [transcription] request accepted; running ASR - {"sessionId":"f144f4fe","chunkId":"3dc3be4f-01cd-442c-9383-34c39151fa2f","source":"desktop-capture","pcmSamples":103680}
+trace - [transcription] transcribeAudio complete - {"sessionId":"f144f4fe","chunkId":"3dc3be4f-01cd-442c-9383-34c39151fa2f","source":"desktop-capture","textLength":51}
+info - [transcription] starting question detection - {"sessionId":"f144f4fe","chunkId":"3dc3be4f-01cd-442c-9383-34c39151fa2f","source":"desktop-capture","transcriptPreview":"For them i hid the ceiling of growth in my role and","transcriptLength":51}
+info - [question-detection] loading classifier pipeline - {"sessionId":"f144f4fe","chunkId":"3dc3be4f-01cd-442c-9383-34c39151fa2f","source":"desktop-capture","modelId":"onnx-community/distilbert-base-uncased-mnli-ONNX","textLength":51,"preview":"For them i hid the ceiling of growth in my role and"}
+info - [question-detection] classifier invoked - {"sessionId":"f144f4fe","chunkId":"3dc3be4f-01cd-442c-9383-34c39151fa2f","labels":["a spoken interview question","a spoken statement or answer"]}
+info - getScoreForLabel - {"output":{"labels":["a spoken statement or answer","a spoken interview question"],"scores":[0.6123473634382672,0.38765263656173277]},"label":"a spoken interview question"}
+info - getScoreForLabel - {"output":{"labels":["a spoken statement or answer","a spoken interview question"],"scores":[0.6123473634382672,0.38765263656173277]},"label":"a spoken statement or answer"}
+info - [question-detection] classifier scores computed - {"sessionId":"f144f4fe","chunkId":"3dc3be4f-01cd-442c-9383-34c39151fa2f","source":"desktop-capture","textLength":51,"questionScore":"0.3877","nonQuestionScore":"0.6123","margin":"-0.2247","minScore":0.3,"minMargin":0.12}
+info - [transcription] transcribeAudio IPC invoked - {"hasPayload":true}
+info - [transcription] request accepted; running ASR - {"sessionId":"f144f4fe","chunkId":"c5309e9f-6eb9-45bb-b304-0c8d84b1e89d","source":"desktop-capture","pcmSamples":82560}
+trace - [transcription] transcribeAudio complete - {"sessionId":"f144f4fe","chunkId":"c5309e9f-6eb9-45bb-b304-0c8d84b1e89d","source":"desktop-capture","textLength":0}
+info - [transcription] starting question detection - {"sessionId":"f144f4fe","chunkId":"c5309e9f-6eb9-45bb-b304-0c8d84b1e89d","source":"desktop-capture","transcriptPreview":"","transcriptLength":0}
+info - [transcription] transcribeAudio IPC invoked - {"hasPayload":true}
+info - [transcription] request accepted; running ASR - {"sessionId":"f144f4fe","chunkId":"f3e8d9fe-89ba-447e-89a9-550283f1c701","source":"desktop-capture","pcmSamples":111360}
+trace - [transcription] transcribeAudio complete - {"sessionId":"f144f4fe","chunkId":"f3e8d9fe-89ba-447e-89a9-550283f1c701","source":"desktop-capture","textLength":0}
+info - [transcription] starting question detection - {"sessionId":"f144f4fe","chunkId":"f3e8d9fe-89ba-447e-89a9-550283f1c701","source":"desktop-capture","transcriptPreview":"","transcriptLength":0}
+info - [transcription] transcribeAudio IPC invoked - {"hasPayload":true}
+info - [transcription] request accepted; running ASR - {"sessionId":"f144f4fe","chunkId":"4df151fd-677a-4c2a-951f-d94bde9df09a","source":"desktop-capture","pcmSamples":80640}
+trace - [transcription] transcribeAudio complete - {"sessionId":"f144f4fe","chunkId":"4df151fd-677a-4c2a-951f-d94bde9df09a","source":"desktop-capture","textLength":0}
+info - [transcription] starting question detection - {"sessionId":"f144f4fe","chunkId":"4df151fd-677a-4c2a-951f-d94bde9df09a","source":"desktop-capture","transcriptPreview":"","transcriptLength":0}
+info - [transcription] transcribeAudio IPC invoked - {"hasPayload":true}
+info - [transcription] request accepted; running ASR - {"sessionId":"f144f4fe","chunkId":"1fb3fdcd-dfd7-4d52-9bdb-1d8d0e43386d","source":"desktop-capture","pcmSamples":97920}
+trace - [transcription] transcribeAudio complete - {"sessionId":"f144f4fe","chunkId":"1fb3fdcd-dfd7-4d52-9bdb-1d8d0e43386d","source":"desktop-capture","textLength":0}
+info - [transcription] starting question detection - {"sessionId":"f144f4fe","chunkId":"1fb3fdcd-dfd7-4d52-9bdb-1d8d0e43386d","source":"desktop-capture","transcriptPreview":"","transcriptLength":0}
+info - [transcription] transcribeAudio IPC invoked - {"hasPayload":true}
+info - [transcription] request accepted; running ASR - {"sessionId":"f144f4fe","chunkId":"a269c700-e4df-42fa-8370-53ca3dfb8452","source":"desktop-capture","pcmSamples":108480}
+trace - [transcription] transcribeAudio complete - {"sessionId":"f144f4fe","chunkId":"a269c700-e4df-42fa-8370-53ca3dfb8452","source":"desktop-capture","textLength":0}
+info - [transcription] starting question detection - {"sessionId":"f144f4fe","chunkId":"a269c700-e4df-42fa-8370-53ca3dfb8452","source":"desktop-capture","transcriptPreview":"","transcriptLength":0}

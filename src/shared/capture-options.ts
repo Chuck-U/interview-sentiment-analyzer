@@ -1,5 +1,5 @@
 import { z } from "zod";
-
+import { screen } from "electron";
 import type { Unsubscribe } from "./session-lifecycle";
 
 export const CAPTURE_PERMISSION_STATES = [
@@ -72,6 +72,7 @@ export type CaptureDisplaySnapshot = {
   readonly isPrimary: boolean;
   readonly bounds: CaptureDisplayBounds;
   readonly sourceId?: string;
+  readonly isSelected?: boolean;
 };
 
 export type MonitorPickerSelectionChangedEvent = {
@@ -164,6 +165,7 @@ const captureDisplaySnapshotSchema = z.object({
   displayId: z.string().trim().min(1),
   label: z.string().trim().min(1),
   isPrimary: z.boolean(),
+  isSelected: z.boolean().optional(),
   bounds: captureDisplayBoundsSchema,
   sourceId: z.string().trim().min(1).optional(),
 });
@@ -209,6 +211,7 @@ export function normalizeMonitorPickerSelectionChangedEvent(
 }
 
 export const CAPTURE_OPTIONS_CHANNELS = {
+  getPrimaryDisplay: "capture-options:get-primary-display",
   getConfig: "capture-options:get-config",
   setConfig: "capture-options:set-config",
   listDisplays: "capture-options:list-displays",

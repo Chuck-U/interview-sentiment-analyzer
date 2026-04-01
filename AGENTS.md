@@ -1,3 +1,8 @@
+---
+description: 
+alwaysApply: true
+---
+
 # AGENTS.md
 
 ## Cursor Cloud specific instructions
@@ -17,7 +22,7 @@ All documented in `package.json` scripts. Quick reference:
 | `pnpm typecheck` | TypeScript check for both renderer and electron configs |
 | `pnpm test` | Build electron, then run Node.js test runner on backend tests |
 | `pnpm build` | Full production build (renderer via Vite, electron via tsc) |
-
+| `pnpm dev:log` | recompile typescript and start Vite + Electron Concurrently
 ### Running on headless / Cloud Agent VMs
 
 - The VM has a VNC display at `:1`. Set `DISPLAY=:1` when running `pnpm dev` so Electron renders on the VNC desktop (visible via the Desktop pane).

@@ -7,7 +7,7 @@ test("transcribeAudio IPC handler publishes detected question payloads", async (
   const published: unknown[] = [];
   const handler = createTranscribeAudioIpcHandler({
     getPipeline: async (modelId) => {
-      if (modelId === "onnx-community/whisper-tiny.en") {
+      if (modelId === "onnx-community/moonshine-base-ONNX") {
         return async () => ({
           text: "What was the biggest challenge in that project?",
           chunks: [],
@@ -50,7 +50,7 @@ test("transcribeAudio IPC handler does not publish non-question transcripts", as
   const published: unknown[] = [];
   const handler = createTranscribeAudioIpcHandler({
     getPipeline: async (modelId) => {
-      if (modelId === "onnx-community/whisper-tiny.en") {
+      if (modelId === "onnx-community/moonshine-base-ONNX") {
         return async () => ({
           text: "I worked on the migration with the platform team.",
           chunks: [],

@@ -26,17 +26,6 @@ function hasDevice(
   );
 }
 
-function findDisplay(
-  displays: readonly CaptureDisplaySnapshot[],
-  displayId: string | undefined,
-): CaptureDisplaySnapshot | undefined {
-  if (!displayId) {
-    return undefined;
-  }
-
-  return displays.find((display) => display.displayId === displayId);
-}
-
 export function reconcileCaptureOptionsConfig(args: {
   readonly config: CaptureOptionsConfig;
   readonly devices: readonly CaptureDeviceSnapshot[];
@@ -64,8 +53,9 @@ export function reconcileCaptureOptionsConfig(args: {
   )
     ? config.systemAudio.deviceId
     : getFirstDeviceIdForKind(devices, "audiooutput");
+  // Default screen capture to the primary display (display picker UI is disabled).
   const selectedDisplay =
-    findDisplay(displays, config.display.displayId) ?? displays[0];
+    displays.find((display) => display.isPrimary) ?? displays[0];
 
   return {
     ...config,

@@ -10,6 +10,7 @@ export const QUESTION_ANNOTATION_TYPES = [
 
 export type QuestionAnnotationType = (typeof QUESTION_ANNOTATION_TYPES)[number];
 
+// what is this? Hallucination. 
 export const EXPECTED_ANSWER_SHAPES = [
   "star",
   "direct",

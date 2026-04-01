@@ -1,17 +1,8 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import type {
   AnalysisProvider,
-  HostedAnalysisArtifactInput,
-  HostedAnalysisMetadata,
-  HostedAnalysisStageName,
-  HostedAnalysisStageRouter,
-  HostedAnalysisTaskRequest,
-  HostedChunkAnalysisOutput,
-  HostedCoachingOutput,
-  HostedContextSummaryOutput,
-  HostedSessionSummaryOutput,
   PipelineStageExecutionRequest,
   PipelineStageExecutionResult,
 } from "../../application/ports/analysis-provider";
@@ -27,17 +18,13 @@ import type {
   SessionStorageLayoutResolver,
 } from "../../application/ports/session-lifecycle";
 import { buildSessionTranscriptArtifact } from "../../../shared/transcription";
+import { assertNever } from "@/backend/guards/checks";
 
 type LocalPipelineAnalysisProviderDependencies = {
   readonly clock: Clock;
-  readonly hostedStageRouter: HostedAnalysisStageRouter;
   readonly idGenerator: IdGenerator;
   readonly storageLayoutResolver: SessionStorageLayoutResolver;
 };
-
-function assertNever(value: never): never {
-  throw new Error(`Unhandled pipeline stage: ${String(value)}`);
-}
 
 function requireChunkId(
   request: PipelineStageExecutionRequest<PipelineExecutableStageName>,
@@ -65,70 +52,17 @@ async function writeArtifact<TArtifactKind extends PipelineArtifactKind>(input: 
   return input.artifact;
 }
 
-async function readArtifactContents(
-  sessionId: string,
-  artifacts: readonly PipelineArtifactRef[],
-  storageLayoutResolver: SessionStorageLayoutResolver,
-): Promise<readonly string[]> {
-  return Promise.all(
-    artifacts.map(async (artifact) => {
-      const absolutePath = storageLayoutResolver.resolveAbsoluteArtifactPath(
-        sessionId,
-        artifact.relativePath,
-      );
-
-      try {
-        return await readFile(absolutePath, "utf8");
-      } catch {
-        return "";
-      }
-    }),
-  );
-}
-
-async function readArtifactInputs(
-  sessionId: string,
-  artifacts: readonly PipelineArtifactRef[],
-  storageLayoutResolver: SessionStorageLayoutResolver,
-): Promise<readonly HostedAnalysisArtifactInput[]> {
-  const contents = await readArtifactContents(
-    sessionId,
-    artifacts,
-    storageLayoutResolver,
-  );
-
-  return artifacts.map((artifact, index) => ({
-    artifact,
-    content: contents[index] ?? "",
-  }));
-}
-
-function createHostedModelVersion(metadata: HostedAnalysisMetadata): string {
-  return `${metadata.provider}:${metadata.model}`;
-}
-
-function createHostedArtifactContent<TOutput>(input: {
-  readonly completedAt: string;
-  readonly metadata: HostedAnalysisMetadata;
-  readonly output: TOutput;
-  readonly stageName: HostedAnalysisStageName;
-}): string {
-  return JSON.stringify(
-    {
-      stageName: input.stageName,
-      completedAt: input.completedAt,
-      metadata: input.metadata,
-      output: input.output,
-    },
-    null,
-    2,
-  );
+/** Artifact handle for pipeline handoffs without writing under `summaries/` (stub stages). */
+function pipelineArtifactRefOnly<TArtifactKind extends PipelineArtifactKind>(
+  artifact: PipelineArtifactRef<TArtifactKind>,
+): PipelineArtifactRef<TArtifactKind> {
+  return artifact;
 }
 
 export class LocalPipelineAnalysisProvider implements AnalysisProvider {
   constructor(
     private readonly dependencies: LocalPipelineAnalysisProviderDependencies,
-  ) {}
+  ) { }
 
   async executeStage(
     request: PipelineStageExecutionRequest<PipelineExecutableStageName>,
@@ -179,195 +113,6 @@ export class LocalPipelineAnalysisProvider implements AnalysisProvider {
     }
   }
 
-  private async createHostedTaskRequest<
-    TStageName extends HostedAnalysisStageName,
-  >(
-    request: PipelineStageExecutionRequest<TStageName>,
-  ): Promise<HostedAnalysisTaskRequest<TStageName>> {
-    const artifacts = await readArtifactInputs(
-      request.event.sessionId,
-      request.inputArtifacts,
-      this.dependencies.storageLayoutResolver,
-    );
-
-    return {
-      runId: request.runId,
-      stageName: request.stageName,
-      sessionId: request.event.sessionId,
-      chunkId: request.event.chunkId,
-      eventId: request.event.eventId,
-      correlationId: request.event.correlationId,
-      requestedAt: request.event.occurredAt,
-      artifacts,
-    };
-  }
-
-  private async executeHostedAnalyzeChunk(
-    request: PipelineStageExecutionRequest<"analyze_chunk.requested">,
-    completedAt: string,
-  ): Promise<{
-    readonly artifact: PipelineArtifactRef<"chunk-analysis">;
-    readonly metadata: HostedAnalysisMetadata;
-    readonly output: HostedChunkAnalysisOutput;
-  }> {
-    const chunkId = requireChunkId(request);
-    const adapter = this.dependencies.hostedStageRouter.getAdapter(request.stageName);
-    const hostedRequest = await this.createHostedTaskRequest(request);
-    const response = await adapter.analyzeChunk(hostedRequest);
-    const artifact = await writeArtifact({
-      content: createHostedArtifactContent({
-        stageName: request.stageName,
-        completedAt,
-        metadata: response.metadata,
-        output: response.output,
-      }),
-      sessionId: request.event.sessionId,
-      storageLayoutResolver: this.dependencies.storageLayoutResolver,
-      artifact: {
-        artifactId: `analysis-${chunkId}`,
-        artifactKind: "chunk-analysis",
-        relativePath: `summaries/analysis/${chunkId}.json`,
-        mimeType: "application/json",
-        createdAt: completedAt,
-        metadata: {
-          provider: response.metadata.provider,
-          model: response.metadata.model,
-          promptVersion: response.metadata.promptVersion,
-        },
-      },
-    });
-
-    return {
-      artifact,
-      metadata: response.metadata,
-      output: response.output,
-    };
-  }
-
-  private async executeHostedCondenseContext(
-    request: PipelineStageExecutionRequest<"condense_context.requested">,
-    completedAt: string,
-  ): Promise<{
-    readonly artifact: PipelineArtifactRef<"context-summary">;
-    readonly metadata: HostedAnalysisMetadata;
-    readonly output: HostedContextSummaryOutput;
-  }> {
-    const chunkId = requireChunkId(request);
-    const adapter = this.dependencies.hostedStageRouter.getAdapter(request.stageName);
-    const hostedRequest = await this.createHostedTaskRequest(request);
-    const response = await adapter.condenseContext(hostedRequest);
-    const artifact = await writeArtifact({
-      content: createHostedArtifactContent({
-        stageName: request.stageName,
-        completedAt,
-        metadata: response.metadata,
-        output: response.output,
-      }),
-      sessionId: request.event.sessionId,
-      storageLayoutResolver: this.dependencies.storageLayoutResolver,
-      artifact: {
-        artifactId: `context-${chunkId}`,
-        artifactKind: "context-summary",
-        relativePath: `summaries/context/${chunkId}.json`,
-        mimeType: "application/json",
-        createdAt: completedAt,
-        metadata: {
-          provider: response.metadata.provider,
-          model: response.metadata.model,
-          promptVersion: response.metadata.promptVersion,
-        },
-      },
-    });
-
-    return {
-      artifact,
-      metadata: response.metadata,
-      output: response.output,
-    };
-  }
-
-  private async executeHostedSessionSummary(
-    request: PipelineStageExecutionRequest<"session.summary.requested">,
-    completedAt: string,
-  ): Promise<{
-    readonly artifact: PipelineArtifactRef<"session-summary">;
-    readonly metadata: HostedAnalysisMetadata;
-    readonly output: HostedSessionSummaryOutput;
-  }> {
-    const adapter = this.dependencies.hostedStageRouter.getAdapter(request.stageName);
-    const hostedRequest = await this.createHostedTaskRequest(request);
-    const response = await adapter.synthesizeSession(hostedRequest);
-    const artifact = await writeArtifact({
-      content: createHostedArtifactContent({
-        stageName: request.stageName,
-        completedAt,
-        metadata: response.metadata,
-        output: response.output,
-      }),
-      sessionId: request.event.sessionId,
-      storageLayoutResolver: this.dependencies.storageLayoutResolver,
-      artifact: {
-        artifactId: `session-summary-${request.event.sessionId}`,
-        artifactKind: "session-summary",
-        relativePath: `summaries/session-summary-${request.event.sessionId}.json`,
-        mimeType: "application/json",
-        createdAt: completedAt,
-        metadata: {
-          provider: response.metadata.provider,
-          model: response.metadata.model,
-          promptVersion: response.metadata.promptVersion,
-        },
-      },
-    });
-
-    return {
-      artifact,
-      metadata: response.metadata,
-      output: response.output,
-    };
-  }
-
-  private async executeHostedCoaching(
-    request: PipelineStageExecutionRequest<"coaching.requested">,
-    completedAt: string,
-  ): Promise<{
-    readonly artifact: PipelineArtifactRef<"coaching-feedback">;
-    readonly metadata: HostedAnalysisMetadata;
-    readonly output: HostedCoachingOutput;
-  }> {
-    const adapter = this.dependencies.hostedStageRouter.getAdapter(request.stageName);
-    const hostedRequest = await this.createHostedTaskRequest(request);
-    const response = await adapter.generateCoaching(hostedRequest);
-    const artifact = await writeArtifact({
-      content: createHostedArtifactContent({
-        stageName: request.stageName,
-        completedAt,
-        metadata: response.metadata,
-        output: response.output,
-      }),
-      sessionId: request.event.sessionId,
-      storageLayoutResolver: this.dependencies.storageLayoutResolver,
-      artifact: {
-        artifactId: `coaching-${request.event.sessionId}`,
-        artifactKind: "coaching-feedback",
-        relativePath: `summaries/coaching-${request.event.sessionId}.json`,
-        mimeType: "application/json",
-        createdAt: completedAt,
-        metadata: {
-          provider: response.metadata.provider,
-          model: response.metadata.model,
-          promptVersion: response.metadata.promptVersion,
-        },
-      },
-    });
-
-    return {
-      artifact,
-      metadata: response.metadata,
-      output: response.output,
-    };
-  }
-
   private async executeTranscribeChunkStage(
     request: PipelineStageExecutionRequest<"transcribe_chunk.requested">,
   ): Promise<PipelineStageExecutionResult> {
@@ -379,7 +124,7 @@ export class LocalPipelineAnalysisProvider implements AnalysisProvider {
           chunkId,
           sessionId: request.event.sessionId,
           source: "microphone",
-          text: `Transcript placeholder for ${chunkId}`,
+          text: "",
           completedAt,
           includeLegacyTranscriptField: true,
         }),
@@ -439,31 +184,12 @@ export class LocalPipelineAnalysisProvider implements AnalysisProvider {
   ): Promise<PipelineStageExecutionResult> {
     const completedAt = this.dependencies.clock.now().toISOString();
     const chunkId = requireChunkId(request);
-    const participantArtifact = await writeArtifact({
-      content: JSON.stringify(
-        {
-          chunkId,
-          participants: [
-            {
-              participantId: "speaker-a",
-              role: "candidate",
-              confidence: 0.75,
-            },
-          ],
-          generatedAt: completedAt,
-        },
-        null,
-        2,
-      ),
-      sessionId: request.event.sessionId,
-      storageLayoutResolver: this.dependencies.storageLayoutResolver,
-      artifact: {
-        artifactId: `participants-${chunkId}`,
-        artifactKind: "participant-set",
-        relativePath: `summaries/participants/${chunkId}.json`,
-        mimeType: "application/json",
-        createdAt: completedAt,
-      },
+    const participantArtifact = pipelineArtifactRefOnly({
+      artifactId: `participants-${chunkId}`,
+      artifactKind: "participant-set",
+      relativePath: `summaries/participants/${chunkId}.json`,
+      mimeType: "application/json",
+      createdAt: completedAt,
     });
     const participantsReadyEvent = createPipelineEventEnvelope({
       eventId: this.dependencies.idGenerator.createId(),
@@ -508,25 +234,12 @@ export class LocalPipelineAnalysisProvider implements AnalysisProvider {
   ): Promise<PipelineStageExecutionResult> {
     const completedAt = this.dependencies.clock.now().toISOString();
     const chunkId = requireChunkId(request);
-    const signalArtifact = await writeArtifact({
-      content: JSON.stringify(
-        {
-          chunkId,
-          categories: ["clarity", "hedging", "pacing"],
-          generatedAt: completedAt,
-        },
-        null,
-        2,
-      ),
-      sessionId: request.event.sessionId,
-      storageLayoutResolver: this.dependencies.storageLayoutResolver,
-      artifact: {
-        artifactId: `signals-${chunkId}`,
-        artifactKind: "signal-set",
-        relativePath: `summaries/signals/${chunkId}.json`,
-        mimeType: "application/json",
-        createdAt: completedAt,
-      },
+    const signalArtifact = pipelineArtifactRefOnly({
+      artifactId: `signals-${chunkId}`,
+      artifactKind: "signal-set",
+      relativePath: `summaries/signals/${chunkId}.json`,
+      mimeType: "application/json",
+      createdAt: completedAt,
     });
     const signalsReadyEvent = createPipelineEventEnvelope({
       eventId: this.dependencies.idGenerator.createId(),
@@ -571,31 +284,12 @@ export class LocalPipelineAnalysisProvider implements AnalysisProvider {
   ): Promise<PipelineStageExecutionResult> {
     const completedAt = this.dependencies.clock.now().toISOString();
     const chunkId = requireChunkId(request);
-    const questionArtifact = await writeArtifact({
-      content: JSON.stringify(
-        {
-          chunkId,
-          questions: [
-            {
-              questionId: `question-${chunkId}`,
-              questionType: "behavioral",
-              expectedAnswerShape: "star",
-            },
-          ],
-          generatedAt: completedAt,
-        },
-        null,
-        2,
-      ),
-      sessionId: request.event.sessionId,
-      storageLayoutResolver: this.dependencies.storageLayoutResolver,
-      artifact: {
-        artifactId: `questions-${chunkId}`,
-        artifactKind: "question-set",
-        relativePath: `summaries/questions/${chunkId}.json`,
-        mimeType: "application/json",
-        createdAt: completedAt,
-      },
+    const questionArtifact = pipelineArtifactRefOnly({
+      artifactId: `questions-${chunkId}`,
+      artifactKind: "question-set",
+      relativePath: `summaries/questions/${chunkId}.json`,
+      mimeType: "application/json",
+      createdAt: completedAt,
     });
     const questionsReadyEvent = createPipelineEventEnvelope({
       eventId: this.dependencies.idGenerator.createId(),
@@ -640,25 +334,12 @@ export class LocalPipelineAnalysisProvider implements AnalysisProvider {
   ): Promise<PipelineStageExecutionResult> {
     const completedAt = this.dependencies.clock.now().toISOString();
     const chunkId = requireChunkId(request);
-    const interactionArtifact = await writeArtifact({
-      content: JSON.stringify(
-        {
-          chunkId,
-          metricFamilies: ["ambiguity", "pacing", "cue-mismatch"],
-          generatedAt: completedAt,
-        },
-        null,
-        2,
-      ),
-      sessionId: request.event.sessionId,
-      storageLayoutResolver: this.dependencies.storageLayoutResolver,
-      artifact: {
-        artifactId: `interaction-${chunkId}`,
-        artifactKind: "interaction-metrics",
-        relativePath: `summaries/interaction/${chunkId}.json`,
-        mimeType: "application/json",
-        createdAt: completedAt,
-      },
+    const interactionArtifact = pipelineArtifactRefOnly({
+      artifactId: `interaction-${chunkId}`,
+      artifactKind: "interaction-metrics",
+      relativePath: `summaries/interaction/${chunkId}.json`,
+      mimeType: "application/json",
+      createdAt: completedAt,
     });
     const interactionMetricsReadyEvent = createPipelineEventEnvelope({
       eventId: this.dependencies.idGenerator.createId(),
@@ -703,25 +384,12 @@ export class LocalPipelineAnalysisProvider implements AnalysisProvider {
   ): Promise<PipelineStageExecutionResult> {
     const completedAt = this.dependencies.clock.now().toISOString();
     const chunkId = requireChunkId(request);
-    const baselineArtifact = await writeArtifact({
-      content: JSON.stringify(
-        {
-          chunkId,
-          scope: "rolling-session",
-          generatedAt: completedAt,
-        },
-        null,
-        2,
-      ),
-      sessionId: request.event.sessionId,
-      storageLayoutResolver: this.dependencies.storageLayoutResolver,
-      artifact: {
-        artifactId: `baseline-${chunkId}`,
-        artifactKind: "participant-baseline",
-        relativePath: `summaries/baselines/${chunkId}.json`,
-        mimeType: "application/json",
-        createdAt: completedAt,
-      },
+    const baselineArtifact = pipelineArtifactRefOnly({
+      artifactId: `baseline-${chunkId}`,
+      artifactKind: "participant-baseline",
+      relativePath: `summaries/baselines/${chunkId}.json`,
+      mimeType: "application/json",
+      createdAt: completedAt,
     });
     const baselinesReadyEvent = createPipelineEventEnvelope({
       eventId: this.dependencies.idGenerator.createId(),
@@ -766,8 +434,13 @@ export class LocalPipelineAnalysisProvider implements AnalysisProvider {
   ): Promise<PipelineStageExecutionResult> {
     const completedAt = this.dependencies.clock.now().toISOString();
     const chunkId = requireChunkId(request);
-    const hostedResult = await this.executeHostedAnalyzeChunk(request, completedAt);
-    const analysisArtifact = hostedResult.artifact;
+    const analysisArtifact = pipelineArtifactRefOnly({
+      artifactId: `analysis-${chunkId}`,
+      artifactKind: "chunk-analysis",
+      relativePath: `summaries/analysis/${chunkId}.json`,
+      mimeType: "application/json",
+      createdAt: completedAt,
+    });
     const chunkAnalysisReadyEvent = createPipelineEventEnvelope({
       eventId: this.dependencies.idGenerator.createId(),
       eventType: "chunk.analysis.ready",
@@ -779,7 +452,6 @@ export class LocalPipelineAnalysisProvider implements AnalysisProvider {
       payload: {
         chunkId,
         completedAt,
-        modelVersion: createHostedModelVersion(hostedResult.metadata),
         inputArtifacts: [...request.inputArtifacts],
         outputArtifacts: [analysisArtifact],
       },
@@ -812,11 +484,13 @@ export class LocalPipelineAnalysisProvider implements AnalysisProvider {
   ): Promise<PipelineStageExecutionResult> {
     const completedAt = this.dependencies.clock.now().toISOString();
     const chunkId = requireChunkId(request);
-    const hostedResult = await this.executeHostedCondenseContext(
-      request,
-      completedAt,
-    );
-    const summaryArtifact = hostedResult.artifact;
+    const summaryArtifact = pipelineArtifactRefOnly({
+      artifactId: `context-${chunkId}`,
+      artifactKind: "context-summary",
+      relativePath: `summaries/context/${chunkId}.json`,
+      mimeType: "application/json",
+      createdAt: completedAt,
+    });
     const contextReadyEvent = createPipelineEventEnvelope({
       eventId: this.dependencies.idGenerator.createId(),
       eventType: "context.ready",
@@ -844,11 +518,13 @@ export class LocalPipelineAnalysisProvider implements AnalysisProvider {
     request: PipelineStageExecutionRequest<"session.summary.requested">,
   ): Promise<PipelineStageExecutionResult> {
     const completedAt = this.dependencies.clock.now().toISOString();
-    const hostedResult = await this.executeHostedSessionSummary(
-      request,
-      completedAt,
-    );
-    const summaryArtifact = hostedResult.artifact;
+    const summaryArtifact = pipelineArtifactRefOnly({
+      artifactId: `session-summary-${request.event.sessionId}`,
+      artifactKind: "session-summary",
+      relativePath: `summaries/session-summary-${request.event.sessionId}.json`,
+      mimeType: "application/json",
+      createdAt: completedAt,
+    });
     const sessionSummaryReadyEvent = createPipelineEventEnvelope({
       eventId: this.dependencies.idGenerator.createId(),
       eventType: "session.summary.ready",
@@ -887,8 +563,13 @@ export class LocalPipelineAnalysisProvider implements AnalysisProvider {
     request: PipelineStageExecutionRequest<"coaching.requested">,
   ): Promise<PipelineStageExecutionResult> {
     const completedAt = this.dependencies.clock.now().toISOString();
-    const hostedResult = await this.executeHostedCoaching(request, completedAt);
-    const coachingArtifact = hostedResult.artifact;
+    const coachingArtifact = pipelineArtifactRefOnly({
+      artifactId: `coaching-${request.event.sessionId}`,
+      artifactKind: "coaching-feedback",
+      relativePath: `summaries/coaching-${request.event.sessionId}.json`,
+      mimeType: "application/json",
+      createdAt: completedAt,
+    });
     const coachingReadyEvent = createPipelineEventEnvelope({
       eventId: this.dependencies.idGenerator.createId(),
       eventType: "coaching.ready",

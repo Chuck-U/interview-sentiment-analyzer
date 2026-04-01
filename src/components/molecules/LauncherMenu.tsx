@@ -12,6 +12,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { RecordingTimer } from "../molecules/Timer";
 import { WindowRole } from "@/shared/window-registry";
+import { useCallback } from "react";
 
 
 type AgentNavigationMenuProps = {
@@ -51,16 +52,26 @@ function AgentNavigationMenu({
 }: AgentNavigationMenuProps) {
     const RecordingIcon = isRecording ? RiStopCircleLine : RiRecordCircleLine;
     const isQuestionBoxOpen = openWindowIds?.['question-box'] ?? false;
+
+
+    const handleRecordingToggle = useCallback(() => {
+        if (!isQuestionBoxOpen) {
+            onQuestionBoxToggle?.();
+        }
+        onRecordingToggle?.(!isRecording);
+    }, [isRecording, onRecordingToggle]);
+
     return (
         <div
             className={cn(
-                "flex w-full items-center justify-between gap-2 rounded-sm border border-border/50 bg-transparent p-2",
+                "flex w-full items-center justify-between gap-5 rounded-sm border border-border/50 bg-transparent p-2",
                 className,
                 showOutline ? "outline-2 inset-0 outline-green-500/50 outline-dashed" : "",
+                // isPinging ? "animate-ping/3 transition-all   duration-100 border border-primary/50 rounded-md" : "",
             )}
             data-slot="agent-navigation-menu"
         >
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 min-w-[136px]">
                 {pinControl}
                 <Tooltip delayDuration={100}>
                     <TooltipTrigger asChild>
@@ -95,23 +106,33 @@ function AgentNavigationMenu({
                 </Tooltip>
             </div>
 
-            <div className="flex items-center justify-center px-10">
-                <button
-                    type="button"
-                    disabled={isBusy}
-                    onClick={() => onRecordingToggle?.(!isRecording)}
-                    style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-                    className={cn(
-                        "transition-colors disabled:opacity-50 disabled:pointer-events-none",
-                        isRecording
-                            ? "text-destructive"
-                            : "text-accent-foreground",
-                        'group'
-                    )}
-                    aria-label={isRecording ? "Stop recording" : "Start recording"}
-                >
-                    <RecordingIcon className={cn("size-8 text-red-500/50 group-active:animate-pulse duration-400", isRecording ? 'animate-pulse duration-500 transition-colors from-red-500/50 to-red-500/10' : 'animate-none duration-0 ease-out')} />
-                </button>
+            <div className="flex w-1/3 justify-center">
+
+                <Tooltip >
+                    <TooltipTrigger asChild>
+                        <button
+                            type="button"
+                            disabled={isBusy}
+                            onClick={handleRecordingToggle}
+                            style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+                            className={cn(
+                                "transition-colors disabled:opacity-50 disabled:pointer-events-none",
+                                isRecording
+                                    ? "text-destructive hover:text-destructive/80"
+                                    : "text-accent-foreground hover:text-accent-foreground/80",
+                                'group',
+                                'px-4 py-1'
+                            )}
+                            aria-label={isRecording ? "Stop recording" : "Start recording"}
+                        >
+                            <RecordingIcon className={cn("size-8 text-red-500/50 group-active:animate-pulse duration-400", isRecording ? 'animate-pulse duration-500 transition-colors from-red-500/50 to-red-500/10' : 'animate-none duration-0 ease-out group-hover:scale-110 transition-transform duration-75 ease-out')} />
+                        </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" align="center" sideOffset={0} className="flex size-10 items-center gap-2 p-2 bg-background/75 text-accent-foreground p-4 text-center text-nowrap">
+                        {isRecording ? "Stop recording" : "Start recording"}
+
+                    </TooltipContent>
+                </Tooltip>
                 {recordingStartTime &&
                     (<span className="w-full">
 
@@ -122,7 +143,7 @@ function AgentNavigationMenu({
             <div className="block justify-end">
 
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 min-w-[136px]">
                 <button className={cn("rounded-none p-1 group/question-box text-muted-foreground  hover:border-red-400/70 transition-colors", isQuestionBoxOpen ? "text-red-500/50" : "text-muted-foreground")}
                     style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
                     onClick={() => {

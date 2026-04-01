@@ -21,9 +21,7 @@ export function initializeAutoUpdates(): void {
         });
     });
 
-    autoUpdater.on("update-not-available", () => {
-        log.ger({ type: "debug", message: "[autoUpdater] update-not-available" });
-    });
+    autoUpdater.on("update-not-available", () => {});
 
     autoUpdater.on("error", (error) => {
         log.ger({

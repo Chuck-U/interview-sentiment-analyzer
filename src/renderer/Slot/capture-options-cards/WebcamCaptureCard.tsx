@@ -14,8 +14,8 @@ import {
   RiWebcamLine,
 } from "@remixicon/react";
 
-import { IconToggle } from "../IconToggle";
-import { MediaStreamPreview } from "../WebcamPreview";
+import { IconToggle } from "../../../components/molecules/IconToggle";
+import { MediaStreamPreview } from "../../../components/molecules/WebcamPreview";
 import { renderDeviceLabel, type WebcamCaptureCardProps } from "./shared";
 import { cn } from "@/lib/utils";
 

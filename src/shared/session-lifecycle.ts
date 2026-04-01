@@ -1,3 +1,5 @@
+import { isMediaChunkSource, isNonEmptyString, isRecord } from "@/backend/guards/checks";
+
 export const SESSION_STATUSES = [
   "pending",
   "active",
@@ -44,10 +46,10 @@ export type MediaChunkStatus = (typeof MEDIA_CHUNK_STATUSES)[number];
 export type SessionStorageLayout = {
   readonly appDataRoot: string;
   readonly sessionRoot: string;
-  readonly chunksRoot: string;
-  readonly recordingsRoot: string;
-  readonly transcriptsRoot: string;
-  readonly summariesRoot: string;
+  chunksRoot?: string;
+  recordingsRoot?: string;
+  transcriptsRoot?: string;
+  summariesRoot?: string;
   readonly tempRoot: string;
 };
 
@@ -136,20 +138,6 @@ export type SessionLifecycleEventsBridge = {
   ): Unsubscribe;
 };
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function isNonEmptyString(value: unknown): value is string {
-  return typeof value === "string" && value.trim().length > 0;
-}
-
-function isMediaChunkSource(value: unknown): value is MediaChunkSource {
-  return (
-    typeof value === "string" &&
-    MEDIA_CHUNK_SOURCES.includes(value as MediaChunkSource)
-  );
-}
 
 function parseOptionalString(
   value: unknown,
@@ -241,7 +229,7 @@ export function parseRegisterMediaChunkRequest(
 export function parseFinalizeSessionRequest(
   input: unknown,
 ): FinalizeSessionRequest {
-  if (!isRecord(input)) {
+  if (!isRecord(input) || !isNonEmptyString(input.sessionId)) {
     throw new Error("finalizeSession request must be an object");
   }
 

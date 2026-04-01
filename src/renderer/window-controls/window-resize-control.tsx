@@ -1,5 +1,5 @@
 
-import { IconToggle } from "@/renderer/Slot/IconToggle";
+import { IconToggle } from "@/components/molecules/IconToggle";
 
 import type { WindowBoundsSnapshot, WindowSizePreset } from "@/shared/window-controls";
 import { RiExpandHorizontalLine, RiContractLeftRightFill } from "@remixicon/react";
