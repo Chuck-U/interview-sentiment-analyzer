@@ -16,7 +16,7 @@ import { useWindowRegistrySync } from "./hooks/useWindowRegistrySync";
 import { useAppSelector } from "./store/hooks";
 import { WindowPinControl } from "./window-controls/window-pin-control";
 import { parseWindowRoleFromLocation } from "../lib/parseWindowRole";
-
+import { cn } from "@/lib/utils";
 function LauncherMain() {
   useShortcutsWindowEffects();
   useWindowRegistrySync();
@@ -33,7 +33,7 @@ function LauncherMain() {
   const { handleSetActiveView } = useViews();
   const openWindowIds = useAppSelector((state) => state.views.openWindowIds);
   const { dragRegionStyle, pinControlProps } = usePinnedWindowBehavior();
-
+  const isPinned = useMemo(() => pinControlProps.isPinned, [pinControlProps.isPinned]);
   const isRecording = currentSession?.status === "active";
   const isBusy = isStarting || isStopping;
   const platformLabel = useMemo(() => window.electronApp.platform, []);
@@ -48,11 +48,14 @@ function LauncherMain() {
 
   return (
     <div
-      className="flex h-full min-h-0 w-full flex-col justify-start bg-transparent"
+      className={cn("flex h-full min-h-0 w-full flex-col justify-start bg-transparent",
+      )}
       id="main-window"
     >
       <nav
-        className="z-[70] mx-2 mt-4 inline-flex max-w-[calc(100vw-16px)] shrink-0 flex-col gap-2 bg-background/15"
+        className={cn("z-[70] mx-2 inline-flex max-w-[calc(100vw-16px)] shrink-0 flex-col gap-2",
+          isPinned ? `animate-ping/3 transition-all   duration-100 border border-primary/50 rounded-md` : "bg-transparent"
+        )}
         style={dragRegionStyle}
       >
         <AgentNavigationMenu

@@ -1,3 +1,4 @@
+import { isRecord, parseFiniteInteger } from "@/backend/guards/checks";
 import type { Unsubscribe } from "./session-lifecycle";
 
 export const WINDOW_CONTROL_CHANNELS = {
@@ -12,6 +13,7 @@ export const WINDOW_CONTROL_CHANNELS = {
   setPinned: "window-controls:set-pinned",
   bringToFront: "window-controls:bring-to-front",
   sendToBack: "window-controls:send-to-back",
+  toggleDeveloperTools: "window-controls:toggle-developer-tools",
 } as const;
 
 export const WINDOW_CONTROL_EVENT_CHANNELS = {
@@ -70,6 +72,7 @@ export type SetPinnedRequest = {
 };
 
 export type WindowControlsBridge = {
+  toggleDeveloperTools(): void;
   moveWindowBy(request: MoveWindowByRequest): void;
   resizeWindowBy(request: ResizeWindowByRequest): void;
   setWindowSize(request: SetWindowSizeRequest): Promise<WindowBoundsSnapshot>;
@@ -90,18 +93,6 @@ export type WindowControlsBridge = {
   sendToBack(): void;
   // moveWindowTo(request: MoveWindowToRequest): Promise<void>;
 };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function parseFiniteInteger(value: unknown, fieldName: string): number {
-  if (typeof value !== "number" || !Number.isFinite(value)) {
-    throw new Error(`${fieldName} must be a finite number`);
-  }
-
-  return Math.round(value);
-}
 
 export function parseMoveWindowByRequest(input: unknown): MoveWindowByRequest {
   if (!isRecord(input)) {

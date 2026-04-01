@@ -21,7 +21,7 @@ export type TranscribeAudioDependencies = {
   readonly getPipeline: (modelId: string) => Promise<unknown>;
 };
 
-const WHISPER_TINY_EN_ID = "onnx-community/whisper-tiny.en";
+const MOONSHINE_MEDIUM_EN_ID = "onnx-community/moonshine-base-ONNX";
 const Log = logger.forSource("TranscribeAudioUseCase");
 
 export function createTranscribeAudioUseCase(
@@ -31,7 +31,7 @@ export function createTranscribeAudioUseCase(
     input: TranscribeAudioInput,
   ): Promise<TranscriptionResult> {
     const pipelineUnknown: unknown = await dependencies.getPipeline(
-      WHISPER_TINY_EN_ID,
+      MOONSHINE_MEDIUM_EN_ID,
     );
     const asrPipeline = pipelineUnknown as AsrPipeline;
 
@@ -50,18 +50,7 @@ export function createTranscribeAudioUseCase(
     }
     pcmStats.rms = Math.sqrt(sumSq / (input.pcm.length || 1));
 
-    Log.ger?.({
-      type: "info",
-      message: "[transcription] PCM stats before ASR",
-      data: {
-        sessionId: input.sessionId.slice(0, 8),
-        chunkId: input.chunkId,
-        samples: pcmStats.length,
-        min: pcmStats.min.toFixed(6),
-        max: pcmStats.max.toFixed(6),
-        rms: pcmStats.rms.toFixed(6),
-      },
-    });
+   
 
     const raw: unknown = await asrPipeline(input.pcm, {
       return_timestamps: true,
@@ -71,17 +60,7 @@ export function createTranscribeAudioUseCase(
 
     const { text, chunks } = normalizeAsrOutput(raw);
 
-    Log.ger?.({
-      type: "info",
-      message: "[transcription] ASR raw output",
-      data: {
-        textLength: text.length,
-        hasChunks: Boolean(chunks?.length),
-        textPreview: text.slice(0, 200),
-        rawType: typeof raw,
-        rawKeys: raw && typeof raw === "object" ? Object.keys(raw as Record<string, unknown>) : [],
-      },
-    });
+  
 
     const result: TranscriptionResult = {
       source: input.source,
@@ -92,7 +71,7 @@ export function createTranscribeAudioUseCase(
     };
 
     Log.ger?.({
-      type: "info",
+      type: "trace",
       message: "[transcription] transcribeAudio complete",
       data: {
         sessionId: input.sessionId.slice(0, 8),

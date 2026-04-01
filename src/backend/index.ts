@@ -6,7 +6,6 @@ import { DatabaseSync } from "node:sqlite";
 
 import type { App } from "electron";
 
-import { LangChainPipelineOrchestrator } from "./application/services/langchain-pipeline-orchestrator";
 import { BuiltInPipelineOrchestrator } from "./application/services/pipeline-orchestrator";
 import type {
   Clock,
@@ -37,10 +36,7 @@ import {
   SqliteSessionRepository,
 } from "./infrastructure/persistence/sqlite/sqlite-session-lifecycle";
 import { initializeSessionLifecycleDatabase } from "./infrastructure/persistence/sqlite/sqlite-database";
-import { GoogleHostedAnalysisAdapter } from "./infrastructure/providers/google/google-hosted-analysis-adapter";
-import { StaticHostedAnalysisStageRouter } from "./infrastructure/providers/hosted-analysis-stage-router";
 import { LocalPipelineAnalysisProvider } from "./infrastructure/providers/local-pipeline-analysis";
-import { OpenAIHostedAnalysisAdapter } from "./infrastructure/providers/openai/openai-hosted-analysis-adapter";
 import { createSessionStorageLayoutResolver } from "./infrastructure/storage/session-storage-layout";
 import type {
   MediaChunkSnapshot,
@@ -129,10 +125,6 @@ export type SessionLifecycleBackend = {
   recover(): Promise<void>;
 };
 
-export type SessionLifecycleBackendOptions = {
-  readonly orchestrationMode?: "built-in" | "langchain";
-};
-
 function createEventPublisher(
   events: SessionLifecycleBackendEvents,
 ): SessionLifecycleEventPublisher {
@@ -155,7 +147,6 @@ function createEventPublisher(
 export function createSessionLifecycleBackend(
   app: Pick<App, "getPath">,
   events: SessionLifecycleBackendEvents = {},
-  options: SessionLifecycleBackendOptions = {},
 ): SessionLifecycleBackend {
   const appDataRoot = path.join(
     app.getPath("appData"),
@@ -200,42 +191,21 @@ export function createSessionLifecycleBackend(
     questionAnnotationRepository,
     sessionRepository,
   });
-  const openAiHostedAnalysisAdapter = new OpenAIHostedAnalysisAdapter();
-  const googleHostedAnalysisAdapter = new GoogleHostedAnalysisAdapter();
-  const hostedStageRouter = new StaticHostedAnalysisStageRouter({
-    defaultAdapter: openAiHostedAnalysisAdapter,
-    stageAdapters: {
-      "condense_context.requested": googleHostedAnalysisAdapter,
-    },
-  });
   const analysisProvider = new LocalPipelineAnalysisProvider({
     clock,
-    hostedStageRouter,
     idGenerator,
     storageLayoutResolver,
   });
-  const pipelineOrchestrator =
-    options.orchestrationMode === "langchain"
-      ? new LangChainPipelineOrchestrator({
-          analysisProvider,
-          clock,
-          eventPublisher,
-          idGenerator,
-          pipelineEventRepository,
-          pipelineStageRunRepository,
-          sessionRepository,
-          transactionManager: pipelineScope.transactionManager,
-        })
-      : new BuiltInPipelineOrchestrator({
-          analysisProvider,
-          clock,
-          eventPublisher,
-          idGenerator,
-          pipelineEventRepository,
-          pipelineStageRunRepository,
-          sessionRepository,
-          transactionManager: pipelineScope.transactionManager,
-        });
+  const pipelineOrchestrator = new BuiltInPipelineOrchestrator({
+    analysisProvider,
+    clock,
+    eventPublisher,
+    idGenerator,
+    pipelineEventRepository,
+    pipelineStageRunRepository,
+    sessionRepository,
+    transactionManager: pipelineScope.transactionManager,
+  });
   const finalizeSession = createFinalizeSessionUseCase({
     aggregateWriter: pipelineScope.aggregateWriter,
     clock,

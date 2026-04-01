@@ -375,10 +375,10 @@ function CardWindowMainInner({ role }: { readonly role: CardWindowRole }) {
           }}
           onOpenRecordingsFolder={() => {
             const sessionId = recordingState?.sessionId ?? currentSession?.id;
-            if (!sessionId) {
-              dispatch(setFeedbackMessage("No recording session is available yet."));
-              return;
-            }
+            // if (!sessionId) {
+            //   dispatch(setFeedbackMessage("No recording session is available yet."));
+            //   return;
+            // }
 
             void window.electronApp.recording
               .openRecordingsFolder({ sessionId })

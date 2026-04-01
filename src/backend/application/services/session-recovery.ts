@@ -14,7 +14,7 @@ import {
   createTranscribeChunkRequestedEvent,
 } from "./pipeline-events";
 import type { FinalizeSessionResponse } from "../../../shared";
-
+import { log } from "@/lib/logger";
 export type SessionRecoveryDependencies = {
   readonly aggregateWriter: PipelineAggregateWriter;
   readonly clock: Clock;
@@ -118,8 +118,18 @@ export function createSessionRecoveryService(
       }
 
       const chunkFiles = await dependencies.fileSystem.listFiles(
-        session.storageLayout.chunksRoot,
+        session.storageLayout.chunksRoot ?? "",
       );
+
+      if (!chunkFiles) {
+        dependencies.eventPublisher.publishRecoveryIssue({
+          code: "finalization-interrupted",
+          message: `No chunk files found for session ${session.id}`,
+          sessionId: session.id,
+        });
+        log.ger({ type: "error", message: `No chunk files found for session, because I killed them. ${session.id}` });
+        throw new Error(`No chunk files found for session ${session.id}`);
+      }
 
       for (const artifactPath of chunkFiles) {
         const relativePath = toRelativeSessionPath(session.id, artifactPath);

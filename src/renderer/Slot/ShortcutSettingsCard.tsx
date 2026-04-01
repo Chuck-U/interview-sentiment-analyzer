@@ -3,7 +3,7 @@ import type { CSSProperties } from "react";
 import { RiCheckboxBlankCircleLine, RiCheckboxCircleLine } from "@remixicon/react";
 
 
-import { IconToggle } from "./IconToggle";
+import { IconToggle } from "@components/molecules/IconToggle";
 
 type ShortcutSettingsCardProps = {
   readonly shortcutLabel: string;

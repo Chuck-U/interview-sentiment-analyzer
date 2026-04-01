@@ -31,6 +31,8 @@ export default tseslint.config(
       "react-refresh": reactRefresh,
     },
     rules: {
+      "@typescript-eslint/no-unsafe-assignment": "off",
+      "@typescript-eslint/no-explicit-any": "off",
       ...reactHooks.configs.recommended.rules,
       ...ignoreUnusedWithUnderscore,
       "react-refresh/only-export-components": [

@@ -2,7 +2,7 @@ import "./transformers-env";
 
 import { pipeline, type ProgressInfo } from "@huggingface/transformers";
 
-import { logger } from "../../../lib/logger";
+import { log } from "../../../lib/logger";
 import {
   MODEL_MANIFEST,
   type ModelEntry,
@@ -32,7 +32,7 @@ const modelStates = new Map<string, ModelState>();
 
 let overallStatus: ModelInitStatusSnapshot["overall"] = "idle";
 
-const log = logger.forSource("model-lifecycle");
+
 
 function ensureModelState(modelId: string): ModelState {
   let state = modelStates.get(modelId);
@@ -105,11 +105,6 @@ async function initModel(
       if (info.status === "progress") {
         const pct = Math.round(info.progress);
         updateModelState(entry.id, { progress: pct }, onProgress);
-        log.ger({
-          type: "debug",
-          message: "Transformers load progress",
-          data: { modelId: entry.id, ...summarizeProgressInfo(info) },
-        });
       } else {
         log.ger({
           type: "info",
@@ -209,11 +204,6 @@ export async function getPipeline(
 ): Promise<PipelineInstance> {
   const cached = pipelineCache.get(modelId);
   if (cached) {
-    log.ger({
-      type: "debug",
-      message: "getPipeline: using in-memory pipeline promise cache",
-      data: { modelId },
-    });
     return cached;
   }
 

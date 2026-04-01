@@ -22,7 +22,7 @@ test("transcribeAudio returns text and segments from ASR pipeline", async () => 
 
   const useCase = createTranscribeAudioUseCase({
     getPipeline: async (modelId) => {
-      assert.equal(modelId, "onnx-community/whisper-tiny.en");
+      assert.equal(modelId, "onnx-community/moonshine-base-ONNX");
       return async () => rawAsrOutput;
     },
   });

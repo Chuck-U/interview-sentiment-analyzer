@@ -332,6 +332,12 @@ export function useCaptureOptions(
       }));
     },
     setDisplayId(displayId) {
+      const shouldRestoreDesktopPreview = previewState.isDesktopPreviewVisible;
+
+      if (shouldRestoreDesktopPreview) {
+        previewState.setDesktopPreviewVisible(false);
+      }
+
       applyConfigUpdate((current) => ({
         ...current,
         display: {
@@ -340,6 +346,10 @@ export function useCaptureOptions(
             ?.label,
         },
       }));
+
+      if (shouldRestoreDesktopPreview) {
+        previewState.setDesktopPreviewVisible(true);
+      }
     },
     setWebcamPreviewVisible(visible) {
       previewState.setWebcamPreviewVisible(visible);
@@ -348,9 +358,18 @@ export function useCaptureOptions(
       previewState.setDesktopPreviewVisible(visible);
     },
     async openMonitorPicker() {
+      const shouldRestoreDesktopPreview = previewState.isDesktopPreviewVisible;
+      const selectedDisplayId =
+        displayOptions.find((display) => display.isSelected)?.displayId ??
+        configRef.current.display.displayId;
+
       try {
+        if (shouldRestoreDesktopPreview) {
+          previewState.setDesktopPreviewVisible(false);
+        }
+
         await window.electronApp.captureOptions.openMonitorPicker({
-          selectedDisplayId: configRef.current.display.displayId,
+          selectedDisplayId,
         });
       } catch (error) {
         onError?.(
@@ -358,6 +377,10 @@ export function useCaptureOptions(
             ? error.message
             : "Unable to open monitor picker.",
         );
+      } finally {
+        if (shouldRestoreDesktopPreview) {
+          previewState.setDesktopPreviewVisible(true);
+        }
       }
     },
     captureSources,
