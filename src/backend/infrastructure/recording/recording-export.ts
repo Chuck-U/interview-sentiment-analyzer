@@ -151,19 +151,25 @@ export function createRecordingExportService(
       const sessionLayout = storageLayoutResolver.resolveSessionLayout(sessionId);
       const recordingsRoot = sessionLayout.recordingsRoot;
       const chunksRoot = sessionLayout.chunksRoot;
-      await mkdir(recordingsRoot, { recursive: true });
+      let primaryExt = "webm";
+      if (recordingsRoot) {
+        await mkdir(recordingsRoot, { recursive: true });
+      }
 
-      const primaryExt = await determinePrimaryExt(chunksRoot);
+      if (chunksRoot) {
+        primaryExt = await determinePrimaryExt(chunksRoot);
+      }
+      // we seem to be calling this function before the chunks are created, so we need to handle the case where the chunksRoot is not set
       const sessionFileName = formatSessionFilename(options?.startedAt, primaryExt);
       const durationMs = computeDurationMs(options?.startedAt, options?.completedAt);
 
       const manifestSources: RecordingManifestSource[] = [];
       const sourceExports: SourceExportResult[] = [];
       let primaryChosen = false;
-      const sessionExportFilePath = path.join(recordingsRoot, sessionFileName);
+      const sessionExportFilePath = path.join(sessionLayout.sessionRoot, sessionFileName);
 
       for (const sourcePrefix of SOURCE_FILE_PREFIXES) {
-        const found = await findSourceFile(chunksRoot, sourcePrefix);
+        const found = await findSourceFile(chunksRoot ?? "", sourcePrefix);
         if (!found) continue;
 
         const ext = path.extname(found.relativePath).replace(".", "") || "webm";
@@ -177,9 +183,12 @@ export function createRecordingExportService(
           } else {
             sourceExportFileName = `${sourcePrefix}.${ext}`;
           }
-
-          const sourcePath = path.join(chunksRoot, found.relativePath);
-          const outputPath = path.join(recordingsRoot, sourceExportFileName);
+          // add a skip check for the chunksRoot and recordingsRoot
+          if (!chunksRoot || !recordingsRoot) {
+            continue;
+          }
+          const sourcePath = path.join(chunksRoot ?? "", found.relativePath);
+          const outputPath = path.join(recordingsRoot ?? "", sourceExportFileName);
 
           await copyFile(sourcePath, outputPath);
 
@@ -190,7 +199,7 @@ export function createRecordingExportService(
               // Duration patching is best-effort; don't fail the export.
             }
           }
-
+          // this should absolutely be batched and not called for each file, make this a promise pool when we revist this.
           options?.onProgress?.(sourcePrefix, {
             totalFiles: 1,
             completedFiles: 1,
@@ -222,7 +231,7 @@ export function createRecordingExportService(
         exportFilePath: sessionFileName,
       };
 
-      const manifestPath = path.join(recordingsRoot, "manifest.json");
+      const manifestPath = path.join(sessionLayout.sessionRoot, "manifest.json");
       await writeFile(manifestPath, JSON.stringify(manifest, null, 2), "utf8");
 
       return {

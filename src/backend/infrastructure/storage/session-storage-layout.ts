@@ -19,9 +19,9 @@ export function createSessionStorageLayoutResolver(
         appDataRoot,
         sessionRoot,
         chunksRoot: path.join(sessionRoot, "chunks"),
-        recordingsRoot: path.join(sessionRoot, "recordings"),
-        transcriptsRoot: path.join(sessionRoot, "transcripts"),
-        summariesRoot: path.join(sessionRoot, "summaries"),
+        // recordingsRoot: path.join(sessionRoot, "recordings"),
+        // transcriptsRoot: path.join(sessionRoot, "transcripts"),
+        // summariesRoot: path.join(sessionRoot, "summaries"),
         tempRoot: path.join(sessionRoot, "temp"),
       };
     },

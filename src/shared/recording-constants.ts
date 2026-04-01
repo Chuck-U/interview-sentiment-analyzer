@@ -2,7 +2,7 @@
 export const DEFAULT_CHUNK_INTERVAL_MS = 15_000;
 
 /** Microphone / system-audio Opus chunks -- tuned for live ASR latency. */
-export const AUDIO_CHUNK_INTERVAL_MS = 5000;
+export const AUDIO_CHUNK_INTERVAL_MS = 6000;
 
 export const DEFAULT_SCREENSHOT_INTERVAL_MS = 10_000;
 

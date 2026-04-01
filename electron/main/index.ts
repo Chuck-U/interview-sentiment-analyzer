@@ -90,8 +90,6 @@ import { isNonEmptyObject, isNonEmptyString } from "@/backend/guards/checks";
 
 const devServerUrl = process.env.VITE_DEV_SERVER_URL ?? 'http://localhost:5180'; // TODO: fix handling of this env variable
 
-// const pipelineOrchestrationMode =
-//   process.env.PIPELINE_ORCHESTRATOR === "langchain" ? "langchain" : "built-in"; // slop code
 export const MAIN_WINDOW_MIN_WIDTH = 600;
 export const MAIN_WINDOW_MIN_HEIGHT = 104;
 const MAIN_WINDOW_DEFAULT_WIDTH = 700;
@@ -1316,9 +1314,6 @@ async function initializeApp() {
           );
         },
       },
-      // {
-      //   orchestrationMode: pipelineOrchestrationMode,
-      // },
     );
 
     registerSessionLifecycleIpc(ipcMain, sessionLifecycleBackend.controller);
@@ -1388,7 +1383,7 @@ async function initializeApp() {
         }
         const sessionId = input.sessionId;
         if (!isNonEmptyString(sessionId)) {
-          const recordingRoot = storageLayoutResolver.resolveSessionLayout().recordingsRoot
+          const recordingRoot = storageLayoutResolver.resolveSessionLayout().sessionRoot
 
           const openResult = await shell.openPath(recordingRoot);
           if (openResult.length > 0) {
@@ -1396,11 +1391,11 @@ async function initializeApp() {
           }
           return;
         }
-        const recordingsRoot = storageLayoutResolver.resolveSessionLayout(
+        const sessionRoot = storageLayoutResolver.resolveSessionLayout(
           sessionId?.trim(),
-        ).recordingsRoot;
-        await mkdir(recordingsRoot, { recursive: true });
-        const openResult = await shell.openPath(recordingsRoot);
+        ).sessionRoot;
+        await mkdir(sessionRoot, { recursive: true });
+        const openResult = await shell.openPath(sessionRoot);
 
         if (openResult.length > 0) {
           throw new Error(openResult);

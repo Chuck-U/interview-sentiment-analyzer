@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer, type  IpcRendererEvent } from "electron";
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
 import { type SessionLifecycleBridge, type SessionLifecycleEventsBridge } from "../../src/shared/session-lifecycle";
 import type { RecordingBridge, RecordingEventsBridge } from "../../src/shared/recording";
 import { APP_CONTROL_CHANNELS, type AppControlsBridge } from "../../src/shared/app-controls";
@@ -39,15 +39,7 @@ import {
   WINDOW_CONTROL_CHANNELS,
   WINDOW_CONTROL_EVENT_CHANNELS,
 } from "../../src/shared/window-controls";
-import type {
-  CardWindowsOpenState,
-  WindowRegistryBridge,
-  WindowRegistryContext,
-} from "../../src/shared/window-registry";
-import {
-  WINDOW_REGISTRY_CHANNELS,
-  WINDOW_REGISTRY_EVENT_CHANNELS,
-} from "../../src/shared/window-registry";
+import { WINDOW_REGISTRY_CHANNELS, WINDOW_REGISTRY_EVENT_CHANNELS, type CardWindowsOpenState, type WindowRegistryBridge, type WindowRegistryContext } from "../../src/shared/window-registry";
 import {
   SESSION_LIFECYCLE_CHANNELS,
   SESSION_LIFECYCLE_EVENT_CHANNELS,
@@ -132,7 +124,6 @@ const windowControlsBridge: WindowControlsBridge = {
     ipcRenderer.send(WINDOW_CONTROL_CHANNELS.toggleDeveloperTools);
   },
   bringToFront() {
-    // forced save
     ipcRenderer.send(WINDOW_CONTROL_CHANNELS.bringToFront);
   },
   sendToBack() {

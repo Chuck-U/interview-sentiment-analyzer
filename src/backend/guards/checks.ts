@@ -1,3 +1,5 @@
+import { MediaChunkSource, MEDIA_CHUNK_SOURCES } from "@/shared/session-lifecycle";
+
 export function isNonEmptyString(value: unknown): value is string {
     return typeof value === "string" && value.trim().length > 0;
 }
@@ -26,5 +28,14 @@ export function parseFiniteInteger(value: unknown, fieldName: string): number {
     }
 
     return Math.round(value);
+}
+export function assertNever(value: never): never {
+    throw new Error(`Unhandled pipeline stage: ${String(value)}`);
+}
+export function isMediaChunkSource(value: unknown): value is MediaChunkSource {
+    return (
+        typeof value === "string" &&
+        MEDIA_CHUNK_SOURCES.includes(value as MediaChunkSource)
+    );
 }
 
