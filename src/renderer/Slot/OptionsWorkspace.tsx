@@ -15,7 +15,7 @@ import {
 
 import type { OptionsProps } from "./Options";
 import { OptionsOverviewCard } from "./OptionsOverviewCard";
-import { SidebarCardShell } from "./SidebarCardShell";
+import { SidebarCardShell } from "@components/molecules/SidebarCardShell";
 import { AiProviderCard } from "./agent-controls-cards/AiProviderCard";
 import { RecordingControlCard } from "./agent-controls-cards/RecordingControlCard";
 import { DisplayCaptureCard } from "./capture-options-cards/DisplayCaptureCard";
@@ -115,6 +115,8 @@ export function OptionsWorkspace({
             onSetWebcamDeviceId={onSetWebcamDeviceId}
             onSetWebcamPreviewVisible={onSetWebcamPreviewVisible}
           />
+          {/* Display capture UI temporarily disabled — primary display is set in reconcileCaptureOptionsConfig */}
+
           <DisplayCaptureCard
             isBusy={isBusy}
             displays={displays}
@@ -127,6 +129,7 @@ export function OptionsWorkspace({
             onSetDesktopPreviewVisible={onSetDesktopPreviewVisible}
             onOpenMonitorPicker={onOpenMonitorPicker}
           />
+
         </OptionsCard>
         </>
       ),
@@ -185,7 +188,7 @@ export function OptionsWorkspace({
         <SidebarCardShell
           sections={sections}
           activeSection={activeOptionsSection}
-          onActiveSectionChange={(section) =>
+          onActiveSectionChange={(section: OptionsSectionId | string) =>
             handleActiveOptionsSectionChange(section as OptionsSectionId)
           }
           onOpenRecordingsFolder={onOpenRecordingsFolder}

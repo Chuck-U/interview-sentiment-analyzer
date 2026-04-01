@@ -99,15 +99,6 @@ export function createTranscribeAudioIpcHandler(
             },
           });
           dependencies.publishQuestionDetected?.(detectedQuestion);
-        } else {
-          Log.ger({
-            type: "debug",
-            message: "[transcription] question detection returned no match",
-            data: {
-              sessionId: sessionId.slice(0, 8),
-              chunkId,
-            },
-          });
         }
       } catch (questionDetectionError) {
         Log.ger({
@@ -155,8 +146,6 @@ export function createTranscribeAudioIpcHandler(
             typeof body?.sessionId === "string"
               ? body.sessionId.slice(0, 8)
               : undefined,
-          chunkId:
-            typeof body?.chunkId === "string" ? body.chunkId : undefined,
           source: body?.source,
         },
       });

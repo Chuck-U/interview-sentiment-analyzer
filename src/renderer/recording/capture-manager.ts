@@ -7,6 +7,7 @@ import type {
 } from "@/shared/recording";
 import type { CaptureOptionsConfig } from "@/shared/capture-options";
 import type { MediaChunkSource } from "@/shared/session-lifecycle";
+import { logger } from "@/lib/logger";
 import {
   AUDIO_CHUNK_INTERVAL_MS,
   AUDIO_MIME_CANDIDATES,
@@ -351,6 +352,13 @@ export class CaptureManager {
         this.handleSourceError(sessionId, "screenshot", code, errorMessage);
       }
       return;
+    }
+
+    if (this.displayStream) {
+      for (const track of this.displayStream.getTracks()) {
+        track.stop();
+      }
+      this.displayStream = null;
     }
 
     this.displayStream = stream;

@@ -114,30 +114,9 @@ export function useRecordingSession(
             try {
               const pcm = await chunkAccumulatorRef.current.decodeChunk(buffer);
               if (pcm.length === 0) {
-                log.ger({
-                  type: "debug",
-                  message: "[transcription] no new PCM samples after decode",
-                  data: {
-                    chunkId: result.chunkId,
-                  },
-                });
                 return;
               }
-              let rms = 0;
-              for (let i = 0; i < pcm.length; i++) rms += pcm[i] * pcm[i];
-              rms = Math.sqrt(rms / (pcm.length || 1));
 
-              log.ger({
-                type: "debug",
-                message: "[transcription] PCM decoded; invoking main process",
-                data: {
-                  chunkId: result.chunkId,
-                  pcmSamples: pcm.length,
-                  rms: rms.toFixed(6),
-                  min: Math.min(...pcm.slice(0, 1000)).toFixed(6),
-                  max: Math.max(...pcm.slice(0, 1000)).toFixed(6),
-                },
-              });
               const transcription =
                 await window.electronApp.transcription.transcribeAudio({
                   source,

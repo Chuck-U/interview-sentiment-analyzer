@@ -15,6 +15,7 @@ import {
   systemPreferences,
   Tray,
 } from "electron";
+import type { DesktopCapturerSource } from "electron";
 import { log } from "../../src/lib/logger";
 import { createSessionLifecycleBackend } from "../../src/backend";
 import { createListAiProviderModelsUseCase } from "../../src/backend/application/use-cases/list-ai-provider-models";
@@ -171,13 +172,6 @@ function publishAlwaysOnTop(window: BrowserWindow): void {
 
 function publishPinned(window: BrowserWindow): void {
   if (window.isDestroyed()) {
-    log.ger({
-      type: "debug",
-      message: "[window publishPinned] window is destroyed",
-      data: {
-        window,
-      },
-    });
     return;
   }
 
@@ -187,7 +181,7 @@ function publishPinned(window: BrowserWindow): void {
   }
 
   try {
-    log.ger({ type: "info", message: 'publish pinned sending change event', data: { window, isPinned: isWindowPinned(window) } })
+
     contents.send(
       WINDOW_CONTROL_EVENT_CHANNELS.pinnedChanged,
       isWindowPinned(window),
@@ -346,26 +340,7 @@ function createWindow(
   if (initialPinned) {
     browserWindow.setMovable(false);
   }
-  log.ger({
-    type: "debug",
-    message: "[window createWindow] created",
-    data: {
-      role,
-      webContentsId,
-    },
-  });
-
   browserWindow.on("close", (event) => {
-    log.ger({
-      type: "debug",
-      message: "[window close] requested",
-      data: {
-        role,
-        webContentsId,
-        isLauncher,
-        isQuitting,
-      },
-    });
     if (isLauncher || isQuitting) {
       return;
     }
@@ -378,15 +353,6 @@ function createWindow(
   });
 
   browserWindow.on("show", () => {
-    log.ger({
-      type: "debug",
-      message: "[window show]",
-      data: {
-        role,
-        webContentsId,
-        bounds: browserWindow.getBounds(),
-      },
-    });
     if (!isLauncher) {
       broadcastCardWindowOpenState();
       browserWindow.focus();
@@ -426,14 +392,6 @@ function createWindow(
   });
 
   browserWindow.on("hide", () => {
-    log.ger({
-      type: "debug",
-      message: "[window hide]",
-      data: {
-        role,
-        webContentsId,
-      },
-    });
     if (!isLauncher) {
       broadcastCardWindowOpenState();
     }
@@ -443,14 +401,6 @@ function createWindow(
   });
 
   browserWindow.on("closed", () => {
-    log.ger({
-      type: "debug",
-      message: "[window closed]",
-      data: {
-        role,
-        webContentsId,
-      },
-    });
     roleByWebContentsId.delete(webContentsId);
     pinnedByWebContentsId.delete(webContentsId);
     if (!isLauncher) {
@@ -482,13 +432,6 @@ function createWindow(
       return;
     }
 
-    log.ger({
-      type: "debug",
-      message: "[window ready-to-show]",
-      data: {
-        role,
-      },
-    });
     browserWindow.show();
     publishAlwaysOnTop(browserWindow);
     publishPinned(browserWindow);
@@ -500,22 +443,55 @@ function createWindow(
   return browserWindow;
 }
 
+/** Pick the desktopCapturer source for the OS primary display (`screen.getPrimaryDisplay()`). */
+function resolvePrimaryDesktopCapturerSource(
+  sources: readonly DesktopCapturerSource[],
+): DesktopCapturerSource | undefined {
+  if (sources.length === 0) {
+    return undefined;
+  }
+  const primaryDisplayId = String(screen.getPrimaryDisplay().id);
+  const exact = sources.find((source) => source.display_id === primaryDisplayId);
+  if (exact) {
+    return exact;
+  }
+  const withoutId = sources.filter((source) => !source.display_id);
+  if (withoutId.length === 1) {
+    return withoutId[0];
+  }
+  return sources[0];
+}
+
+function resolveCapturerSourceForDisplay(
+  sources: readonly DesktopCapturerSource[],
+  displayId: string,
+  primaryDisplayId: string,
+): DesktopCapturerSource | undefined {
+  const exact = sources.find((source) => source.display_id === displayId);
+  if (exact) {
+    return exact;
+  }
+  if (displayId === primaryDisplayId) {
+    return resolvePrimaryDesktopCapturerSource(sources);
+  }
+  return undefined;
+}
+
 async function listCaptureDisplays(): Promise<readonly CaptureDisplaySnapshot[]> {
   const sources = await desktopCapturer.getSources({
     types: ["screen"],
     thumbnailSize: { width: 0, height: 0 },
   });
 
-  const sourceByDisplayId = new Map(
-    sources
-      .filter((source) => source.display_id)
-      .map((source) => [source.display_id, source]),
-  );
   const primaryDisplayId = String(screen.getPrimaryDisplay().id);
-
-  return screen.getAllDisplays().map((display) => {
+  const allDisplays = screen.getAllDisplays();
+  const captureDisplays = allDisplays.map((display) => {
     const displayId = String(display.id);
-    const source = sourceByDisplayId.get(displayId);
+    const source = resolveCapturerSourceForDisplay(
+      sources,
+      displayId,
+      primaryDisplayId,
+    );
 
     return {
       displayId,
@@ -530,6 +506,8 @@ async function listCaptureDisplays(): Promise<readonly CaptureDisplaySnapshot[]>
       sourceId: source?.id,
     };
   });
+
+  return captureDisplays;
 }
 
 function getPermissionStatus(kind: "microphone" | "camera" | "screen"): string {
@@ -644,7 +622,6 @@ async function initializeApp() {
 
 
     const mainWindow = createWindow(WINDOW_ROLES.launcher);
-    log.ger({ type: "debug", message: "Window created" })
     mainWindow.focus();
 
     let currentSession: SessionSnapshot | null = null;
@@ -709,7 +686,6 @@ async function initializeApp() {
       if (anyAppWindowVisible()) {
         log.ger({ type: "info", message: "[app toggleVisibility] hide" });
         cardVisibilityBeforeBulkHide = captureCardVisibilitySnapshot();
-        log.ger({ type: 'debug', message: '[app toggleVisibility] cardVisibilityBeforeBulkHide', data: { cardVisibilityBeforeBulkHide } });
         if (monitorPicker.isOpen()) {
           monitorPicker.close();
         }
@@ -835,15 +811,6 @@ async function initializeApp() {
       }
       const webContents = BrowserWindow.fromWebContents(_event.sender);
       const windowBounds = webContents?.getBounds();
-      log.ger({
-        type: "debug",
-        message: "[windowRegistry openWindow] requested",
-        data: {
-          role: input,
-          currentlyOpen: isCardWindowOpen(input),
-          event: _event
-        },
-      });
 
       const existing = cardWindows.get(input);
       if (existing && !existing.isDestroyed()) {
@@ -876,14 +843,6 @@ async function initializeApp() {
       if (typeof input !== "string" || !isCardWindowRole(input)) {
         throw new Error("Invalid card window role.");
       }
-      log.ger({
-        type: "debug",
-        message: "[windowRegistry closeWindow] requested",
-        data: {
-          role: input,
-          currentlyOpen: isCardWindowOpen(input),
-        },
-      });
       const target = cardWindows.get(input);
       if (target && !target.isDestroyed()) {
         try {
@@ -1023,16 +982,17 @@ async function initializeApp() {
       CAPTURE_OPTIONS_CHANNELS.openMonitorPicker,
       async (_event, input) => {
         let selectedDisplayId: string | undefined;
-        log.ger({ type: "debug", message: "[app CAPTURE_OPTIONS_CHANNELS.openMonitorPicker] input", data: { input, _event: _event } })
         if (typeof input === "object" && input !== null) {
-          const candidate = (input as Record<string, unknown>).selectedDisplayId;
-          log.ger({ type: "debug", message: "[app CAPTURE_OPTIONS_CHANNELS.openMonitorPicker] candidate", data: candidate })
+          const request = input as Record<string, unknown>;
+          const candidate = request.selectedDisplayId;
           if (typeof candidate === "string" && candidate.trim().length > 0) {
             selectedDisplayId = candidate.trim();
           }
         }
 
-        const resolvedDisplayId = monitorPicker.open({ selectedDisplayId });
+        const resolvedDisplayId = await monitorPicker.open({
+          selectedDisplayId,
+        });
         return { displayId: resolvedDisplayId };
       },
     );
@@ -1080,8 +1040,6 @@ async function initializeApp() {
       TRANSCRIPTION_CHANNELS.transcribeAudio,
       async (event, input) => {
         const result = await transcribeAudioHandler(event, input);
-        log.ger({ type: 'debug', message: '[app TRANSCRIPTION_CHANNELS.transcribeAudio] input', data: input });
-        log.ger({ type: 'debug', message: '[app TRANSCRIPTION_CHANNELS.transcribeAudio] result', data: result });
         publishToAllWindows(
           TRANSCRIPTION_EVENT_CHANNELS.transcriptSegment,
           result,
@@ -1097,10 +1055,7 @@ async function initializeApp() {
           types: ["screen"],
           thumbnailSize: { width: 0, height: 0 },
         });
-        const selectedSource =
-          sources.find(
-            (source) => source.display_id === captureOptions.display.displayId,
-          ) ?? sources[0];
+        const selectedSource = resolvePrimaryDesktopCapturerSource(sources);
 
         if (!selectedSource) {
           callback({});
@@ -1149,16 +1104,6 @@ async function initializeApp() {
         x: currentX + request.deltaX,
         y: currentY + request.deltaY,
       };
-      log.ger({
-        type: "debug",
-        message: "[app WINDOW_CONTROL_CHANNELS.moveWindowBy] next position",
-        data: {
-          role: getWindowRole(targetWindow),
-          request,
-          currentPosition: { x: currentX, y: currentY },
-          nextPosition,
-        },
-      });
       targetWindow.setPosition(nextPosition.x, nextPosition.y);
     });
     ipcMain.on(WINDOW_CONTROL_CHANNELS.resizeWindowBy, (event, input) => {
@@ -1181,17 +1126,6 @@ async function initializeApp() {
         targetWindow,
         nextSize,
       );
-      log.ger({
-        type: "debug",
-        message: "[app WINDOW_CONTROL_CHANNELS.resizeWindowBy] next bounds",
-        data: {
-          role: getWindowRole(targetWindow),
-          request,
-          currentSize: { width: currentWidth, height: currentHeight },
-          nextSize,
-          nextPosition,
-        },
-      });
       targetWindow.setBounds({
         x: nextPosition.x,
         y: nextPosition.y,
@@ -1307,6 +1241,20 @@ async function initializeApp() {
 
       return isWindowPinned(targetWindow);
     });
+    ipcMain.handle('get-sources', async (_event, options) => {
+      const sources = await desktopCapturer.getSources(options);
+      return sources.map(source => {
+        return {
+          ...source,
+          id: source.id,
+          name: source.name,
+          displayId: source.display_id,
+          thumbnail: source.thumbnail,
+        }
+      })
+    })
+
+
     ipcMain.handle(WINDOW_CONTROL_CHANNELS.setPinned, (event, input) => {
       const targetWindow = BrowserWindow.fromWebContents(event.sender);
 
@@ -1414,13 +1362,12 @@ async function initializeApp() {
     ipcMain.handle(
       RECORDING_CHANNELS.openRecordingsFolder,
       async (_event, input: unknown) => {
+        log.ger({ type: "trace", message: "openRecordingsFolder", data: { input } })
         if (!isNonEmptyObject(input)) {
           throw new Error("openRecordingsFolder request must be an object");
         }
         const sessionId = input.sessionId;
         if (!isNonEmptyString(sessionId)) {
-          log.ger({ type: "debug", message: "[app RECORDING_CHANNELS.openRecordingsFolder] with no sessionId" })
-
           const recordingRoot = storageLayoutResolver.resolveSessionLayout().recordingsRoot
 
           const openResult = await shell.openPath(recordingRoot);

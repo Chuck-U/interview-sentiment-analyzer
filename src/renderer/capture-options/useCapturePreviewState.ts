@@ -223,11 +223,13 @@ export function useCapturePreviewState(
   }, [webcamDeviceId]);
 
   const startDesktopPreview = useCallback(async () => {
-    return navigator.mediaDevices.getDisplayMedia({
+    const stream = await navigator.mediaDevices.getDisplayMedia({
       audio: false,
       video: true,
     });
-  }, []);
+
+    return stream;
+  }, [displayId]);
 
   const webcamPreview = usePreviewStream({
     isActive: isMenuActive && isWebcamPreviewVisible && !!webcamDeviceId,

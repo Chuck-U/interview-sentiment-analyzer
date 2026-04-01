@@ -28,7 +28,7 @@ type SidebarCardShellProps<TSectionId extends string> = {
   readonly activeSection: TSectionId;
   readonly onActiveSectionChange: (section: TSectionId) => void;
   readonly className?: string;
-  readonly onOpenRecordingsFolder: () => void;
+  readonly onOpenRecordingsFolder: (sessionId?: string) => void;
 };
 
 export function SidebarCardShell<TSectionId extends string>({
@@ -94,7 +94,7 @@ export function SidebarCardShell<TSectionId extends string>({
         style={noDragStyle}
       >
         <div
-          className="flex min-h-0 flex-1 flex-col from-yellow-a6/30 via-yellow-a6/20 to-transparent bg-gradient-to-br mt-4"
+          className="flex min-h-0 flex-1 flex-col from-yellow-a6/30 via-yellow-a6/20 to-transparent bg-gradient-to-br"
           style={noDragStyle}
         >
           {activeContent}

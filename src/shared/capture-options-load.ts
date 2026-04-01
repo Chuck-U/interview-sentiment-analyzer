@@ -93,7 +93,6 @@ export async function loadCaptureOptionsBundle(
       deps.listDisplays(),
       deps.enumerateDevices(),
     ]);
-
   const normalizedDevices = normalizeDeviceInfosToSnapshots(deviceInfos);
   const reconciledConfig = reconcileCaptureOptionsConfig({
     config: savedConfig,

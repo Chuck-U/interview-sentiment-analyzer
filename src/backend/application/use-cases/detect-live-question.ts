@@ -1,4 +1,5 @@
-import { logger } from "../../../lib/logger";
+import { isNonEmptyNumber } from "@/backend/guards/checks";
+import { log } from "../../../lib/logger";
 import type { QuestionDetectionPayload } from "../../../shared/question-detection";
 import type { AudioMediaSource } from "../../../shared/session-lifecycle";
 
@@ -10,10 +11,9 @@ export const QUESTION_CLASSIFIER_LABELS = {
   nonQuestion: "a spoken statement or answer",
 } as const;
 
-export const LIVE_QUESTION_MIN_SCORE = 0.7;
+export const LIVE_QUESTION_MIN_SCORE = 0.3;
 export const LIVE_QUESTION_MIN_MARGIN = 0.12;
 
-const log = logger.forSource("DetectLiveQuestionUseCase");
 
 type ZeroShotClassificationPipeline = (
   sequence: string,
@@ -62,7 +62,7 @@ function normalizeZeroShotOutput(
   return {
     labels: labels.map((label) => String(label)),
     scores: scores.map((score) =>
-      typeof score === "number" && Number.isFinite(score) ? score : 0,
+      isNonEmptyNumber(score) && score > 0 ? score : 0,
     ),
   };
 }
@@ -71,6 +71,14 @@ function getScoreForLabel(
   output: ZeroShotClassificationOutput,
   label: string,
 ): number {
+  log.ger({
+    type: "info",
+    message: "getScoreForLabel",
+    data: {
+      output,
+      label,
+    },
+  });
   const index = output.labels.findIndex(
     (candidate) => candidate.trim().toLowerCase() === label.trim().toLowerCase(),
   );
@@ -117,30 +125,10 @@ export function mapQuestionDetectionResult(args: {
   });
 
   if (questionScore < minScore) {
-    log.ger({
-      type: "debug",
-      message: "[question-detection] rejected by min score threshold",
-      data: {
-        sessionId: args.sessionId.slice(0, 8),
-        chunkId: args.chunkId,
-        questionScore: questionScore.toFixed(4),
-        minScore,
-      },
-    });
     return null;
   }
 
   if (margin < minMargin) {
-    log.ger({
-      type: "debug",
-      message: "[question-detection] rejected by score margin threshold",
-      data: {
-        sessionId: args.sessionId.slice(0, 8),
-        chunkId: args.chunkId,
-        margin: margin.toFixed(4),
-        minMargin,
-      },
-    });
     return null;
   }
 
@@ -176,15 +164,6 @@ export function createDetectLiveQuestionUseCase(
   ): Promise<QuestionDetectionPayload | null> {
     const text = input.text.trim();
     if (text.length === 0) {
-      log.ger({
-        type: "debug",
-        message: "[question-detection] skipped blank transcript chunk",
-        data: {
-          sessionId: input.sessionId.slice(0, 8),
-          chunkId: input.chunkId,
-          source: input.source,
-        },
-      });
       return null;
     }
 
@@ -230,20 +209,6 @@ export function createDetectLiveQuestionUseCase(
         multi_label: false,
       },
     );
-
-    log.ger({
-      type: "debug",
-      message: "[question-detection] classifier raw output received",
-      data: {
-        sessionId: input.sessionId.slice(0, 8),
-        chunkId: input.chunkId,
-        rawType: typeof raw,
-        rawKeys:
-          raw && typeof raw === "object"
-            ? Object.keys(raw as Record<string, unknown>)
-            : [],
-      },
-    });
 
     return mapQuestionDetectionResult({
       sessionId: input.sessionId,

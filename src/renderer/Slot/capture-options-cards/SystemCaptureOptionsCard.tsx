@@ -14,7 +14,7 @@ import {
   RiVolumeUpLine,
 } from "@remixicon/react";
 
-import { IconToggle } from "../IconToggle";
+import { IconToggle } from "../../../components/molecules/IconToggle";
 import { renderDeviceLabel, type SystemCaptureOptionsCardProps } from "./shared";
 
 export function SystemCaptureOptionsCard({

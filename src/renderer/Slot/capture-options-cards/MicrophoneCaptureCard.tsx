@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/select";
 import { RiMicLine, RiMicOffLine } from "@remixicon/react";
 
-import { IconToggle } from "../IconToggle";
+import { IconToggle } from "../../../components/molecules/IconToggle";
 import {
   renderDeviceLabel,
   type MicrophoneCaptureCardProps,
