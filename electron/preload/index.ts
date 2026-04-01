@@ -1,17 +1,12 @@
-import type { IpcRendererEvent } from "electron";
-import { contextBridge, ipcRenderer } from "electron";
-import {
-  type SessionLifecycleBridge,
-  type SessionLifecycleEventsBridge,
-} from "../../src/shared/session-lifecycle";
+import { contextBridge, ipcRenderer, type  IpcRendererEvent } from "electron";
+import { type SessionLifecycleBridge, type SessionLifecycleEventsBridge } from "../../src/shared/session-lifecycle";
 import type { RecordingBridge, RecordingEventsBridge } from "../../src/shared/recording";
-import type { AppControlsBridge } from "../../src/shared/app-controls";
-import { APP_CONTROL_CHANNELS } from "../../src/shared/app-controls";
-import type { AiProviderBridge } from "../../src/shared/ai-provider";
+import { APP_CONTROL_CHANNELS, type AppControlsBridge } from "../../src/shared/app-controls";
 import {
   AI_PROVIDER_CHANNELS,
   normalizeAiProviderConfig,
   normalizeAiProviderModels,
+  type AiProviderBridge,
 } from "../../src/shared/ai-provider";
 import type { ElectronAppBridge } from "../../src/shared/electron-app";
 import type {
@@ -23,22 +18,15 @@ import {
   TRANSCRIPTION_CHANNELS,
   TRANSCRIPTION_EVENT_CHANNELS,
 } from "../../src/shared/transcription";
-import type { CaptureOptionsBridge } from "../../src/shared/capture-options";
 import type { ModelInitBridge } from "../../src/shared/model-init";
-import type { QuestionDetectionEventsBridge } from "../../src/shared/question-detection";
-import { QUESTION_DETECTION_EVENT_CHANNELS } from "../../src/shared/question-detection";
+import { QUESTION_DETECTION_EVENT_CHANNELS, type QuestionDetectionEventsBridge } from "../../src/shared/question-detection";
 import {
   MODEL_INIT_CHANNELS,
   MODEL_INIT_EVENT_CHANNELS,
 } from "../../src/shared/model-init";
-import type { ShortcutsBridge } from "../../src/shared/shortcuts";
-import { SHORTCUTS_IPC_CHANNELS } from "../../src/shared/shortcuts";
+import { SHORTCUTS_IPC_CHANNELS, type ShortcutsBridge } from "../../src/shared/shortcuts";
 import { normalizeSetShortcutEnabledRequest } from "../../src/shared/shortcuts";
-import {
-  CAPTURE_OPTIONS_CHANNELS,
-  CAPTURE_OPTIONS_EVENT_CHANNELS,
-  normalizeCaptureOptionsConfig,
-} from "../../src/shared/capture-options";
+import { CAPTURE_OPTIONS_CHANNELS, CAPTURE_OPTIONS_EVENT_CHANNELS, type CaptureOptionsBridge, normalizeCaptureOptionsConfig } from "../../src/shared/capture-options";
 import type {
   SetAlwaysOnTopRequest,
   SetPinnedRequest,
@@ -140,7 +128,11 @@ const appControlsBridge: AppControlsBridge = {
 };
 
 const windowControlsBridge: WindowControlsBridge = {
+  toggleDeveloperTools() {
+    ipcRenderer.send(WINDOW_CONTROL_CHANNELS.toggleDeveloperTools);
+  },
   bringToFront() {
+    // forced save
     ipcRenderer.send(WINDOW_CONTROL_CHANNELS.bringToFront);
   },
   sendToBack() {

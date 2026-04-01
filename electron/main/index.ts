@@ -446,15 +446,18 @@ function createWindow(
 /** Pick the desktopCapturer source for the OS primary display (`screen.getPrimaryDisplay()`). */
 function resolvePrimaryDesktopCapturerSource(
   sources: readonly DesktopCapturerSource[],
+
 ): DesktopCapturerSource | undefined {
   if (sources.length === 0) {
     return undefined;
   }
-  const primaryDisplayId = String(screen.getPrimaryDisplay().id);
-  const exact = sources.find((source) => source.display_id === primaryDisplayId);
-  if (exact) {
-    return exact;
-  }
+  const primaryDisplay: Electron.Display = screen.getPrimaryDisplay()
+
+  const combinedSources = [...sources, primaryDisplay]
+
+
+  // this is wrong. 
+
   const withoutId = sources.filter((source) => !source.display_id);
   if (withoutId.length === 1) {
     return withoutId[0];
@@ -465,15 +468,13 @@ function resolvePrimaryDesktopCapturerSource(
 function resolveCapturerSourceForDisplay(
   sources: readonly DesktopCapturerSource[],
   displayId: string,
-  primaryDisplayId: string,
 ): DesktopCapturerSource | undefined {
-  const exact = sources.find((source) => source.display_id === displayId);
+  log.ger({ type: "trace", message: "resolveCapturerSourceForDisplay", data: { sources: sources.map(source => ({ display_id: source.display_id, id: source.id, name: source.name })) } });
+  const exact = sources.find((source) => source.display_id === displayId || source.id === displayId);
   if (exact) {
     return exact;
   }
-  if (displayId === primaryDisplayId) {
-    return resolvePrimaryDesktopCapturerSource(sources);
-  }
+  log.ger({ type: "trace", message: "monitor not found", source: 'resolveCapturerSourceForDisplay', data: { sources, displayId } });
   return undefined;
 }
 
@@ -483,20 +484,19 @@ async function listCaptureDisplays(): Promise<readonly CaptureDisplaySnapshot[]>
     thumbnailSize: { width: 0, height: 0 },
   });
 
-  const primaryDisplayId = String(screen.getPrimaryDisplay().id);
+  const primaryDisplay: Electron.Display = screen.getPrimaryDisplay();
   const allDisplays = screen.getAllDisplays();
   const captureDisplays = allDisplays.map((display) => {
     const displayId = String(display.id);
     const source = resolveCapturerSourceForDisplay(
       sources,
       displayId,
-      primaryDisplayId,
     );
 
     return {
       displayId,
       label: display.label || source?.name || `Display ${displayId}`,
-      isPrimary: displayId === primaryDisplayId,
+      isPrimary: displayId === String(primaryDisplay.id),
       bounds: {
         x: display.bounds.x,
         y: display.bounds.y,
@@ -1035,6 +1035,16 @@ async function initializeApp() {
         );
       },
     });
+    // write transcript to markdown file
+    // const appendToLogFile = (result: TranscriptionResult) => {
+    //   const logFile = path.join(app.getPath("appData"), "interview-sentiment-analyzer.log");
+    //   const logEntry = {
+    //     timestamp: new Date().toISOString(),
+    //     result,
+    //   };
+    //   fs.appendFileSync(logFile, JSON.stringify(logEntry) + "\n");
+    // };
+
 
     ipcMain.handle(
       TRANSCRIPTION_CHANNELS.transcribeAudio,
@@ -1050,22 +1060,32 @@ async function initializeApp() {
 
     session.defaultSession.setDisplayMediaRequestHandler(
       async (_request, callback) => {
-        const captureOptions = await appConfigStore.loadCaptureOptionsConfig();
-        const sources = await desktopCapturer.getSources({
-          types: ["screen"],
-          thumbnailSize: { width: 0, height: 0 },
-        });
-        const selectedSource = resolvePrimaryDesktopCapturerSource(sources);
+        try {
+          const primaryDisplay: Electron.Display = screen.getPrimaryDisplay();
+          const captureOptions = await appConfigStore.loadCaptureOptionsConfig();
+          const sources = await desktopCapturer.getSources({
+            types: ["screen"],
+            thumbnailSize: { width: 300, height: 200 },
+          });
+          const selectedSource = resolvePrimaryDesktopCapturerSource([...sources, {
+            ...primaryDisplay,
+            display_id: String(primaryDisplay.id),
+            id: String(primaryDisplay.id),
+            name: primaryDisplay.label,
+            appIcon: nativeImage.createEmpty(),
+            thumbnail: nativeImage.createEmpty(),
+          }]);
 
-        if (!selectedSource) {
+          callback({
+            video: selectedSource,
+            audio: captureOptions.systemAudio.enabled ? "loopback" : undefined,
+          });
+        } catch (error) {
+          log.ger({ type: "error", message: "Error getting sources", data: { error, _request } });
           callback({});
           return;
         }
 
-        callback({
-          video: selectedSource,
-          audio: captureOptions.systemAudio.enabled ? "loopback" : undefined,
-        });
       },
       { useSystemPicker: false },
     );

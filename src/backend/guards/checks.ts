@@ -17,4 +17,14 @@ export function isNonEmptyNumber(value: unknown): value is number {
 export function isInRecord<K extends string, V>(value: unknown, record: Record<K, V>): value is V {
     return typeof value === "string" && value in record;
 }
+export function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null;
+}
+export function parseFiniteInteger(value: unknown, fieldName: string): number {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+        throw new Error(`${fieldName} must be a finite number`);
+    }
+
+    return Math.round(value);
+}
 

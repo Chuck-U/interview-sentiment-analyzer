@@ -1,3 +1,4 @@
+/// <reference types="node" />
 import path from "node:path"
 import fs from "node:fs"
 export interface LoggerProps {
@@ -31,6 +32,117 @@ const writeLogToFile = (log: LoggerProps) => {
   fs.appendFileSync(logFilePath, line, "utf8")
 }
 
+/**
+ * Absolute path to this module. CJS emit (Electron/backend) sets `__filename`.
+ * Vite may omit it in browser bundles; caller detection still skips logger frames via path shape.
+ */
+function resolveLoggerModulePath(): string {
+  try {
+    return path.normalize(__filename)
+  } catch {
+    return ""
+  }
+}
+
+const RESOLVED_LOGGER_PATH = resolveLoggerModulePath()
+
+/**
+ * Maps `file://` URLs from V8 call sites to a local path without `node:url`
+ * (Vite’s browser bundle cannot import it).
+ */
+function fileUrlToPathShim(fileUrl: string): string {
+  if (!fileUrl.startsWith("file:")) {
+    return fileUrl
+  }
+  try {
+    const { pathname } = new URL(fileUrl)
+    const isWin =
+      typeof process !== "undefined" && process.platform === "win32"
+    const raw =
+      isWin && /^\/[A-Za-z]:/.test(pathname) ? pathname.slice(1) : pathname
+    return path.normalize(decodeURIComponent(raw))
+  } catch {
+    return fileUrl
+  }
+}
+
+function normalizeCallSitePath(file: string): string {
+  try {
+    if (file.startsWith("file:")) {
+      return fileUrlToPathShim(file)
+    }
+    return path.normalize(file)
+  } catch {
+    return file
+  }
+}
+
+function isLoggerStackFile(file: string | null | undefined): boolean {
+  if (!file) {
+    return false
+  }
+  const normalized = normalizeCallSitePath(file).toLowerCase()
+  const loggerLower = RESOLVED_LOGGER_PATH.toLowerCase()
+  if (loggerLower.length > 0 && normalized === loggerLower) {
+    return true
+  }
+  return /[/\\]logger\.(js|ts|cjs|mjs)$/.test(normalized)
+}
+
+function captureCallSites(skipFn: (...args: unknown[]) => unknown): NodeJS.CallSite[] {
+  if (
+    typeof Error.captureStackTrace !== "function" ||
+    typeof Error.prepareStackTrace !== "function"
+  ) {
+    return []
+  }
+  const previous = Error.prepareStackTrace
+  Error.prepareStackTrace = (_err, sites) => sites as unknown as string
+  try {
+    const holder: { stack?: NodeJS.CallSite[] } = {}
+    Error.captureStackTrace(holder, skipFn as (...args: unknown[]) => void)
+    const raw = holder.stack
+    return Array.isArray(raw) ? raw : []
+  } finally {
+    Error.prepareStackTrace = previous
+  }
+}
+
+function parseCallerFromStackString(stack: string | undefined): string | undefined {
+  if (!stack) {
+    return undefined
+  }
+  for (const line of stack.split("\n")) {
+    if (line.includes("logger.ts") || /[/\\]logger\.(js|cjs|mjs)\b/i.test(line)) {
+      continue
+    }
+    const paren = /\(([^)]+\.(?:tsx?|jsx?|js|cjs|mjs)):\d+:\d+\)/.exec(line)
+    if (paren?.[1]) {
+      return paren[1]
+    }
+    const bare = /at (?:async )?(?:\S+\s+)?(\S+\.(?:tsx?|jsx?|js|cjs|mjs)):\d+:\d+/.exec(line)
+    if (bare?.[1] && !bare[1].toLowerCase().includes("logger")) {
+      return bare[1]
+    }
+  }
+  return undefined
+}
+
+/** First stack frame outside this logger module (for `log.ger` default `source`). */
+function getLogCallerSource(): string | undefined {
+  const sites = captureCallSites(getLogCallerSource)
+  for (const site of sites) {
+    const file = site.getFileName()
+    if (isLoggerStackFile(file)) {
+      continue
+    }
+    if (!file || file.startsWith("node:")) {
+      continue
+    }
+    return normalizeCallSitePath(file)
+  }
+  return parseCallerFromStackString(new Error().stack)
+}
 
 export type LogLevelOption = keyof typeof LOG_LEVELS
 
@@ -227,7 +339,7 @@ export const log: Pick<typeof logger, "ger"> = {
   ger(entry: LoggerProps): void {
     logger.ger({
       ...entry,
-      source: __filename,
-    });
+      source: entry.source ?? getLogCallerSource(),
+    })
   },
-};
+}
