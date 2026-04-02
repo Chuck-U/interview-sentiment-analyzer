@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 
 import { CaptureManager } from "@/renderer/recording/capture-manager";
-import { AudioChunkAccumulator } from "@/renderer/recording/audio-chunk-accumulator";
+import { AudioChunkAccumulator } from "@/lib/audio-chunk-accumulator";
 import { selectCaptureSources } from "@/renderer/store/slices/captureOptionsSlice";
 import {
   clearTranscription,

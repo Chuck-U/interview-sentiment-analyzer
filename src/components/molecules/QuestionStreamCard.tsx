@@ -26,7 +26,7 @@ export function QuestionStreamCard({
     <Card
       size="sm"
       className={cn(
-        "pointer-events-none w-full max-w-full border-border/50 text-card-foreground shadow-xl backdrop-blur-sm transition-[transform,opacity,box-shadow] duration-300 ease-out",
+        "pointer-events-none w-full max-w-full border-border/50 text-card-foreground shadow-xl rounded-md backdrop-blur-sm transition-[transform,opacity,box-shadow] duration-300 ease-out",
         isActive
           ? "ring-2 ring-primary/40 shadow-primary/10 bg-background/80"
           : "opacity-75 ring-1 ring-foreground/5 bg-background/20",

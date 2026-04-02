@@ -7,12 +7,21 @@ import { createDetectLiveQuestionUseCase } from "../../application/use-cases/det
 import { parseTranscribeAudioRequest } from "../../guards/transcribe-audio-request";
 import { createTranscribeAudioUseCase } from "../../application/use-cases/transcribe-audio";
 
+export type AppendTranscriptLogInput = {
+  readonly sessionId: string;
+  readonly source: AudioMediaSource;
+  readonly text: string;
+};
+
 function liveQuestionBufferKey(sessionId: string, source: AudioMediaSource): string {
   return `${sessionId}\0${source}`;
 }
 
 export type TranscribeAudioIpcHandlerDependencies = {
   readonly getPipeline: (modelId: string) => Promise<unknown>;
+  readonly appendTranscriptLog?: (
+    input: AppendTranscriptLogInput,
+  ) => Promise<void>;
   readonly publishQuestionDetected?: (
     payload: QuestionDetectionPayload,
   ) => void;
@@ -56,7 +65,6 @@ export function createTranscribeAudioIpcHandler(
           sessionId: sessionId.slice(0, 8),
           chunkId,
           source,
-          pcmSamples: pcmSamples.length,
         },
       });
 
@@ -84,8 +92,8 @@ export function createTranscribeAudioIpcHandler(
 
         if (!transcriptBuffer.shouldEvaluate()) {
           Log.ger({
-            type: "info",
-            message: "[transcription] question detection deferred (buffering ASR snippets)",
+            type: "trace",
+            message: "[transcription] question detection deferred",
             data: {
               sessionId: sessionId.slice(0, 8),
               chunkId,
@@ -97,6 +105,30 @@ export function createTranscribeAudioIpcHandler(
         } else {
           const textForQuestion = transcriptBuffer.getCombinedText();
           transcriptBuffer.clear();
+
+          if (dependencies.appendTranscriptLog) {
+            try {
+              await dependencies.appendTranscriptLog({
+                sessionId,
+                source,
+                text: textForQuestion,
+              });
+            } catch (appendTranscriptLogError) {
+              Log.ger({
+                type: "warn",
+                message: "[transcription] transcript log append failed",
+                data: {
+                  sessionId: sessionId.slice(0, 8),
+                  chunkId,
+                  source,
+                  error:
+                    appendTranscriptLogError instanceof Error
+                      ? appendTranscriptLogError.message
+                      : String(appendTranscriptLogError),
+                },
+              });
+            }
+          }
 
           Log.ger({
             type: "info",

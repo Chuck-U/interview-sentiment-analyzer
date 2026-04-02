@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { createTranscribeAudioUseCase } from "../application/use-cases/transcribe-audio";
+import { DEFAULT_TRANSCRIPTION_MODEL_ID } from "../../shared/model-manifest";
 
 test("transcribeAudio returns text and segments from ASR pipeline", async () => {
   const sessionId = "sess-12345678";
@@ -22,7 +23,7 @@ test("transcribeAudio returns text and segments from ASR pipeline", async () => 
 
   const useCase = createTranscribeAudioUseCase({
     getPipeline: async (modelId) => {
-      assert.equal(modelId, "onnx-community/moonshine-base-ONNX");
+      assert.equal(modelId, DEFAULT_TRANSCRIPTION_MODEL_ID);
       return async () => rawAsrOutput;
     },
   });

@@ -5,7 +5,7 @@
 const DEFAULT_MAX_SAMPLES = 5;
 
 /** Combined text length (after join) to treat multi-fragment speech as "ready" without punctuation. */
-const DEFAULT_MIN_COMBINED_CHARS_FOR_MULTI_SAMPLE = 36;
+const DEFAULT_MIN_COMBINED_CHARS_FOR_MULTI_SAMPLE = 48;
 
 function trimJoin(samples: readonly string[]): string {
   return samples

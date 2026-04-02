@@ -29,7 +29,7 @@ import { QuestionBoxMain } from "../components/QuestionBoxMain";
 import {
   QuestionBoxProvider,
   useQuestionBoxOptional,
-} from "./question-box/QuestionBoxProvider";
+} from "./hooks/QuestionBoxProvider";
 import { OptionsWorkspace } from "./Slot/OptionsWorkspace";
 import { useCaptureOptions } from "./capture-options/useCaptureOptions";
 import { usePinnedWindowBehavior } from "./hooks/usePinnedWindowBehavior";

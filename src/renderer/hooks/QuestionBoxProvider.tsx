@@ -11,12 +11,12 @@ import {
 } from "react";
 
 import { logger } from "@/lib/logger";
-import { TRANSCRIPTION_TARGET_SAMPLE_RATE } from "@/renderer/recording/audio-chunk-accumulator";
+import { TRANSCRIPTION_TARGET_SAMPLE_RATE } from "@/lib/audio-chunk-accumulator";
 import type { QuestionDetectionPayload } from "@/shared/question-detection";
 
 import { useAppDispatch, useAppSelector } from "../store/hooks";
-import { clearDetectedQuestionsForSession } from "../store/slices/questionSlice";
-import { decodeMockClassificationAudio } from "./decode-mock-classification-audio";
+import { clearDetectedQuestions } from "../store/slices/questionSlice";
+import { decodeMockClassificationAudio } from "../../lib/decode-mock-classification-audio";
 
 const log = logger.forSource("QuestionBoxProvider");
 
@@ -48,18 +48,13 @@ export function QuestionBoxProvider({ children }: { readonly children: ReactNode
   );
   const detectedQuestions = useAppSelector((state) => state.questions.detected);
 
-  const effectiveSessionId = currentSessionId ?? "mock-session";
-  const sessionQuestions = useMemo(() => {
-    return detectedQuestions.filter((q) => q.sessionId === effectiveSessionId);
-  }, [effectiveSessionId, detectedQuestions]);
-
   const [isMockRunning, setIsMockRunning] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [viewIndex, setViewIndex] = useState(0);
 
   const mockRunGenerationRef = useRef(0);
 
-  const allQuestions = sessionQuestions;
+  const allQuestions = detectedQuestions;
 
   const allQuestionsRef = useRef(allQuestions);
   const viewIndexRef = useRef(viewIndex);
@@ -193,8 +188,8 @@ export function QuestionBoxProvider({ children }: { readonly children: ReactNode
   }, [currentSessionId, isMockRunning]);
 
   const resetQuestions = useCallback(() => {
-    dispatch(clearDetectedQuestionsForSession({ sessionId: effectiveSessionId }));
-  }, [dispatch, effectiveSessionId]);
+    dispatch(clearDetectedQuestions());
+  }, [dispatch]);
 
   const value = useMemo<QuestionBoxContextValue>(
     () => ({

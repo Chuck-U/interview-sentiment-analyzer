@@ -1,4 +1,5 @@
 import { logger } from "../../../lib/logger";
+import { DEFAULT_TRANSCRIPTION_MODEL_ID } from "../../../shared/model-manifest";
 import type {
   TranscriptionResult,
 } from "../../../shared/transcription";
@@ -21,7 +22,6 @@ export type TranscribeAudioDependencies = {
   readonly getPipeline: (modelId: string) => Promise<unknown>;
 };
 
-const MOONSHINE_MEDIUM_EN_ID = "onnx-community/moonshine-base-ONNX";
 const Log = logger.forSource("TranscribeAudioUseCase");
 
 export function createTranscribeAudioUseCase(
@@ -31,7 +31,7 @@ export function createTranscribeAudioUseCase(
     input: TranscribeAudioInput,
   ): Promise<TranscriptionResult> {
     const pipelineUnknown: unknown = await dependencies.getPipeline(
-      MOONSHINE_MEDIUM_EN_ID,
+      DEFAULT_TRANSCRIPTION_MODEL_ID,
     );
     const asrPipeline = pipelineUnknown as AsrPipeline;
 
