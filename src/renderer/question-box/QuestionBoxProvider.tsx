@@ -10,9 +10,20 @@ import {
   type ReactNode,
 } from "react";
 
+import { logger } from "@/lib/logger";
+import { TRANSCRIPTION_TARGET_SAMPLE_RATE } from "@/renderer/recording/audio-chunk-accumulator";
 import type { QuestionDetectionPayload } from "@/shared/question-detection";
 
-import { useAppSelector } from "../store/hooks";
+import { useAppDispatch, useAppSelector } from "../store/hooks";
+import { clearDetectedQuestionsForSession } from "../store/slices/questionSlice";
+import { decodeMockClassificationAudio } from "./decode-mock-classification-audio";
+
+const log = logger.forSource("QuestionBoxProvider");
+
+/**
+ * Cap IPC payload / ASR window. Bundled clip is shorter; this guards larger assets.
+ */
+const MOCK_CLASSIFICATION_MAX_SECONDS = 28;
 
 type QuestionBoxContextValue = {
   readonly allQuestions: readonly QuestionDetectionPayload[];
@@ -30,45 +41,25 @@ type QuestionBoxContextValue = {
 
 const QuestionBoxContext = createContext<QuestionBoxContextValue | null>(null);
 
-function buildMockQuestion(
-  sessionId: string,
-  text: string,
-): QuestionDetectionPayload {
-  return {
-    sessionId,
-    chunkId: crypto.randomUUID(),
-    source: "system-audio",
-    text,
-    questionScore: 0.85,
-    nonQuestionScore: 0.15,
-    detectedAt: new Date().toISOString(),
-  };
-}
-
 export function QuestionBoxProvider({ children }: { readonly children: ReactNode }) {
+  const dispatch = useAppDispatch();
   const currentSessionId = useAppSelector(
     (state) => state.sessionRecording.currentSession?.id,
   );
   const detectedQuestions = useAppSelector((state) => state.questions.detected);
 
+  const effectiveSessionId = currentSessionId ?? "mock-session";
   const sessionQuestions = useMemo(() => {
-    if (!currentSessionId) {
-      return [];
-    }
-    return detectedQuestions.filter((q) => q.sessionId === currentSessionId);
-  }, [currentSessionId, detectedQuestions]);
+    return detectedQuestions.filter((q) => q.sessionId === effectiveSessionId);
+  }, [effectiveSessionId, detectedQuestions]);
 
-  const [mockQuestions, setMockQuestions] = useState<QuestionDetectionPayload[]>(
-    [],
-  );
   const [isMockRunning, setIsMockRunning] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [viewIndex, setViewIndex] = useState(0);
 
-  const allQuestions = useMemo(
-    () => [...sessionQuestions, ...mockQuestions],
-    [sessionQuestions, mockQuestions],
-  );
+  const mockRunGenerationRef = useRef(0);
+
+  const allQuestions = sessionQuestions;
 
   const allQuestionsRef = useRef(allQuestions);
   const viewIndexRef = useRef(viewIndex);
@@ -136,40 +127,74 @@ export function QuestionBoxProvider({ children }: { readonly children: ReactNode
     setViewIndex((i) => Math.min(allQuestions.length - 1, i + 1));
   }, [allQuestions.length]);
 
-  const startMockStream = useCallback(() => {
-    const sid = currentSessionId ?? "mock-session";
-    setIsMockRunning(true);
-    setMockQuestions((prev) => [
-      ...prev,
-      buildMockQuestion(sid, `Mock question at ${new Date().toISOString()}`),
-    ]);
-  }, [currentSessionId]);
-
   const stopMockStream = useCallback(() => {
+    mockRunGenerationRef.current += 1;
     setIsMockRunning(false);
   }, []);
 
-  useEffect(() => {
-    if (!isMockRunning) {
+  const startMockStream = useCallback(() => {
+    if (isMockRunning) {
       return;
     }
 
+    mockRunGenerationRef.current += 1;
+    const generation = mockRunGenerationRef.current;
     const sid = currentSessionId ?? "mock-session";
-    const id = window.setInterval(() => {
-      setMockQuestions((prev) => [
-        ...prev,
-        buildMockQuestion(sid, `Mock question at ${new Date().toISOString()}`),
-      ]);
-    }, 2500);
 
-    return () => {
-      window.clearInterval(id);
-    };
-  }, [isMockRunning, currentSessionId]);
+    setIsMockRunning(true);
+
+    void (async () => {
+      try {
+        const pcm = await decodeMockClassificationAudio();
+        if (mockRunGenerationRef.current !== generation) {
+          return;
+        }
+
+        const maxSamples = TRANSCRIPTION_TARGET_SAMPLE_RATE * MOCK_CLASSIFICATION_MAX_SECONDS;
+        const pcmWindow =
+          pcm.length <= maxSamples ? pcm : pcm.subarray(0, maxSamples);
+
+        if (pcmWindow.length === 0) {
+          log.ger({
+            type: "warn",
+            message: "[question-box] mock classification audio decoded to empty PCM",
+          });
+          return;
+        }
+
+        log.ger({
+          type: "info",
+          message: "[question-box] running transcribeAudio on mock classification clip",
+          data: {
+            sessionId: sid.slice(0, 8),
+            samples: pcmWindow.length,
+          },
+        });
+
+        await window.electronApp.transcription.transcribeAudio({
+          source: "desktop-capture",
+          sessionId: sid,
+          chunkId: crypto.randomUUID(),
+          pcmSamples: Array.from(pcmWindow),
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        log.ger({
+          type: "error",
+          message: "[question-box] mock classification audio pipeline failed",
+          data: { error: message },
+        });
+      } finally {
+        if (mockRunGenerationRef.current === generation) {
+          setIsMockRunning(false);
+        }
+      }
+    })();
+  }, [currentSessionId, isMockRunning]);
 
   const resetQuestions = useCallback(() => {
-    setMockQuestions([]);
-  }, []);
+    dispatch(clearDetectedQuestionsForSession({ sessionId: effectiveSessionId }));
+  }, [dispatch, effectiveSessionId]);
 
   const value = useMemo<QuestionBoxContextValue>(
     () => ({

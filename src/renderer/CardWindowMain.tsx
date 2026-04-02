@@ -181,12 +181,20 @@ function QuestionBoxNavControls() {
               size="icon-xs"
               className="text-muted-foreground hover:text-foreground"
               onClick={handleMockStream}
-              aria-label={isMockRunning ? "Mock stop" : "Mock start"}
+              aria-label={
+                isMockRunning
+                  ? "Cancel mock classification test"
+                  : "Run bundled speech sample through ASR and question classifier"
+              }
             >
               {isMockRunning ? <RiStopFill className="size-3.5" /> : <RiPlayFill className="size-3.5" />}
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="bottom">{isMockRunning ? "Mock stop" : "Mock start"}</TooltipContent>
+          <TooltipContent side="bottom">
+            {isMockRunning
+              ? "Cancel in-flight mock test"
+              : "Decode bundled WAV (HF transformers.js jfk sample) and transcribe"}
+          </TooltipContent>
 
         </Tooltip>
         <Tooltip>

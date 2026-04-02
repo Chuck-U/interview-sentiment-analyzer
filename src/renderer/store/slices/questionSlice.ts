@@ -20,9 +20,20 @@ const questionSlice = createSlice({
     clearDetectedQuestions(state) {
       state.detected = [];
     },
+    clearDetectedQuestionsForSession(
+      state,
+      action: PayloadAction<{ readonly sessionId: string }>,
+    ) {
+      const id = action.payload.sessionId;
+      state.detected = state.detected.filter((q) => q.sessionId !== id);
+    },
   },
 });
 
-export const { questionDetected, clearDetectedQuestions } = questionSlice.actions;
+export const {
+  questionDetected,
+  clearDetectedQuestions,
+  clearDetectedQuestionsForSession,
+} = questionSlice.actions;
 
 export default questionSlice.reducer;
