@@ -79,23 +79,11 @@ async function initModel(
 ): Promise<PipelineInstance> {
   const existing = pipelineCache.get(entry.id);
   if (existing) {
-    log.ger({
-      type: "info",
-      message: "Pipeline promise reused (already loading or built)",
-      data: { modelId: entry.id, task: entry.task },
-    });
+
     return existing;
   }
 
-  log.ger({
-    type: "info",
-    message: "Starting model pipeline load (download if missing, then cache under userData)",
-    data: {
-      modelId: entry.id,
-      task: entry.task,
-      dtype: entry.dtype,
-    },
-  });
+
 
   updateModelState(entry.id, { status: "downloading", progress: 0 }, onProgress);
 
@@ -106,11 +94,11 @@ async function initModel(
         const pct = Math.round(info.progress);
         updateModelState(entry.id, { progress: pct }, onProgress);
       } else {
-        log.ger({
-          type: "info",
-          message: "Transformers load / cache activity",
-          data: { modelId: entry.id, ...summarizeProgressInfo(info) },
-        });
+        // log.ger({
+        //   type: "info",
+        //   message: "Transformers load / cache activity",
+        //   data: { modelId: entry.id, ...summarizeProgressInfo(info) },
+        // });
       }
     },
   });
@@ -122,8 +110,7 @@ async function initModel(
     updateModelState(entry.id, { status: "ready", progress: 100 }, onProgress);
     log.ger({
       type: "info",
-      message: "Model pipeline ready (ONNX loaded; artifacts on disk cache when applicable)",
-      data: { modelId: entry.id, task: entry.task },
+      message: "Model pipeline ready ",
     });
     return result;
   } catch (err) {

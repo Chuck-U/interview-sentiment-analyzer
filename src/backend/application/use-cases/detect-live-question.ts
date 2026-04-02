@@ -83,6 +83,7 @@ function getScoreForLabel(
       label,
     },
   });
+  // look at this code and see if it is correct.
   const index = output.labels.findIndex(
     (candidate) => candidate.trim().toLowerCase() === label.trim().toLowerCase(),
   );
@@ -205,18 +206,18 @@ export function createDetectLiveQuestionUseCase(
       return null;
     }
 
-    log.ger({
-      type: "info",
-      message: "[question-detection] loading classifier pipeline",
-      data: {
-        sessionId: input.sessionId.slice(0, 8),
-        chunkId: input.chunkId,
-        source: input.source,
-        modelId: DISTILBERT_MNLI_MODEL_ID,
-        textLength: text.length,
-        preview: text.slice(0, 200),
-      },
-    });
+    // log.ger({
+    //   type: "info",
+    //   message: "[question-detection] loading classifier pipeline",
+    //   data: {
+    //     sessionId: input.sessionId.slice(0, 8),
+    //     chunkId: input.chunkId,
+    //     source: input.source,
+    //     modelId: DISTILBERT_MNLI_MODEL_ID,
+    //     textLength: text.length,
+    //     preview: text.slice(0, 200),
+    //   },
+    // });
 
     const pipelineUnknown = await dependencies.getPipeline(
       DISTILBERT_MNLI_MODEL_ID,
@@ -226,14 +227,6 @@ export function createDetectLiveQuestionUseCase(
     log.ger({
       type: "info",
       message: "[question-detection] classifier invoked",
-      data: {
-        sessionId: input.sessionId.slice(0, 8),
-        chunkId: input.chunkId,
-        labels: [
-          QUESTION_CLASSIFIER_LABELS.question,
-          QUESTION_CLASSIFIER_LABELS.nonQuestion,
-        ],
-      },
     });
 
     const raw = await classify(

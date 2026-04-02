@@ -16,6 +16,11 @@ export function isNonEmptyNumber(value: unknown): value is number {
     return typeof value === "number" && !Number.isNaN(value) && value > 0;
 }
 
+export function isFiniteNumber(value: unknown): value is number {
+    return isNonEmptyNumber(value) && Number.isFinite(value);
+}
+
+
 export function isInRecord<K extends string, V>(value: unknown, record: Record<K, V>): value is V {
     return typeof value === "string" && value in record;
 }

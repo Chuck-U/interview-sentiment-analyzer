@@ -24,7 +24,6 @@ import { registerSessionLifecycleIpc } from "../../src/backend/infrastructure/ip
 import { registerRecordingIpc } from "../../src/backend/infrastructure/ipc/register-recording-ipc";
 import { createRecordingPersistenceService } from "../../src/backend/infrastructure/recording/recording-persistence";
 import { createRecordingExportService } from "../../src/backend/infrastructure/recording/recording-export";
-import { createRecordingSandboxPersistenceService } from "../../src/backend/infrastructure/recording/recording-sandbox-persistence";
 import { createSessionStorageLayoutResolver } from "../../src/backend/infrastructure/storage/session-storage-layout";
 import { appendSessionTranscriptLog } from "../../src/backend/infrastructure/storage/session-transcript-log";
 import { createAppConfigStore } from "../../src/backend/infrastructure/config/appConfigStore";
@@ -1350,18 +1349,9 @@ async function initializeApp() {
 
     const recordingPersistence = createRecordingPersistenceService(storageLayoutResolver);
     const recordingExport = createRecordingExportService(storageLayoutResolver);
-    const sandboxRecordingPersistence = createRecordingSandboxPersistenceService(
-      path.join(
-        app.getPath("videos"),
-        "Interview Sentiment Analyzer",
-        "sandbox-captures",
-      ),
-    );
-
     registerRecordingIpc(
       ipcMain,
       recordingPersistence,
-      sandboxRecordingPersistence,
       sessionLifecycleBackend.controller,
     );
 

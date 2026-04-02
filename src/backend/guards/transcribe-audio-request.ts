@@ -1,5 +1,6 @@
 import type { TranscriptionRequest } from "../../shared/transcription";
 import { isAudioMediaChunkSource } from "../../shared/session-lifecycle";
+import { isNonEmptyArray, isNonEmptyString } from "./checks";
 
 /**
  * Validates and parses the payload for `transcription:transcribe-audio`.
@@ -18,13 +19,13 @@ export function parseTranscribeAudioRequest(input: unknown): TranscriptionReques
   const pcmSamples = body.pcmSamples;
   const source = body.source;
 
-  if (typeof sessionId !== "string" || sessionId.trim().length === 0) {
+  if (!isNonEmptyString(sessionId)) {
     throw new Error("transcribeAudio requires sessionId");
   }
-  if (typeof chunkId !== "string" || chunkId.trim().length === 0) {
+  if (!isNonEmptyString(chunkId)) {
     throw new Error("transcribeAudio requires chunkId");
   }
-  if (!Array.isArray(pcmSamples)) {
+  if (!isNonEmptyArray(pcmSamples)) {
     throw new Error("transcribeAudio requires pcmSamples array");
   }
   if (!isAudioMediaChunkSource(source)) {
