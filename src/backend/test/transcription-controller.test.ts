@@ -83,3 +83,57 @@ test("transcribeAudio IPC handler does not publish non-question transcripts", as
 
   assert.equal(published.length, 0);
 });
+
+test("transcribeAudio rolls up short ASR snippets before question detection", async () => {
+  const published: unknown[] = [];
+  const asrQueue = ["tell us about", "a time you had to be creative"];
+  let asrIndex = 0;
+
+  const handler = createTranscribeAudioIpcHandler({
+    getPipeline: async (modelId) => {
+      if (modelId === "onnx-community/moonshine-base-ONNX") {
+        return async () => {
+          const text = asrQueue[asrIndex] ?? "";
+          asrIndex += 1;
+          return { text, chunks: [] };
+        };
+      }
+
+      if (modelId === "onnx-community/distilbert-base-uncased-mnli-ONNX") {
+        return async () => ({
+          labels: [
+            "a spoken interview question",
+            "a spoken statement or answer",
+          ],
+          scores: [0.88, 0.12],
+        });
+      }
+
+      throw new Error(`Unexpected model ${modelId}`);
+    },
+    publishQuestionDetected(payload) {
+      published.push(payload);
+    },
+  });
+
+  await handler(undefined, {
+    sessionId: "session-roll",
+    chunkId: "chunk-a",
+    source: "desktop-capture",
+    pcmSamples: [0, 0.1],
+  });
+  assert.equal(published.length, 0);
+
+  await handler(undefined, {
+    sessionId: "session-roll",
+    chunkId: "chunk-b",
+    source: "desktop-capture",
+    pcmSamples: [0, 0.1],
+  });
+  assert.equal(published.length, 1);
+  assert.match(
+    String((published[0] as { text?: string }).text),
+    /tell us about.*time you had to be creative/i,
+  );
+});
+
