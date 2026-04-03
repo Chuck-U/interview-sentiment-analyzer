@@ -7,8 +7,12 @@ export const DISTILBERT_MNLI_MODEL_ID =
   "onnx-community/distilbert-base-uncased-mnli-ONNX";
 
 export const QUESTION_CLASSIFIER_LABELS = {
-  question: "a spoken interview question",
-  nonQuestion: "a spoken statement or answer",
+  question: "A question, request or instruction. Example: 'Do you know about', 'tell me about', 'what is ...'",
+  nonQuestion: "A statement or answer that is not a question. Example: 'ok, thanks for that', 'alright, let's move on to the next question'",
+  statement: "A statement or answer that is not a question. Example: 'ok, thanks for that', 'alright, let's move on to the next question'",
+  anecdote: "A short story or anecdote. Example: 'I had one project that I was really proud of.'",
+  greeting: "A greeting. Example: 'hello', 'hi', 'good morning', 'good afternoon', 'good evening'",
+  introduction: "An introduction. Example: 'I'm John Doe', 'my name is Sarah, thanks for'",
 } as const;
 
 export const LIVE_QUESTION_MIN_SCORE = 0.3;
@@ -79,11 +83,19 @@ function getScoreForLabel(
       label,
     },
   });
+  // look at this code and see if it is correct.
   const index = output.labels.findIndex(
     (candidate) => candidate.trim().toLowerCase() === label.trim().toLowerCase(),
   );
   return index >= 0 ? output.scores[index] ?? 0 : 0;
 }
+
+
+type Score = {
+  label: string;
+  score: number;
+};
+
 
 export function mapQuestionDetectionResult(args: {
   readonly sessionId: string;
@@ -96,6 +108,13 @@ export function mapQuestionDetectionResult(args: {
   readonly minMargin?: number;
 }): QuestionDetectionPayload | null {
   const output = normalizeZeroShotOutput(args.raw);
+
+  const scores = Object.values(QUESTION_CLASSIFIER_LABELS).reduce((acc: Score[], question: string) => {
+    const score = getScoreForLabel(output, question);
+    acc.push({ label: question, score });
+    return acc;
+  }, [] as Score[]).sort((a: Score, b: Score) => b.score - a.score);
+
   const questionScore = getScoreForLabel(
     output,
     QUESTION_CLASSIFIER_LABELS.question,
@@ -104,25 +123,45 @@ export function mapQuestionDetectionResult(args: {
     output,
     QUESTION_CLASSIFIER_LABELS.nonQuestion,
   );
+
+  if (scores[0]?.label === QUESTION_CLASSIFIER_LABELS.question || (scores.find(score => score.label === QUESTION_CLASSIFIER_LABELS.question)?.score ?? 0) > 0.2) {
+    log.ger({
+      type: "info",
+      message: "[question-detection] question detected by label",
+      data: {
+        sessionId: args.sessionId.slice(0, 8),
+        chunkId: args.chunkId,
+        source: args.source,
+        scores,
+        questionScore: scores[0]?.score.toFixed(4),
+      },
+    });
+    return {
+      sessionId: args.sessionId,
+      chunkId: args.chunkId,
+      source: args.source,
+      text: args.text.trim(),
+      questionScore,
+      nonQuestionScore,
+      detectedAt: args.detectedAt ?? new Date().toISOString(),
+    };
+  }
   const minScore = args.minScore ?? LIVE_QUESTION_MIN_SCORE;
   const minMargin = args.minMargin ?? LIVE_QUESTION_MIN_MARGIN;
   const margin = questionScore - nonQuestionScore;
 
-  log.ger({
-    type: "info",
-    message: "[question-detection] classifier scores computed",
-    data: {
-      sessionId: args.sessionId.slice(0, 8),
-      chunkId: args.chunkId,
-      source: args.source,
-      textLength: args.text.trim().length,
-      questionScore: questionScore.toFixed(4),
-      nonQuestionScore: nonQuestionScore.toFixed(4),
-      margin: margin.toFixed(4),
-      minScore,
-      minMargin,
-    },
-  });
+  // log.ger({
+  //   type: "info",
+  //   message: "[question-detection] classifier scores computed",
+  //   data: {
+  //     text: args.text,
+  //     questionScore: questionScore.toFixed(4),
+  //     nonQuestionScore: nonQuestionScore.toFixed(4),
+  //     margin: margin.toFixed(4),
+  //     minScore,
+  //     minMargin,
+  //   },
+  // });
 
   if (questionScore < minScore) {
     return null;
@@ -134,7 +173,7 @@ export function mapQuestionDetectionResult(args: {
 
   log.ger({
     type: "info",
-    message: "[question-detection] question detected",
+    message: "[question-detection] question detected by margin",
     data: {
       sessionId: args.sessionId.slice(0, 8),
       chunkId: args.chunkId,
@@ -167,18 +206,18 @@ export function createDetectLiveQuestionUseCase(
       return null;
     }
 
-    log.ger({
-      type: "info",
-      message: "[question-detection] loading classifier pipeline",
-      data: {
-        sessionId: input.sessionId.slice(0, 8),
-        chunkId: input.chunkId,
-        source: input.source,
-        modelId: DISTILBERT_MNLI_MODEL_ID,
-        textLength: text.length,
-        preview: text.slice(0, 200),
-      },
-    });
+    // log.ger({
+    //   type: "info",
+    //   message: "[question-detection] loading classifier pipeline",
+    //   data: {
+    //     sessionId: input.sessionId.slice(0, 8),
+    //     chunkId: input.chunkId,
+    //     source: input.source,
+    //     modelId: DISTILBERT_MNLI_MODEL_ID,
+    //     textLength: text.length,
+    //     preview: text.slice(0, 200),
+    //   },
+    // });
 
     const pipelineUnknown = await dependencies.getPipeline(
       DISTILBERT_MNLI_MODEL_ID,
@@ -188,21 +227,12 @@ export function createDetectLiveQuestionUseCase(
     log.ger({
       type: "info",
       message: "[question-detection] classifier invoked",
-      data: {
-        sessionId: input.sessionId.slice(0, 8),
-        chunkId: input.chunkId,
-        labels: [
-          QUESTION_CLASSIFIER_LABELS.question,
-          QUESTION_CLASSIFIER_LABELS.nonQuestion,
-        ],
-      },
     });
 
     const raw = await classify(
       text,
       [
-        QUESTION_CLASSIFIER_LABELS.question,
-        QUESTION_CLASSIFIER_LABELS.nonQuestion,
+        ...Object.values(QUESTION_CLASSIFIER_LABELS),
       ],
       {
         hypothesis_template: "This transcript chunk is {}.",

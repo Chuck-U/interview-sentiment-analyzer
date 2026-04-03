@@ -1,6 +1,9 @@
 import { decoder as createWebmDecoder } from "@audio/webm-decode";
 
-const TARGET_SAMPLE_RATE = 16_000;
+/** Mono PCM sample rate expected by live ASR (`transcribeAudio`). */
+export const TRANSCRIPTION_TARGET_SAMPLE_RATE = 16_000;
+
+const TARGET_SAMPLE_RATE = TRANSCRIPTION_TARGET_SAMPLE_RATE;
 
 /**
  * Feeds incremental WebM/Opus chunks through `@audio/webm-decode`'s streaming
@@ -98,6 +101,34 @@ export class AudioChunkAccumulator {
     this.initPromise = null;
     this.emittedSamples = 0;
   }
+}
+
+/**
+ * Mix {@link AudioBuffer} channels to mono and resample to
+ * {@link TRANSCRIPTION_TARGET_SAMPLE_RATE} for the same pipeline as WebM chunks.
+ */
+export function audioBufferToMonoPcm16k(audioBuffer: AudioBuffer): Float32Array {
+  const nCh = audioBuffer.numberOfChannels;
+  const len = audioBuffer.length;
+  let mono: Float32Array;
+
+  if (nCh === 1) {
+    mono = audioBuffer.getChannelData(0).slice();
+  } else {
+    mono = new Float32Array(len);
+    const scale = 1 / nCh;
+    for (let ch = 0; ch < nCh; ch++) {
+      const chData = audioBuffer.getChannelData(ch);
+      for (let i = 0; i < len; i++) {
+        mono[i] += chData[i] * scale;
+      }
+    }
+  }
+
+  const rate = audioBuffer.sampleRate;
+  return rate !== TRANSCRIPTION_TARGET_SAMPLE_RATE
+    ? resampleLinear(mono, rate, TRANSCRIPTION_TARGET_SAMPLE_RATE)
+    : mono;
 }
 
 function mixToMono(channelData: Float32Array[]): Float32Array {

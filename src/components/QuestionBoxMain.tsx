@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import { cn } from "@/lib/utils";
 
 import { QuestionStreamCard } from "./molecules/QuestionStreamCard";
-import { useQuestionBox } from "../renderer/question-box/QuestionBoxProvider";
+import { useQuestionBox } from "../renderer/hooks/useQuestionBox";
 
 export function QuestionBoxMain() {
   const { allQuestions, viewIndex } = useQuestionBox();

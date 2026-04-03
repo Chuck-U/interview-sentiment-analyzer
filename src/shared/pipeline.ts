@@ -71,6 +71,12 @@ export const PIPELINE_ARTIFACT_KINDS = [
   "coaching-feedback",
 ] as const;
 
+export const REDUCED_PIPELINE_ARTIFACT_KINDS = [
+  "media-chunk",
+  "transcript",
+] as const;
+
+
 export type PipelineStageName = (typeof PIPELINE_STAGE_NAMES)[number];
 export type PipelineEventType = (typeof PIPELINE_EVENT_TYPES)[number];
 export type PipelineExecutableStageName =
@@ -158,11 +164,17 @@ const pipelineArtifactRefSchema = z.object({
 
 type PipelineArtifactRefShape = z.infer<typeof pipelineArtifactRefSchema>;
 
+const reducedPipelineArtifactRefSchema = pipelineArtifactRefSchema.clone().safeExtend({
+  artifactKind: z.enum(REDUCED_PIPELINE_ARTIFACT_KINDS)
+})
+
 export type PipelineArtifactRef<
   TArtifactKind extends PipelineArtifactKind = PipelineArtifactKind,
 > = Omit<PipelineArtifactRefShape, "artifactKind"> & {
   readonly artifactKind: TArtifactKind;
 };
+
+export type ReducedPipelineArtifactRef = z.infer<typeof reducedPipelineArtifactRefSchema>;
 
 const pipelineArtifactArraySchema = z.array(pipelineArtifactRefSchema);
 

@@ -24,8 +24,8 @@ import { registerSessionLifecycleIpc } from "../../src/backend/infrastructure/ip
 import { registerRecordingIpc } from "../../src/backend/infrastructure/ipc/register-recording-ipc";
 import { createRecordingPersistenceService } from "../../src/backend/infrastructure/recording/recording-persistence";
 import { createRecordingExportService } from "../../src/backend/infrastructure/recording/recording-export";
-import { createRecordingSandboxPersistenceService } from "../../src/backend/infrastructure/recording/recording-sandbox-persistence";
 import { createSessionStorageLayoutResolver } from "../../src/backend/infrastructure/storage/session-storage-layout";
+import { appendSessionTranscriptLog } from "../../src/backend/infrastructure/storage/session-transcript-log";
 import { createAppConfigStore } from "../../src/backend/infrastructure/config/appConfigStore";
 import { registerConfiguredGlobalShortcuts } from "../../src/backend/infrastructure/shortcuts/globalShortcuts.shortcuts";
 import { APP_CONTROL_CHANNELS } from "../../src/shared/app-controls";
@@ -288,7 +288,7 @@ function getWindowBaseSize(role: typeof WINDOW_ROLES[keyof typeof WINDOW_ROLES])
     case WINDOW_ROLES.questionBox:
       return {
         width: MAIN_WINDOW_DEFAULT_WIDTH,
-        height: 320,
+        height: 260,
       };
     case WINDOW_ROLES.options:
       return {
@@ -333,19 +333,18 @@ function createWindow(
   const browserWindow = new BrowserWindow({
     width,
     height,
-    minWidth: width,
-    minHeight: height,
+    minWidth: width - (width * 0.2),
+    minHeight: height - (height * 0.2),
     alwaysOnTop: true,
     frame: false,
     transparent: true,
-    backgroundColor: "#ffffff90",
-    backgroundMaterial: "mica",
+    backgroundColor: "#00000000",
     resizable: true,
     show: isLauncher ? false : true,
     fullscreenable: false,
     skipTaskbar: true,
     hasShadow: true,
-    focusable: true,
+    focusable: false,
     movable: true,
     // preload: we should split the preload into different files for different roles.
 
@@ -496,12 +495,12 @@ function resolveCapturerSourceForDisplay(
   sources: readonly DesktopCapturerSource[],
   displayId: string,
 ): DesktopCapturerSource | undefined {
-  log.ger({ type: "trace", message: "resolveCapturerSourceForDisplay", data: { sources: sources.map(source => ({ display_id: source.display_id, id: source.id, name: source.name })) } });
+  // log.ger({ type: "trace", message: "resolveCapturerSourceForDisplay", data: { sources: sources.map(source => ({ display_id: source.display_id, id: source.id, name: source.name })) } });
   const exact = sources.find((source) => source.display_id === displayId || source.id === displayId);
   if (exact) {
     return exact;
   }
-  log.ger({ type: "trace", message: "monitor not found", source: 'resolveCapturerSourceForDisplay', data: { sources, displayId } });
+  // log.ger({ type: "trace", message: "monitor not found", source: 'resolveCapturerSourceForDisplay', data: { sources, displayId } });
   return undefined;
 }
 
@@ -522,7 +521,7 @@ async function listCaptureDisplays(): Promise<readonly CaptureDisplaySnapshot[]>
 
     return {
       displayId,
-      label: display.label || source?.name || `Display ${displayId}`,
+      label: display.label || source?.name || `${displayId}`,
       isPrimary: displayId === String(primaryDisplay.id),
       bounds: {
         x: display.bounds.x,
@@ -657,11 +656,11 @@ async function initializeApp() {
 
     saveCardWindowPrefsRef = (role, prefs) => {
       appConfigStore.updateCardWindowPreferences(role, prefs).catch((err) => {
-        log.ger({
-          type: "warn",
-          message: "[app saveCardWindowPrefs] failed to persist window preferences",
-          data: err,
-        });
+        // log.ger({
+        //   type: "warn",
+        //   message: "[app saveCardWindowPrefs] failed to persist window preferences",
+        //   data: err,
+        // });
       });
     };
     const secretStore = createSecretStore(app);
@@ -1055,6 +1054,14 @@ async function initializeApp() {
 
     const transcribeAudioHandler = createTranscribeAudioIpcHandler({
       getPipeline: modelLifecycle.getPipeline,
+      async appendTranscriptLog(input) {
+        await appendSessionTranscriptLog({
+          storageLayoutResolver,
+          sessionId: input.sessionId,
+          source: input.source,
+          text: input.text,
+        });
+      },
       publishQuestionDetected(payload) {
         publishToAllWindows(
           QUESTION_DETECTION_EVENT_CHANNELS.questionDetected,
@@ -1062,15 +1069,7 @@ async function initializeApp() {
         );
       },
     });
-    // write transcript to markdown file
-    // const appendToLogFile = (result: TranscriptionResult) => {
-    //   const logFile = path.join(app.getPath("appData"), "interview-sentiment-analyzer.log");
-    //   const logEntry = {
-    //     timestamp: new Date().toISOString(),
-    //     result,
-    //   };
-    //   fs.appendFileSync(logFile, JSON.stringify(logEntry) + "\n");
-    // };
+
 
 
     ipcMain.handle(
@@ -1092,7 +1091,7 @@ async function initializeApp() {
           const captureOptions = await appConfigStore.loadCaptureOptionsConfig();
           const sources = await desktopCapturer.getSources({
             types: ["screen"],
-            thumbnailSize: { width: 300, height: 200 },
+            thumbnailSize: { width: 0, height: 0 },
           });
           const selectedSource = resolvePrimaryDesktopCapturerSource([...sources, {
             ...primaryDisplay,
@@ -1293,7 +1292,7 @@ async function initializeApp() {
       return sources.map(source => {
         return {
           ...source,
-          id: source.id,
+          id: source?.id,
           name: source.name,
           displayId: source.display_id,
           thumbnail: source.thumbnail,
@@ -1349,18 +1348,9 @@ async function initializeApp() {
 
     const recordingPersistence = createRecordingPersistenceService(storageLayoutResolver);
     const recordingExport = createRecordingExportService(storageLayoutResolver);
-    const sandboxRecordingPersistence = createRecordingSandboxPersistenceService(
-      path.join(
-        app.getPath("videos"),
-        "Interview Sentiment Analyzer",
-        "sandbox-captures",
-      ),
-    );
-
     registerRecordingIpc(
       ipcMain,
       recordingPersistence,
-      sandboxRecordingPersistence,
       sessionLifecycleBackend.controller,
     );
 
@@ -1452,7 +1442,6 @@ async function initializeApp() {
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) {
         const browserWindow = createWindow(WINDOW_ROLES.launcher);
-        console.log('[browserWindow show]', browserWindow)
         browserWindow.setMovable(true);
         console.log('[app activate], browserWindow movable set to true')
       }

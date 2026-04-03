@@ -291,15 +291,6 @@ const recordingBridge: RecordingBridge = {
       buffer: Array.from(new Uint8Array(request.buffer)),
     });
   },
-  beginSandboxRecording(request) {
-    return ipcRenderer.invoke(RECORDING_CHANNELS.beginSandboxRecording, request);
-  },
-  saveSandboxRecording(request) {
-    return ipcRenderer.invoke(RECORDING_CHANNELS.saveSandboxRecording, {
-      ...request,
-      buffer: Array.from(new Uint8Array(request.buffer)),
-    });
-  },
   exportRecording(request) {
     return ipcRenderer.invoke(RECORDING_CHANNELS.exportRecording, request);
   },

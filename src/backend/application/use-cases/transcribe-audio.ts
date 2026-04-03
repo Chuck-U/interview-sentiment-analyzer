@@ -1,4 +1,5 @@
 import { logger } from "../../../lib/logger";
+import { DEFAULT_TRANSCRIPTION_MODEL_ID } from "../../../shared/model-manifest";
 import type {
   TranscriptionResult,
 } from "../../../shared/transcription";
@@ -21,7 +22,6 @@ export type TranscribeAudioDependencies = {
   readonly getPipeline: (modelId: string) => Promise<unknown>;
 };
 
-const MOONSHINE_MEDIUM_EN_ID = "onnx-community/moonshine-base-ONNX";
 const Log = logger.forSource("TranscribeAudioUseCase");
 
 export function createTranscribeAudioUseCase(
@@ -30,8 +30,9 @@ export function createTranscribeAudioUseCase(
   return async function transcribeAudio(
     input: TranscribeAudioInput,
   ): Promise<TranscriptionResult> {
+    const start = performance.now();
     const pipelineUnknown: unknown = await dependencies.getPipeline(
-      MOONSHINE_MEDIUM_EN_ID,
+      DEFAULT_TRANSCRIPTION_MODEL_ID,
     );
     const asrPipeline = pipelineUnknown as AsrPipeline;
 
@@ -50,7 +51,7 @@ export function createTranscribeAudioUseCase(
     }
     pcmStats.rms = Math.sqrt(sumSq / (input.pcm.length || 1));
 
-   
+
 
     const raw: unknown = await asrPipeline(input.pcm, {
       return_timestamps: true,
@@ -60,7 +61,7 @@ export function createTranscribeAudioUseCase(
 
     const { text, chunks } = normalizeAsrOutput(raw);
 
-  
+
 
     const result: TranscriptionResult = {
       source: input.source,
@@ -77,7 +78,8 @@ export function createTranscribeAudioUseCase(
         sessionId: input.sessionId.slice(0, 8),
         chunkId: input.chunkId,
         source: input.source,
-        textLength: text.length,
+        textLength: text,
+        duration: performance.now() - start,
       },
     });
 
