@@ -26,10 +26,7 @@ import {
   formatElectronAcceleratorLabel,
 } from "@/shared/shortcuts";
 import { QuestionBoxMain } from "../components/QuestionBoxMain";
-import {
-  QuestionBoxProvider,
-  useQuestionBoxOptional,
-} from "./hooks/QuestionBoxProvider";
+import { useQuestionBox } from "./hooks/useQuestionBox";
 import { OptionsWorkspace } from "./Slot/OptionsWorkspace";
 import { useCaptureOptions } from "./capture-options/useCaptureOptions";
 import { usePinnedWindowBehavior } from "./hooks/usePinnedWindowBehavior";
@@ -87,11 +84,6 @@ function UnsupportedCardWindow({
 }
 
 function QuestionBoxNavControls() {
-  const qb = useQuestionBoxOptional();
-  if (!qb) {
-    return null;
-  }
-
   const {
     allQuestions,
     viewIndex,
@@ -103,7 +95,7 @@ function QuestionBoxNavControls() {
     startMockStream,
     stopMockStream,
     resetQuestions,
-  } = qb;
+  } = useQuestionBox();
 
   const n = allQuestions.length;
   const canPrev = viewIndex > 0;
@@ -119,7 +111,7 @@ function QuestionBoxNavControls() {
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="flex flex-1 items-center justify-center gap-0.5 px-1">
+      <div className="flex flex-0 items-center justify-center gap-0.5 px-1 [&>button]:[webkit-app-region:no-drag] [&>button]:[webkit-app-region:no-drag] ">
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -422,7 +414,7 @@ function CardWindowMainInner({ role }: { readonly role: CardWindowRole }) {
 
   return (
     <div
-      className="flex h-full min-h-0 w-full flex-1 flex-col bg-transparent"
+      className="flex h-fit min-h-0 w-full flex-col bg-transparent"
       id={role}
     >
       <nav
@@ -446,7 +438,7 @@ function CardWindowMainInner({ role }: { readonly role: CardWindowRole }) {
               <WindowPinControl {...pinControlProps} />
             </div>
             {role === WINDOW_ROLES.questionBox ? (
-              <div className="min-w-0 flex-1" style={noDragRegionStyle}>
+              <div className="min-w-0 flex-1" style={dragRegionStyle}>
                 <QuestionBoxNavControls />
               </div>
             ) : null}
@@ -466,7 +458,8 @@ function CardWindowMainInner({ role }: { readonly role: CardWindowRole }) {
       </nav>
       <div
         className="flex min-h-0 w-full flex-1 flex-col overflow-hidden bg-transparent"
-        style={noDragRegionStyle}
+        draggable={!isPinned}
+        style={dragRegionStyle}
       >
         <div className="flex min-h-0 flex-1">
           <div
@@ -484,12 +477,5 @@ function CardWindowMainInner({ role }: { readonly role: CardWindowRole }) {
 }
 
 export function CardWindowMain({ role }: { readonly role: CardWindowRole }) {
-  if (role === WINDOW_ROLES.questionBox) {
-    return (
-      <QuestionBoxProvider>
-        <CardWindowMainInner role={role} />
-      </QuestionBoxProvider>
-    );
-  }
   return <CardWindowMainInner role={role} />;
 }

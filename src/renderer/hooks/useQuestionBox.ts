@@ -1,31 +1,26 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { useCallback, useMemo, useRef } from "react";
 
 import { logger } from "@/lib/logger";
 import { TRANSCRIPTION_TARGET_SAMPLE_RATE } from "@/lib/audio-chunk-accumulator";
 import type { QuestionDetectionPayload } from "@/shared/question-detection";
 
+import { decodeMockClassificationAudio } from "@/lib/decode-mock-classification-audio";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
 import { clearDetectedQuestions } from "../store/slices/questionSlice";
-import { decodeMockClassificationAudio } from "../../lib/decode-mock-classification-audio";
+import {
+  goNext,
+  goPrevious,
+  setMockRunning,
+  setPaused,
+  setViewIndex,
+  toggleIsPaused,
+} from "../store/slices/questionBoxSlice";
 
-const log = logger.forSource("QuestionBoxProvider");
+const log = logger.forSource("useQuestionBox");
 
-/**
- * Cap IPC payload / ASR window. Bundled clip is shorter; this guards larger assets.
- */
 const MOCK_CLASSIFICATION_MAX_SECONDS = 28;
 
-type QuestionBoxContextValue = {
+export type QuestionBoxValue = {
   readonly allQuestions: readonly QuestionDetectionPayload[];
   readonly viewIndex: number;
   readonly isPaused: boolean;
@@ -39,93 +34,51 @@ type QuestionBoxContextValue = {
   readonly resetQuestions: () => void;
 };
 
-const QuestionBoxContext = createContext<QuestionBoxContextValue | null>(null);
-
-export function QuestionBoxProvider({ children }: { readonly children: ReactNode }) {
+export function useQuestionBox(): QuestionBoxValue {
   const dispatch = useAppDispatch();
   const currentSessionId = useAppSelector(
     (state) => state.sessionRecording.currentSession?.id,
   );
   const detectedQuestions = useAppSelector((state) => state.questions.detected);
-
-  const [isMockRunning, setIsMockRunning] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
-  const [viewIndex, setViewIndex] = useState(0);
+  const isMockRunning = useAppSelector((state) => state.questionBox.isMockRunning);
+  const isPaused = useAppSelector((state) => state.questionBox.isPaused);
+  const viewIndex = useAppSelector((state) => state.questionBox.viewIndex);
 
   const mockRunGenerationRef = useRef(0);
 
   const allQuestions = detectedQuestions;
 
-  const allQuestionsRef = useRef(allQuestions);
-  const viewIndexRef = useRef(viewIndex);
-
-  useLayoutEffect(() => {
-    allQuestionsRef.current = allQuestions;
-  }, [allQuestions]);
-
-  useLayoutEffect(() => {
-    viewIndexRef.current = viewIndex;
-  }, [viewIndex]);
-
-  const prevLenRef = useRef(0);
-
-  useEffect(() => {
-    const n = allQuestions.length;
-    const prev = prevLenRef.current;
-    const vi = viewIndexRef.current;
-
-    queueMicrotask(() => {
-      if (n === 0) {
-        setViewIndex(0);
-        prevLenRef.current = 0;
-        return;
-      }
-
-      let next = vi;
-      if (n > prev && !isPaused) {
-        const atEnd = prev === 0 || vi === prev - 1;
-        if (atEnd) {
-          next = n - 1;
-        }
-      }
-      if (vi >= n) {
-        next = Math.max(0, n - 1);
-      }
-      if (next !== vi) {
-        setViewIndex(next);
-      }
-      prevLenRef.current = n;
-    });
-  }, [allQuestions.length, isPaused]);
-
-  const setPaused = useCallback((paused: boolean) => {
-    setIsPaused(paused);
-  }, []);
+  const setPausedCb = useCallback(
+    (paused: boolean) => {
+      dispatch(setPaused(paused));
+    },
+    [dispatch],
+  );
 
   const togglePauseResume = useCallback(() => {
-    setIsPaused((p) => {
-      if (p) {
-        queueMicrotask(() => {
-          const n = allQuestionsRef.current.length;
-          setViewIndex(Math.max(0, n - 1));
-        });
-      }
-      return !p;
-    });
-  }, []);
+    const wasPaused = isPaused;
+    const n = allQuestions.length;
+    dispatch(toggleIsPaused());
+    if (wasPaused) {
+      queueMicrotask(() => {
+        dispatch(setViewIndex(Math.max(0, n - 1)));
+      });
+    }
+  }, [dispatch, isPaused, allQuestions.length]);
 
-  const goPrevious = useCallback(() => {
-    setViewIndex((i) => Math.max(0, i - 1));
-  }, []);
+  const goPreviousCb = useCallback(() => {
+    dispatch(goPrevious());
+  }, [dispatch]);
 
-  const goNext = useCallback(() => {
-    setViewIndex((i) => Math.min(allQuestions.length - 1, i + 1));
-  }, [allQuestions.length]);
+  const goNextCb = useCallback(() => {
+    const last = Math.max(0, allQuestions.length - 1);
+    dispatch(goNext({ lastIndex: last }));
+  }, [dispatch, allQuestions.length]);
 
   const stopMockStream = useCallback(() => {
     mockRunGenerationRef.current += 1;
-    setIsMockRunning(false);
-  }, []);
+    dispatch(setMockRunning(false));
+  }, [dispatch]);
 
   const startMockStream = useCallback(() => {
     if (isMockRunning) {
@@ -136,7 +89,7 @@ export function QuestionBoxProvider({ children }: { readonly children: ReactNode
     const generation = mockRunGenerationRef.current;
     const sid = currentSessionId ?? "mock-session";
 
-    setIsMockRunning(true);
+    dispatch(setMockRunning(true));
 
     void (async () => {
       try {
@@ -181,26 +134,26 @@ export function QuestionBoxProvider({ children }: { readonly children: ReactNode
         });
       } finally {
         if (mockRunGenerationRef.current === generation) {
-          setIsMockRunning(false);
+          dispatch(setMockRunning(false));
         }
       }
     })();
-  }, [currentSessionId, isMockRunning]);
+  }, [currentSessionId, dispatch, isMockRunning]);
 
   const resetQuestions = useCallback(() => {
     dispatch(clearDetectedQuestions());
   }, [dispatch]);
 
-  const value = useMemo<QuestionBoxContextValue>(
+  return useMemo<QuestionBoxValue>(
     () => ({
       allQuestions,
       viewIndex,
       isPaused,
       isMockRunning,
-      setPaused,
+      setPaused: setPausedCb,
       togglePauseResume,
-      goPrevious,
-      goNext,
+      goPrevious: goPreviousCb,
+      goNext: goNextCb,
       startMockStream,
       stopMockStream,
       resetQuestions,
@@ -210,31 +163,13 @@ export function QuestionBoxProvider({ children }: { readonly children: ReactNode
       viewIndex,
       isPaused,
       isMockRunning,
-      setPaused,
+      setPausedCb,
       togglePauseResume,
-      goPrevious,
-      goNext,
+      goPreviousCb,
+      goNextCb,
       startMockStream,
       stopMockStream,
       resetQuestions,
     ],
   );
-
-  return (
-    <QuestionBoxContext.Provider value={value}>
-      {children}
-    </QuestionBoxContext.Provider>
-  );
-}
-
-export function useQuestionBox(): QuestionBoxContextValue {
-  const ctx = useContext(QuestionBoxContext);
-  if (!ctx) {
-    throw new Error("useQuestionBox must be used within QuestionBoxProvider");
-  }
-  return ctx;
-}
-
-export function useQuestionBoxOptional(): QuestionBoxContextValue | null {
-  return useContext(QuestionBoxContext);
 }

@@ -288,7 +288,7 @@ function getWindowBaseSize(role: typeof WINDOW_ROLES[keyof typeof WINDOW_ROLES])
     case WINDOW_ROLES.questionBox:
       return {
         width: MAIN_WINDOW_DEFAULT_WIDTH,
-        height: 320,
+        height: 260,
       };
     case WINDOW_ROLES.options:
       return {
@@ -333,19 +333,18 @@ function createWindow(
   const browserWindow = new BrowserWindow({
     width,
     height,
-    minWidth: width,
-    minHeight: height,
+    minWidth: width - (width * 0.2),
+    minHeight: height - (height * 0.2),
     alwaysOnTop: true,
     frame: false,
     transparent: true,
-    backgroundColor: "#ffffff90",
-    backgroundMaterial: "mica",
+    backgroundColor: "#00000000",
     resizable: true,
     show: isLauncher ? false : true,
     fullscreenable: false,
     skipTaskbar: true,
     hasShadow: true,
-    focusable: true,
+    focusable: false,
     movable: true,
     // preload: we should split the preload into different files for different roles.
 
