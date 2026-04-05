@@ -71,6 +71,7 @@ export type RegisterConfiguredGlobalShortcutsArgs = {
   readonly getCaptureSources: () => Promise<readonly MediaChunkSource[]>;
   readonly onActionError?: (error: unknown) => void;
   readonly toggleVisibility?: () => void;
+  readonly onPingAllWindows?: () => void;
 };
 
 export async function registerConfiguredGlobalShortcuts(
@@ -84,6 +85,7 @@ export async function registerConfiguredGlobalShortcuts(
     getCaptureSources,
     onActionError,
     toggleVisibility,
+    onPingAllWindows,
   } =
     args;
 
@@ -129,6 +131,11 @@ export async function registerConfiguredGlobalShortcuts(
                 currentSession: context.currentSession,
                 getCaptureSources,
               });
+              return;
+            }
+
+            if (action === "pingAllWindows") {
+              onPingAllWindows?.();
               return;
             }
 

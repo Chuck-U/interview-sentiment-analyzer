@@ -60,6 +60,7 @@ import { type MediaChunkSource, type SessionSnapshot } from "../../src/shared/se
 import {
   SHORTCUTS_IPC_CHANNELS,
   DEFAULT_RECORDING_CAPTURE_SOURCES,
+  normalizeSetShortcutAcceleratorRequest,
   normalizeSetShortcutEnabledRequest,
 } from "../../src/shared/shortcuts";
 import type { SessionLifecycleController } from "../../src/backend/interfaces/controllers/session-lifecycle-controller";
@@ -708,6 +709,57 @@ async function initializeApp() {
       return cards;
     };
 
+    const showOverlayWindows = (): void => {
+      log.ger({ type: "info", message: "[app showOverlayWindows] show" });
+      const snapshot = cardVisibilityBeforeBulkHide;
+      cardVisibilityBeforeBulkHide = null;
+      if (snapshot) {
+        for (const [role, w] of cardWindows) {
+          if (w.isDestroyed()) {
+            continue;
+          }
+          if (snapshot[role]) {
+            try {
+              w.show();
+            } catch (error) {
+              log.ger({
+                type: "warn",
+                message: `[app showOverlayWindows] show card ${role} failed`,
+                data: error,
+              });
+            }
+          }
+        }
+      } else {
+        for (const w of collectAppWindows()) {
+          if (w.isDestroyed()) {
+            continue;
+          }
+          try {
+            w.show();
+          } catch (error) {
+            log.ger({
+              type: "warn",
+              message: "[app showOverlayWindows] show (fallback) failed",
+              data: error,
+            });
+          }
+        }
+      }
+      if (!mainWindow.isDestroyed()) {
+        try {
+          mainWindow.show();
+          mainWindow.focus();
+        } catch (error) {
+          log.ger({
+            type: "warn",
+            message: "[app showOverlayWindows] show main failed",
+            data: error,
+          });
+        }
+      }
+    };
+
     const toggleVisibility = () => {
       if (anyAppWindowVisible()) {
         log.ger({ type: "info", message: "[app toggleVisibility] hide" });
@@ -732,56 +784,18 @@ async function initializeApp() {
           }
         }
       } else {
-        log.ger({ type: "info", message: "[app toggleVisibility] show" });
-        const snapshot = cardVisibilityBeforeBulkHide;
-        cardVisibilityBeforeBulkHide = null;
-        if (snapshot) {
-          for (const [role, w] of cardWindows) {
-            if (w.isDestroyed()) {
-              continue;
-            }
-            if (snapshot[role]) {
-              try {
-                w.show();
-              } catch (error) {
-                log.ger({
-                  type: "warn",
-                  message: `[app toggleVisibility] show card ${role} failed`,
-                  data: error,
-                });
-              }
-            }
-          }
-        } else {
-          for (const w of collectAppWindows()) {
-            if (w.isDestroyed()) {
-              continue;
-            }
-            try {
-              w.show();
-            } catch (error) {
-              log.ger({
-                type: "warn",
-                message: "[app toggleVisibility] show (fallback) failed",
-                data: error,
-              });
-            }
-          }
-        }
-        if (!mainWindow.isDestroyed()) {
-          try {
-            mainWindow.show();
-            mainWindow.focus();
-          } catch (error) {
-            log.ger({
-              type: "warn",
-              message: "[app toggleVisibility] show main failed",
-              data: error,
-            });
-          }
-        }
+        showOverlayWindows();
       }
       syncTrayMenu();
+    };
+
+    const onPingAllWindows = (): void => {
+      showOverlayWindows();
+      syncTrayMenu();
+      publishToAllWindows(
+        WINDOW_CONTROL_EVENT_CHANNELS.borderPingFlash,
+        undefined,
+      );
     };
 
     const syncTrayMenu = () => {
@@ -912,6 +926,25 @@ async function initializeApp() {
       return appConfigStore.loadShortcutsConfig();
     });
 
+    const reregisterGlobalShortcutsFromStore = async (): Promise<void> => {
+      const updatedConfig = await appConfigStore.loadShortcutsConfig();
+      if (!sessionLifecycleController) {
+        return;
+      }
+      await registerConfiguredGlobalShortcuts({
+        config: updatedConfig,
+        mainWindow,
+        controller: sessionLifecycleController,
+        getCurrentSession: () => currentSession,
+        getCaptureSources: async () => {
+          const captureOptions = await appConfigStore.loadCaptureOptionsConfig();
+          return buildCaptureSourcesFromConfig(captureOptions);
+        },
+        toggleVisibility,
+        onPingAllWindows,
+      });
+    };
+
     ipcMain.handle(
       SHORTCUTS_IPC_CHANNELS.setShortcutEnabled,
       async (_event, input: unknown) => {
@@ -920,21 +953,19 @@ async function initializeApp() {
           shortcutId: request.shortcutId,
           enabled: request.enabled,
         });
+        await reregisterGlobalShortcutsFromStore();
+      },
+    );
 
-        const updatedConfig = await appConfigStore.loadShortcutsConfig();
-
-        if (sessionLifecycleController) {
-          await registerConfiguredGlobalShortcuts({
-            config: updatedConfig,
-            mainWindow,
-            controller: sessionLifecycleController,
-            getCurrentSession: () => currentSession,
-            getCaptureSources: async () => {
-              const captureOptions = await appConfigStore.loadCaptureOptionsConfig();
-              return buildCaptureSourcesFromConfig(captureOptions);
-            },
-          });
-        }
+    ipcMain.handle(
+      SHORTCUTS_IPC_CHANNELS.setShortcutAccelerator,
+      async (_event, input: unknown) => {
+        const request = normalizeSetShortcutAcceleratorRequest(input);
+        await appConfigStore.updateShortcutAccelerator({
+          shortcutId: request.shortcutId,
+          accelerator: request.accelerator,
+        });
+        await reregisterGlobalShortcutsFromStore();
       },
     );
 
@@ -1437,6 +1468,7 @@ async function initializeApp() {
         return buildCaptureSourcesFromConfig(captureOptions);
       },
       toggleVisibility,
+      onPingAllWindows,
     });
 
     app.on("activate", () => {

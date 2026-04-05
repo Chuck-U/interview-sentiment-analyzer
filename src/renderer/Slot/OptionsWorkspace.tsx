@@ -38,9 +38,16 @@ export function OptionsWorkspace({
   isRecording,
   isBusy,
   onToggleRecording,
-  shortcutLabel,
-  isShortcutEnabled,
-  onSetShortcutEnabled,
+  recordingShortcutLabel,
+  recordingAccelerator,
+  isRecordingShortcutEnabled,
+  onSetRecordingShortcutEnabled,
+  onSaveRecordingAccelerator,
+  pingShortcutLabel,
+  pingAccelerator,
+  isPingShortcutEnabled,
+  onSetPingShortcutEnabled,
+  onSavePingAccelerator,
   recordingState,
   onExportRecording,
   permissions,
@@ -171,9 +178,16 @@ export function OptionsWorkspace({
         <OptionsCard title="Options" description="View and manage your options.">
 
           <OptionsOverviewCard
-            shortcutLabel={shortcutLabel}
-            isShortcutEnabled={isShortcutEnabled}
-            onSetShortcutEnabled={onSetShortcutEnabled}
+            recordingShortcutLabel={recordingShortcutLabel}
+            recordingAccelerator={recordingAccelerator}
+            isRecordingShortcutEnabled={isRecordingShortcutEnabled}
+            onSetRecordingShortcutEnabled={onSetRecordingShortcutEnabled}
+            onSaveRecordingAccelerator={onSaveRecordingAccelerator}
+            pingShortcutLabel={pingShortcutLabel}
+            pingAccelerator={pingAccelerator}
+            isPingShortcutEnabled={isPingShortcutEnabled}
+            onSetPingShortcutEnabled={onSetPingShortcutEnabled}
+            onSavePingAccelerator={onSavePingAccelerator}
             isBusy={isBusy}
           />
         </OptionsCard>

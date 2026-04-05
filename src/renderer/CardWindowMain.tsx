@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import { WINDOW_ROLES, type CardWindowRole } from "@/shared/window-registry";
 import type { SessionSnapshot } from "@/shared/session-lifecycle";
 import {
+  DEFAULT_SHORTCUT_ID_PING_WINDOWS,
   DEFAULT_SHORTCUT_ID_RECORDING_TOGGLE,
   formatElectronAcceleratorLabel,
 } from "@/shared/shortcuts";
@@ -34,7 +35,12 @@ import { useRecordingSession } from "./hooks/useRecordingSession";
 import { useShortcutsWindowEffects } from "./hooks/useShortcutsWindowEffects";
 import { useAppDispatch, useAppSelector } from "./store/hooks";
 import { setFeedbackMessage } from "./store/slices/sessionRecordingSlice";
-import { setShortcutEnabled } from "./store/slices/shortcutsWindowSlice";
+import {
+  setPingShortcutAccelerator,
+  setPingShortcutEnabled,
+  setRecordingShortcutAccelerator,
+  setShortcutEnabled,
+} from "./store/slices/shortcutsWindowSlice";
 import { WindowPinControl } from "./window-controls/window-pin-control";
 
 function getStatusCopy(session: SessionSnapshot | null): {
@@ -237,8 +243,14 @@ function CardWindowMainInner({ role }: { readonly role: CardWindowRole }) {
   const recordingShortcutAccelerator = useAppSelector(
     (state) => state.shortcutsWindow.recordingShortcutAccelerator,
   );
-  const isShortcutEnabled = useAppSelector(
+  const isRecordingShortcutEnabled = useAppSelector(
     (state) => state.shortcutsWindow.isShortcutEnabled,
+  );
+  const pingShortcutAccelerator = useAppSelector(
+    (state) => state.shortcutsWindow.pingShortcutAccelerator,
+  );
+  const isPingShortcutEnabled = useAppSelector(
+    (state) => state.shortcutsWindow.isPingShortcutEnabled,
   );
   const windowBounds = useAppSelector(
     (state) => state.shortcutsWindow.windowBounds,
@@ -258,9 +270,9 @@ function CardWindowMainInner({ role }: { readonly role: CardWindowRole }) {
     onError: handleCaptureOptionsError,
   });
 
-  const handleSetShortcutEnabled = useCallback(
+  const handleSetRecordingShortcutEnabled = useCallback(
     (enabled: boolean) => {
-      const previous = isShortcutEnabled;
+      const previous = isRecordingShortcutEnabled;
       dispatch(setShortcutEnabled(enabled));
 
       void window.electronApp.shortcuts
@@ -279,7 +291,79 @@ function CardWindowMainInner({ role }: { readonly role: CardWindowRole }) {
           );
         });
     },
-    [dispatch, isShortcutEnabled],
+    [dispatch, isRecordingShortcutEnabled],
+  );
+
+  const handleSaveRecordingAccelerator = useCallback(
+    (accelerator: string) => {
+      const previous = recordingShortcutAccelerator;
+      dispatch(setRecordingShortcutAccelerator(accelerator));
+
+      void window.electronApp.shortcuts
+        .setShortcutAccelerator({
+          shortcutId: DEFAULT_SHORTCUT_ID_RECORDING_TOGGLE,
+          accelerator,
+        })
+        .catch((error: unknown) => {
+          dispatch(setRecordingShortcutAccelerator(previous));
+          dispatch(
+            setFeedbackMessage(
+              error instanceof Error
+                ? error.message
+                : "Unable to update recording shortcut.",
+            ),
+          );
+        });
+    },
+    [dispatch, recordingShortcutAccelerator],
+  );
+
+  const handleSetPingShortcutEnabled = useCallback(
+    (enabled: boolean) => {
+      const previous = isPingShortcutEnabled;
+      dispatch(setPingShortcutEnabled(enabled));
+
+      void window.electronApp.shortcuts
+        .setShortcutEnabled({
+          shortcutId: DEFAULT_SHORTCUT_ID_PING_WINDOWS,
+          enabled,
+        })
+        .catch((error: unknown) => {
+          dispatch(setPingShortcutEnabled(previous));
+          dispatch(
+            setFeedbackMessage(
+              error instanceof Error
+                ? error.message
+                : "Unable to update ping shortcut.",
+            ),
+          );
+        });
+    },
+    [dispatch, isPingShortcutEnabled],
+  );
+
+  const handleSavePingAccelerator = useCallback(
+    (accelerator: string) => {
+      const previous = pingShortcutAccelerator;
+      dispatch(setPingShortcutAccelerator(accelerator));
+
+      void window.electronApp.shortcuts
+        .setShortcutAccelerator({
+          shortcutId: DEFAULT_SHORTCUT_ID_PING_WINDOWS,
+          accelerator,
+        })
+        .catch((error: unknown) => {
+          dispatch(setPingShortcutAccelerator(previous));
+          dispatch(
+            setFeedbackMessage(
+              error instanceof Error
+                ? error.message
+                : "Unable to update ping shortcut.",
+            ),
+          );
+        });
+    },
+    [dispatch, pingShortcutAccelerator],
   );
 
   const isRecording = currentSession?.status === "active";
@@ -291,13 +375,19 @@ function CardWindowMainInner({ role }: { readonly role: CardWindowRole }) {
   const windowBoundsLabel = windowBounds
     ? `Position ${windowBounds.x}, ${windowBounds.y}`
     : undefined;
-  const shortcutLabel = useMemo(
+  const recordingShortcutLabel = useMemo(
     () =>
       formatElectronAcceleratorLabel(
         recordingShortcutAccelerator,
         platformLabel,
       ),
     [platformLabel, recordingShortcutAccelerator],
+  );
+
+  const pingShortcutLabel = useMemo(
+    () =>
+      formatElectronAcceleratorLabel(pingShortcutAccelerator, platformLabel),
+    [platformLabel, pingShortcutAccelerator],
   );
 
   const handleAttemptDrag = useCallback(
@@ -334,9 +424,16 @@ function CardWindowMainInner({ role }: { readonly role: CardWindowRole }) {
           onToggleRecording={(enabled) => {
             void handleToggleRecording(enabled);
           }}
-          shortcutLabel={shortcutLabel}
-          isShortcutEnabled={isShortcutEnabled}
-          onSetShortcutEnabled={handleSetShortcutEnabled}
+          recordingShortcutLabel={recordingShortcutLabel}
+          recordingAccelerator={recordingShortcutAccelerator}
+          isRecordingShortcutEnabled={isRecordingShortcutEnabled}
+          onSetRecordingShortcutEnabled={handleSetRecordingShortcutEnabled}
+          onSaveRecordingAccelerator={handleSaveRecordingAccelerator}
+          pingShortcutLabel={pingShortcutLabel}
+          pingAccelerator={pingShortcutAccelerator}
+          isPingShortcutEnabled={isPingShortcutEnabled}
+          onSetPingShortcutEnabled={handleSetPingShortcutEnabled}
+          onSavePingAccelerator={handleSavePingAccelerator}
           recordingState={recordingState}
           onExportRecording={() => {
             void handleExportRecording();

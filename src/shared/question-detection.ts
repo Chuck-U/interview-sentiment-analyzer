@@ -10,6 +10,10 @@ export type QuestionDetectionPayload = {
   readonly source: AudioMediaSource;
   readonly text: string;
   readonly questionScore: number;
+  readonly statementScore: number;
+  readonly anecdoteScore: number;
+  readonly greetingScore: number;
+  readonly introductionScore: number;
   readonly nonQuestionScore: number;
   readonly detectedAt: string;
 };

@@ -24,8 +24,12 @@ import {
   MODEL_INIT_CHANNELS,
   MODEL_INIT_EVENT_CHANNELS,
 } from "../../src/shared/model-init";
-import { SHORTCUTS_IPC_CHANNELS, type ShortcutsBridge } from "../../src/shared/shortcuts";
-import { normalizeSetShortcutEnabledRequest } from "../../src/shared/shortcuts";
+import {
+  SHORTCUTS_IPC_CHANNELS,
+  type ShortcutsBridge,
+  normalizeSetShortcutAcceleratorRequest,
+  normalizeSetShortcutEnabledRequest,
+} from "../../src/shared/shortcuts";
 import { CAPTURE_OPTIONS_CHANNELS, CAPTURE_OPTIONS_EVENT_CHANNELS, type CaptureOptionsBridge, normalizeCaptureOptionsConfig } from "../../src/shared/capture-options";
 import type {
   SetAlwaysOnTopRequest,
@@ -192,6 +196,14 @@ const windowControlsBridge: WindowControlsBridge = {
       listener,
     );
   },
+  onBorderPingFlash(listener: () => void) {
+    return subscribeToChannel(
+      WINDOW_CONTROL_EVENT_CHANNELS.borderPingFlash,
+      () => {
+        listener();
+      },
+    );
+  },
 
 };
 
@@ -206,6 +218,12 @@ const shortcutsBridge: ShortcutsBridge = {
     return ipcRenderer.invoke(
       SHORTCUTS_IPC_CHANNELS.setShortcutEnabled,
       normalizeSetShortcutEnabledRequest(request),
+    ) as Promise<void>;
+  },
+  setShortcutAccelerator(request) {
+    return ipcRenderer.invoke(
+      SHORTCUTS_IPC_CHANNELS.setShortcutAccelerator,
+      normalizeSetShortcutAcceleratorRequest(request),
     ) as Promise<void>;
   },
 };
