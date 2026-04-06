@@ -2,6 +2,7 @@ import { logger } from "../../../lib/logger";
 import type { QuestionDetectionPayload } from "../../../shared/question-detection";
 import type { TranscriptionResult } from "../../../shared/transcription";
 import { isAudioMediaChunkSource, type AudioMediaSource } from "../../../shared/session-lifecycle";
+import { LiveQuestionMemory } from "../../application/services/live-question-memory";
 import { LiveQuestionTranscriptBuffer } from "../../application/services/live-question-transcript-buffer";
 import {
   createDetectLiveQuestionUseCase,
@@ -16,32 +17,184 @@ export type AppendTranscriptLogInput = {
   readonly text: string;
 };
 
+const Log = logger.forSource("TranscriptionController");
+
+// ---------------------------------------------------------------------------
+// Post-transcription hook contract
+// ---------------------------------------------------------------------------
+
+export type PostTranscriptionContext = {
+  readonly sessionId: string;
+  readonly chunkId: string;
+  readonly source: AudioMediaSource;
+  readonly transcription: TranscriptionResult;
+};
+
+/**
+ * A composable step that runs after ASR completes.
+ * Hooks run sequentially and should not throw — wrap internal errors with try/catch.
+ */
+export type PostTranscriptionHook = (ctx: PostTranscriptionContext) => Promise<void>;
+
+// ---------------------------------------------------------------------------
+// Built-in hook: live question detection pipeline
+// ---------------------------------------------------------------------------
+
 function liveQuestionBufferKey(sessionId: string, source: AudioMediaSource): string {
   return `${sessionId}\0${source}`;
 }
 
-export type TranscribeAudioIpcHandlerDependencies = {
+export type LiveQuestionDetectionHookOptions = {
   readonly getPipeline: (modelId: string) => Promise<unknown>;
-  readonly appendTranscriptLog?: (
-    input: AppendTranscriptLogInput,
-  ) => Promise<void>;
-  readonly publishQuestionDetected?: (
-    payload: QuestionDetectionPayload,
-  ) => void;
+  readonly minimumQuestionConfidence?: number;
+  readonly questionMemory?: LiveQuestionMemory;
+  readonly appendTranscriptLog?: (input: AppendTranscriptLogInput) => Promise<void>;
+  readonly publishQuestionDetected?: (payload: QuestionDetectionPayload) => void;
 };
 
-const Log = logger.forSource("TranscriptionController");
+export function createLiveQuestionDetectionHook(
+  options: LiveQuestionDetectionHookOptions,
+): PostTranscriptionHook {
+  const liveQuestionBuffers = new Map<string, LiveQuestionTranscriptBuffer>();
+  const minimumQuestionConfidence =
+    options.minimumQuestionConfidence ?? LIVE_QUESTION_MIN_SCORE;
+  const detectLiveQuestionUseCase = createDetectLiveQuestionUseCase({
+    getPipeline: options.getPipeline,
+  });
+
+  return async (ctx) => {
+    try {
+      const { sessionId, chunkId, source, transcription } = ctx;
+      const bufferKey = liveQuestionBufferKey(sessionId, source);
+      let transcriptBuffer = liveQuestionBuffers.get(bufferKey);
+      if (!transcriptBuffer) {
+        transcriptBuffer = new LiveQuestionTranscriptBuffer();
+        liveQuestionBuffers.set(bufferKey, transcriptBuffer);
+      }
+      transcriptBuffer.pushSample(transcription.text);
+
+      if (!transcriptBuffer.shouldEvaluate()) {
+        Log.ger({
+          type: "trace",
+          message: "[transcription] question detection deferred",
+          data: {
+            sessionId: sessionId.slice(0, 8),
+            chunkId,
+            source,
+            bufferedSamples: transcriptBuffer.getSampleCount(),
+            latestPreview: transcription.text.slice(0, 120),
+          },
+        });
+        return;
+      }
+
+      const textForQuestion = transcriptBuffer.getCombinedText();
+      transcriptBuffer.clear();
+
+      if (options.appendTranscriptLog) {
+        try {
+          await options.appendTranscriptLog({ sessionId, source, text: textForQuestion });
+        } catch (appendTranscriptLogError) {
+          Log.ger({
+            type: "warn",
+            message: "[transcription] transcript log append failed",
+            data: {
+              sessionId: sessionId.slice(0, 8),
+              chunkId,
+              source,
+              error:
+                appendTranscriptLogError instanceof Error
+                  ? appendTranscriptLogError.message
+                  : String(appendTranscriptLogError),
+            },
+          });
+        }
+      }
+
+      Log.ger({
+        type: "info",
+        message: "[transcription] starting question detection (rolled-up transcript)",
+        data: {
+          sessionId: sessionId.slice(0, 8),
+          chunkId,
+          source,
+          transcriptPreview: textForQuestion.slice(0, 200),
+          transcriptLength: textForQuestion.length,
+        },
+      });
+
+      const detection = await detectLiveQuestionUseCase({
+        sessionId,
+        chunkId,
+        source,
+        text: textForQuestion,
+      });
+
+      if (detection && detection.questionConfidence >= minimumQuestionConfidence) {
+        Log.ger({
+          type: "info",
+          message: "[transcription] publishing detected question",
+          data: {
+            sessionId: sessionId.slice(0, 8),
+            chunkId,
+            source,
+            questionScore: detection.questionScore.toFixed(4),
+            nonQuestionScore: detection.nonQuestionScore.toFixed(4),
+            questionConfidence: detection.questionConfidence.toFixed(4),
+            preview: detection.text.slice(0, 200),
+          },
+        });
+        options.questionMemory?.setLatestQuestion(sessionId, detection);
+        options.publishQuestionDetected?.(detection);
+      } else if (detection) {
+        Log.ger({
+          type: "trace",
+          message: "[transcription] question detection below publish threshold",
+          data: {
+            sessionId: sessionId.slice(0, 8),
+            chunkId,
+            source,
+            questionConfidence: detection.questionConfidence.toFixed(4),
+            minimumQuestionConfidence: minimumQuestionConfidence.toFixed(4),
+            topLabel: detection.topLabel,
+            preview: detection.text.trim(),
+          },
+        });
+      }
+    } catch (questionDetectionError) {
+      Log.ger({
+        type: "warn",
+        message: "[transcription] question detection failed",
+        data: {
+          sessionId: ctx.sessionId.slice(0, 8),
+          chunkId: ctx.chunkId,
+          source: ctx.source,
+          error:
+            questionDetectionError instanceof Error
+              ? questionDetectionError.message
+              : String(questionDetectionError),
+        },
+      });
+    }
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Core handler factory
+// ---------------------------------------------------------------------------
+
+export type TranscribeAudioIpcHandlerDependencies = {
+  readonly getPipeline: (modelId: string) => Promise<unknown>;
+  readonly postTranscriptionHooks?: readonly PostTranscriptionHook[];
+};
 
 export function createTranscribeAudioIpcHandler(
   dependencies: TranscribeAudioIpcHandlerDependencies,
 ) {
-  const liveQuestionBuffers = new Map<string, LiveQuestionTranscriptBuffer>();
   const transcribeAudioUseCase = createTranscribeAudioUseCase({
     getPipeline: dependencies.getPipeline,
   });
-  const detectLiveQuestionUseCase = createDetectLiveQuestionUseCase({
-    getPipeline: dependencies.getPipeline,
-  });
+  const hooks = dependencies.postTranscriptionHooks ?? [];
 
   return async (_event: unknown, input: unknown): Promise<TranscriptionResult> => {
     Log.ger({
@@ -84,107 +237,9 @@ export function createTranscribeAudioIpcHandler(
         source,
       });
 
-      try {
-        const bufferKey = liveQuestionBufferKey(sessionId, source);
-        let transcriptBuffer = liveQuestionBuffers.get(bufferKey);
-        if (!transcriptBuffer) {
-          transcriptBuffer = new LiveQuestionTranscriptBuffer();
-          liveQuestionBuffers.set(bufferKey, transcriptBuffer);
-        }
-        transcriptBuffer.pushSample(transcription.text);
-
-        if (!transcriptBuffer.shouldEvaluate()) {
-          Log.ger({
-            type: "trace",
-            message: "[transcription] question detection deferred",
-            data: {
-              sessionId: sessionId.slice(0, 8),
-              chunkId,
-              source,
-              bufferedSamples: transcriptBuffer.getSampleCount(),
-              latestPreview: transcription.text.slice(0, 120),
-            },
-          });
-        } else {
-          const textForQuestion = transcriptBuffer.getCombinedText();
-          transcriptBuffer.clear();
-
-          if (dependencies.appendTranscriptLog) {
-            try {
-              await dependencies.appendTranscriptLog({
-                sessionId,
-                source,
-                text: textForQuestion,
-              });
-            } catch (appendTranscriptLogError) {
-              Log.ger({
-                type: "warn",
-                message: "[transcription] transcript log append failed",
-                data: {
-                  sessionId: sessionId.slice(0, 8),
-                  chunkId,
-                  source,
-                  error:
-                    appendTranscriptLogError instanceof Error
-                      ? appendTranscriptLogError.message
-                      : String(appendTranscriptLogError),
-                },
-              });
-            }
-          }
-
-          Log.ger({
-            type: "info",
-            message: "[transcription] starting question detection (rolled-up transcript)",
-            data: {
-              sessionId: sessionId.slice(0, 8),
-              chunkId,
-              source,
-              transcriptPreview: textForQuestion.slice(0, 200),
-              transcriptLength: textForQuestion.length,
-            },
-          });
-          // pipeline step
-          const detection = await detectLiveQuestionUseCase({
-            sessionId,
-            chunkId,
-            source,
-            text: textForQuestion,
-          });
-          if (
-            detection &&
-            detection.questionConfidence >= LIVE_QUESTION_MIN_SCORE
-          ) {
-            Log.ger({
-              type: "info",
-              message: "[transcription] publishing detected question",
-              data: {
-                sessionId: sessionId.slice(0, 8),
-                chunkId,
-                source,
-                questionScore: detection.questionScore.toFixed(4),
-                nonQuestionScore: detection.nonQuestionScore.toFixed(4),
-                questionConfidence: detection.questionConfidence.toFixed(4),
-                preview: detection.text.slice(0, 200),
-              },
-            });
-            dependencies.publishQuestionDetected?.(detection);
-          }
-        }
-      } catch (questionDetectionError) {
-        Log.ger({
-          type: "warn",
-          message: "[transcription] question detection failed",
-          data: {
-            sessionId: sessionId.slice(0, 8),
-            chunkId,
-            source,
-            error:
-              questionDetectionError instanceof Error
-                ? questionDetectionError.message
-                : String(questionDetectionError),
-          },
-        });
+      const ctx: PostTranscriptionContext = { sessionId, chunkId, source, transcription };
+      for (const hook of hooks) {
+        await hook(ctx);
       }
 
       return transcription;

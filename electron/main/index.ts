@@ -85,7 +85,11 @@ import {
 } from "../../src/shared/transcription";
 import { QUESTION_DETECTION_EVENT_CHANNELS } from "../../src/shared/question-detection";
 import * as modelLifecycle from "../../src/backend/infrastructure/ml/model-lifecycle-service";
-import { createTranscribeAudioIpcHandler } from "../../src/backend/interfaces/controllers/transcription-controller";
+import { LiveQuestionMemory } from "../../src/backend/application/services/live-question-memory";
+import {
+  createTranscribeAudioIpcHandler,
+  createLiveQuestionDetectionHook,
+} from "../../src/backend/interfaces/controllers/transcription-controller";
 import { cleanupStaleArtifacts } from "./cleanup-stale-artifacts";
 import { isNonEmptyObject, isNonEmptyString } from "@/backend/guards/checks";
 
@@ -1083,22 +1087,30 @@ async function initializeApp() {
       log.ger({ type: "warn", message: "[cleanup] startup cleanup failed", data: err }),
     );
 
+    const questionMemory = new LiveQuestionMemory();
+
     const transcribeAudioHandler = createTranscribeAudioIpcHandler({
       getPipeline: modelLifecycle.getPipeline,
-      async appendTranscriptLog(input) {
-        await appendSessionTranscriptLog({
-          storageLayoutResolver,
-          sessionId: input.sessionId,
-          source: input.source,
-          text: input.text,
-        });
-      },
-      publishQuestionDetected(payload) {
-        publishToAllWindows(
-          QUESTION_DETECTION_EVENT_CHANNELS.questionDetected,
-          payload,
-        );
-      },
+      postTranscriptionHooks: [
+        createLiveQuestionDetectionHook({
+          getPipeline: modelLifecycle.getPipeline,
+          questionMemory,
+          async appendTranscriptLog(input) {
+            await appendSessionTranscriptLog({
+              storageLayoutResolver,
+              sessionId: input.sessionId,
+              source: input.source,
+              text: input.text,
+            });
+          },
+          publishQuestionDetected(payload) {
+            publishToAllWindows(
+              QUESTION_DETECTION_EVENT_CHANNELS.questionDetected,
+              payload,
+            );
+          },
+        }),
+      ],
     });
 
 
@@ -1371,6 +1383,7 @@ async function initializeApp() {
             SESSION_LIFECYCLE_EVENT_CHANNELS.sessionFinalized,
             session,
           );
+          questionMemory.clearSession(session.id);
         },
       },
     );
