@@ -15,6 +15,8 @@ export type QuestionDetectionPayload = {
   readonly greetingScore: number;
   readonly introductionScore: number;
   readonly nonQuestionScore: number;
+  readonly topLabel: string;
+  readonly questionConfidence: number;
   readonly detectedAt: string;
 };
 

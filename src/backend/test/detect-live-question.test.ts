@@ -42,7 +42,7 @@ test("mapQuestionDetectionResult rejects low-confidence classifications", () => 
         QUESTION_CLASSIFIER_LABELS.question,
         QUESTION_CLASSIFIER_LABELS.nonQuestion,
       ],
-      scores: [0.55, 0.45],
+      scores: [0.15, 0.85],
     },
   });
 

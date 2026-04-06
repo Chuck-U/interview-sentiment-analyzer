@@ -2,6 +2,7 @@ import { isNonEmptyNumber } from "@/backend/guards/checks";
 import { log } from "../../../lib/logger";
 import type { QuestionDetectionPayload } from "../../../shared/question-detection";
 import type { AudioMediaSource } from "../../../shared/session-lifecycle";
+const QUESTION_REGEX = new RegExp(/[A-Z][^?.|]*/, "i");
 
 export const DISTILBERT_MNLI_MODEL_ID =
   "onnx-community/distilbert-base-uncased-mnli-ONNX";
@@ -25,7 +26,7 @@ type ZeroShotClassificationPipeline = (
   options?: Record<string, unknown>,
 ) => Promise<unknown>;
 
-type ZeroShotClassificationOutput = {
+export type ZeroShotClassificationOutput = {
   readonly labels: readonly string[];
   readonly scores: readonly number[];
 };
@@ -71,25 +72,62 @@ function normalizeZeroShotOutput(
   };
 }
 
-function getScoreForLabel(
+function getScoreForLabelSilent(
   output: ZeroShotClassificationOutput,
   label: string,
 ): number {
-  log.ger({
-    type: "info",
-    message: "getScoreForLabel",
-    data: {
-      output,
-      label,
-    },
-  });
-  // look at this code and see if it is correct.
   const index = output.labels.findIndex(
     (candidate) => candidate.trim().toLowerCase() === label.trim().toLowerCase(),
   );
   return index >= 0 ? output.scores[index] ?? 0 : 0;
 }
 
+export type QuestionClassifierLabelKey = keyof typeof QUESTION_CLASSIFIER_LABELS;
+
+export type QuestionEvaluationResult = {
+  /** Per-key scores aligned with `QUESTION_CLASSIFIER_LABELS` */
+  readonly scores: Record<QuestionClassifierLabelKey, number>;
+  /** Full classifier label string with the highest score */
+  readonly topLabel: string;
+  /** Gradient 0–1: question signal with competing-label penalty */
+  readonly questionConfidence: number;
+};
+
+/**
+ * Maps zero-shot output to per-label scores, top label, and gradient question confidence.
+ * Formula (tunable): questionScore * (1 - max(statementScore, nonQuestionScore) * 0.5)
+ */
+export function evaluateQuestionScores(
+  output: ZeroShotClassificationOutput,
+): QuestionEvaluationResult {
+  const scores = {} as Record<QuestionClassifierLabelKey, number>;
+  for (const key of Object.keys(QUESTION_CLASSIFIER_LABELS) as QuestionClassifierLabelKey[]) {
+    scores[key] = getScoreForLabelSilent(
+      output,
+      QUESTION_CLASSIFIER_LABELS[key],
+    );
+  }
+
+  const entries = (
+    Object.keys(QUESTION_CLASSIFIER_LABELS) as QuestionClassifierLabelKey[]
+  ).map((key) => ({
+    label: QUESTION_CLASSIFIER_LABELS[key],
+    score: scores[key],
+  }));
+  const top = entries.reduce((a, b) => (a.score >= b.score ? a : b));
+
+  const questionScore = scores.question;
+  const statementScore = scores.statement;
+  const nonQuestionScore = scores.nonQuestion;
+  const questionConfidence =
+    questionScore * (1 - Math.max(statementScore, nonQuestionScore) * 0.5);
+
+  return {
+    scores,
+    topLabel: top.label,
+    questionConfidence,
+  };
+}
 
 type Score = {
   label: string;
@@ -108,21 +146,19 @@ export function mapQuestionDetectionResult(args: {
   readonly minMargin?: number;
 }): QuestionDetectionPayload | null {
   const output = normalizeZeroShotOutput(args.raw);
+  const evaluation = evaluateQuestionScores(output);
 
-  const scores = Object.values(QUESTION_CLASSIFIER_LABELS).reduce((acc: Score[], question: string) => {
-    const score = getScoreForLabel(output, question);
-    acc.push({ label: question, score });
-    return acc;
-  }, [] as Score[]).sort((a: Score, b: Score) => b.score - a.score);
+  const scores = (
+    Object.keys(QUESTION_CLASSIFIER_LABELS) as QuestionClassifierLabelKey[]
+  )
+    .map((key) => ({
+      label: QUESTION_CLASSIFIER_LABELS[key],
+      score: evaluation.scores[key],
+    }))
+    .sort((a: Score, b: Score) => b.score - a.score);
 
-  const questionScore = getScoreForLabel(
-    output,
-    QUESTION_CLASSIFIER_LABELS.question,
-  );
-  const nonQuestionScore = getScoreForLabel(
-    output,
-    QUESTION_CLASSIFIER_LABELS.nonQuestion,
-  );
+  const questionScore = evaluation.scores.question;
+  const nonQuestionScore = evaluation.scores.nonQuestion;
 
   if (scores[0]?.label === QUESTION_CLASSIFIER_LABELS.question || (scores.find(score => score.label === QUESTION_CLASSIFIER_LABELS.question)?.score ?? 0) > 0.2) {
     log.ger({
@@ -143,12 +179,19 @@ export function mapQuestionDetectionResult(args: {
       text: args.text.trim(),
       questionScore,
       nonQuestionScore,
+      statementScore: scores.find(score => score.label === QUESTION_CLASSIFIER_LABELS.statement)?.score ?? 0,
+      anecdoteScore: scores.find(score => score.label === QUESTION_CLASSIFIER_LABELS.anecdote)?.score ?? 0,
+      greetingScore: scores.find(score => score.label === QUESTION_CLASSIFIER_LABELS.greeting)?.score ?? 0,
+      introductionScore: scores.find(score => score.label === QUESTION_CLASSIFIER_LABELS.introduction)?.score ?? 0,
+      topLabel: evaluation.topLabel,
+      questionConfidence: evaluation.questionConfidence,
       detectedAt: args.detectedAt ?? new Date().toISOString(),
     };
   }
   const minScore = args.minScore ?? LIVE_QUESTION_MIN_SCORE;
   const minMargin = args.minMargin ?? LIVE_QUESTION_MIN_MARGIN;
   const margin = questionScore - nonQuestionScore;
+  // Add a regex that looks for a capital letter, followed by any number of word or non-word characters excluding ? | .
 
   // log.ger({
   //   type: "info",
@@ -191,6 +234,12 @@ export function mapQuestionDetectionResult(args: {
     text: args.text.trim(),
     questionScore,
     nonQuestionScore,
+    statementScore: scores.find(score => score.label === QUESTION_CLASSIFIER_LABELS.statement)?.score ?? 0,
+    anecdoteScore: scores.find(score => score.label === QUESTION_CLASSIFIER_LABELS.anecdote)?.score ?? 0,
+    greetingScore: scores.find(score => score.label === QUESTION_CLASSIFIER_LABELS.greeting)?.score ?? 0,
+    introductionScore: scores.find(score => score.label === QUESTION_CLASSIFIER_LABELS.introduction)?.score ?? 0,
+    topLabel: evaluation.topLabel,
+    questionConfidence: evaluation.questionConfidence,
     detectedAt: args.detectedAt ?? new Date().toISOString(),
   };
 }
@@ -239,6 +288,7 @@ export function createDetectLiveQuestionUseCase(
         multi_label: false,
       },
     );
+    // const isolatedQuestion = text.match(QUESTION_REGEX)?.[0];
 
     return mapQuestionDetectionResult({
       sessionId: input.sessionId,
