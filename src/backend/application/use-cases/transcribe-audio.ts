@@ -1,4 +1,4 @@
-import { logger } from "../../../lib/logger";
+import { log } from "../../../lib/logger";
 import { DEFAULT_TRANSCRIPTION_MODEL_ID } from "../../../shared/model-manifest";
 import type {
   TranscriptionResult,
@@ -22,7 +22,7 @@ export type TranscribeAudioDependencies = {
   readonly getPipeline: (modelId: string) => Promise<unknown>;
 };
 
-const Log = logger.forSource("TranscribeAudioUseCase");
+
 
 export function createTranscribeAudioUseCase(
   dependencies: TranscribeAudioDependencies,
@@ -53,10 +53,14 @@ export function createTranscribeAudioUseCase(
 
 
 
+    // Typical live desktop-capture slice is ~6s at 16 kHz mono (AUDIO_CHUNK_INTERVAL_MS).
+    // chunk_length_s above that lets one internal ASR window cover most slices; short PCM
+    // still passes as a single window. Smaller stride than the old 30/5 pair reduces
+    // stitched boundary repetition when a slice is long enough to split.
     const raw: unknown = await asrPipeline(input.pcm, {
       return_timestamps: true,
-      chunk_length_s: 30,
-      stride_length_s: 5,
+      chunk_length_s: 12,
+      stride_length_s: 2,
     });
 
     const { text, chunks } = normalizeAsrOutput(raw);
@@ -71,7 +75,7 @@ export function createTranscribeAudioUseCase(
       ...(chunks && chunks.length > 0 ? { chunks } : {}),
     };
 
-    Log.ger?.({
+    log.ger?.({
       type: "trace",
       message: "[transcription] transcribeAudio complete",
       data: {

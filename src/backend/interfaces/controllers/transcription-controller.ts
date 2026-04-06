@@ -188,6 +188,14 @@ export type TranscribeAudioIpcHandlerDependencies = {
   readonly postTranscriptionHooks?: readonly PostTranscriptionHook[];
 };
 
+function transcribeAudioDedupeKey(
+  sessionId: string,
+  chunkId: string,
+  source: AudioMediaSource,
+): string {
+  return `${sessionId}\0${chunkId}\0${source}`;
+}
+
 export function createTranscribeAudioIpcHandler(
   dependencies: TranscribeAudioIpcHandlerDependencies,
 ) {
@@ -195,6 +203,7 @@ export function createTranscribeAudioIpcHandler(
     getPipeline: dependencies.getPipeline,
   });
   const hooks = dependencies.postTranscriptionHooks ?? [];
+  const completedByKey = new Map<string, TranscriptionResult>();
 
   return async (_event: unknown, input: unknown): Promise<TranscriptionResult> => {
     Log.ger({
@@ -213,6 +222,21 @@ export function createTranscribeAudioIpcHandler(
         throw new Error("transcribeAudio requires a supported audio source");
       }
       const source: AudioMediaSource = parsedRequest.source;
+
+      const dedupeKey = transcribeAudioDedupeKey(sessionId, chunkId, source);
+      const cached = completedByKey.get(dedupeKey);
+      if (cached) {
+        Log.ger({
+          type: "info",
+          message: "[transcription] transcribeAudio duplicate IPC skipped (same session chunk source)",
+          data: {
+            sessionId: sessionId.slice(0, 8),
+            chunkId,
+            source,
+          },
+        });
+        return cached;
+      }
 
       Log.ger({
         type: "info",
@@ -241,6 +265,8 @@ export function createTranscribeAudioIpcHandler(
       for (const hook of hooks) {
         await hook(ctx);
       }
+
+      completedByKey.set(dedupeKey, transcription);
 
       return transcription;
     } catch (err) {

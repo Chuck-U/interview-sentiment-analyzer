@@ -30,7 +30,7 @@ import { QuestionBoxMain } from "../components/QuestionBoxMain";
 import { useQuestionBox } from "./hooks/useQuestionBox";
 import { OptionsWorkspace } from "./Slot/OptionsWorkspace";
 import { useCaptureOptions } from "./capture-options/useCaptureOptions";
-import { usePinnedWindowBehavior } from "./hooks/usePinnedWindowBehavior";
+import { NO_DRAG_REGION_STYLE, usePinnedWindowBehavior } from "./hooks/usePinnedWindowBehavior";
 import { useRecordingSession } from "./hooks/useRecordingSession";
 import { useShortcutsWindowEffects } from "./hooks/useShortcutsWindowEffects";
 import { useAppDispatch, useAppSelector } from "./store/hooks";
@@ -116,102 +116,104 @@ function QuestionBoxNavControls() {
   };
 
   return (
-    <TooltipProvider delayDuration={300}>
-      <div className="flex flex-0 items-center justify-center gap-0.5 px-1 [&>button]:[webkit-app-region:no-drag] [&>button]:[webkit-app-region:no-drag] ">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              className="text-muted-foreground hover:text-foreground"
-              onClick={togglePauseResume}
-              aria-label={isPaused ? "Resume" : "Pause"}
-            >
-              {isPaused ? (
-                <RiPlayFill className="size-4" />
-              ) : (
-                <RiPauseFill className="size-4" />
-              )}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">
-            {isPaused ? "Resume (jump to latest)" : "Pause new cards on top"}
-          </TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              className="text-muted-foreground hover:text-foreground"
-              disabled={!canPrev}
-              onClick={goPrevious}
-              aria-label="Previous question"
-            >
-              <RiArrowUpSLine className="size-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">Previous</TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              className="text-muted-foreground hover:text-foreground"
-              disabled={!canNext}
-              onClick={goNext}
-              aria-label="Next question"
-            >
-              <RiArrowDownSLine className="size-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">Next</TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              className="text-muted-foreground hover:text-foreground"
-              onClick={handleMockStream}
-              aria-label={
-                isMockRunning
-                  ? "Cancel mock classification test"
-                  : "Run bundled speech sample through ASR and question classifier"
-              }
-            >
-              {isMockRunning ? <RiStopFill className="size-3.5" /> : <RiPlayFill className="size-3.5" />}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">
-            {isMockRunning
-              ? "Cancel in-flight mock test"
-              : "Decode bundled WAV (HF transformers.js jfk sample) and transcribe"}
-          </TooltipContent>
+    <div style={NO_DRAG_REGION_STYLE}>
+      <TooltipProvider delayDuration={300}>
+        <div className="flex flex-0 items-center justify-center gap-0.5 px-1 [&>button]:[webkit-app-region:no-drag] [&>button]:[webkit-app-region:no-drag] ">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                className="text-muted-foreground hover:text-foreground"
+                onClick={togglePauseResume}
+                aria-label={isPaused ? "Resume" : "Pause"}
+              >
+                {isPaused ? (
+                  <RiPlayFill className="size-4" />
+                ) : (
+                  <RiPauseFill className="size-4" />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              {isPaused ? "Resume (jump to latest)" : "Pause new cards on top"}
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                className="text-muted-foreground hover:text-foreground"
+                disabled={!canPrev}
+                onClick={goPrevious}
+                aria-label="Previous question"
+              >
+                <RiArrowUpSLine className="size-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Previous</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                className="text-muted-foreground hover:text-foreground"
+                disabled={!canNext}
+                onClick={goNext}
+                aria-label="Next question"
+              >
+                <RiArrowDownSLine className="size-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Next</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                className="text-muted-foreground hover:text-foreground"
+                onClick={handleMockStream}
+                aria-label={
+                  isMockRunning
+                    ? "Cancel mock classification test"
+                    : "Run bundled speech sample through ASR and question classifier"
+                }
+              >
+                {isMockRunning ? <RiStopFill className="size-3.5" /> : <RiPlayFill className="size-3.5" />}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              {isMockRunning
+                ? "Cancel in-flight mock test"
+                : "Decode bundled WAV (HF transformers.js jfk sample) and transcribe"}
+            </TooltipContent>
 
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              className="text-muted-foreground hover:text-foreground"
-              onClick={resetQuestions}
-              aria-label="clear questions"
-            >
-              <RiRefreshLine className="size-3.5" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">Clear questions</TooltipContent>
-        </Tooltip>
-      </div>
-    </TooltipProvider>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                className="text-muted-foreground hover:text-foreground"
+                onClick={resetQuestions}
+                aria-label="clear questions"
+              >
+                <RiRefreshLine className="size-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Clear questions</TooltipContent>
+          </Tooltip>
+        </div>
+      </TooltipProvider>
+    </div>
   );
 }
 

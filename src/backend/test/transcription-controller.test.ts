@@ -236,6 +236,44 @@ test("transcribeAudio rolls up short ASR snippets before question detection", as
   );
 });
 
+test("transcribeAudio IPC dedupes duplicate sessionId chunkId source without re-running ASR or hooks", async () => {
+  let asrCalls = 0;
+  let hookRuns = 0;
+  const getPipeline = mockGetPipeline(
+    () => {
+      asrCalls += 1;
+      return { text: "duplicate chunk transcript", chunks: [] };
+    },
+    () => {
+      throw new Error("classifier must not run for duplicate IPC short-circuit");
+    },
+  );
+
+  const handler = createTranscribeAudioIpcHandler({
+    getPipeline,
+    postTranscriptionHooks: [
+      async () => {
+        hookRuns += 1;
+      },
+    ],
+  });
+
+  const payload = {
+    sessionId: "session-dedupe",
+    chunkId: "chunk-same",
+    source: "desktop-capture" as const,
+    pcmSamples: [0, 0.1],
+  };
+
+  const first = await handler(undefined, payload);
+  const second = await handler(undefined, payload);
+
+  assert.equal(asrCalls, 1);
+  assert.equal(hookRuns, 1);
+  assert.equal(second.text, first.text);
+  assert.equal(second.chunkId, first.chunkId);
+});
+
 test("transcribeAudio handler works without any hooks (microphone-only use case)", async () => {
   const getPipeline = mockGetPipeline(
     () => ({ text: "I built a distributed cache layer.", chunks: [] }),
