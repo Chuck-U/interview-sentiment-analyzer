@@ -184,3 +184,67 @@ test("persisted pipeline events can skip artifact handoff validation (legacy row
   assert.equal(legacy.eventType, "derive_signals.requested");
   assert.equal(legacy.payload.inputArtifacts.length, 1);
 });
+
+test("pipeline events preserve graph-state snapshots and provider routes", () => {
+  const transcriptReady = createPipelineEventEnvelope({
+    eventId: "event-graph-state-1",
+    eventType: "transcript.ready",
+    sessionId: "session-1",
+    chunkId: "chunk-1",
+    correlationId: "correlation-1",
+    occurredAt: "2026-03-12T12:01:00.000Z",
+    payload: {
+      chunkId: "chunk-1",
+      completedAt: "2026-03-12T12:01:00.000Z",
+      language: "en",
+      inputArtifacts: [
+        {
+          artifactId: "media-1",
+          artifactKind: "media-chunk",
+          relativePath: "chunks/audio/chunk-1.wav",
+        },
+      ],
+      outputArtifacts: [
+        {
+          artifactId: "transcript-1",
+          artifactKind: "transcript",
+          relativePath: "transcripts/chunk-1.json",
+        },
+      ],
+      graphState: {
+        activeQuestion: {
+          questionId: "question-1",
+          questionText: "Tell me about a time you resolved a conflict.",
+          sourceEventId: "question-event-1",
+          sourceChunkId: "chunk-1",
+          detectedAt: "2026-03-12T12:01:00.000Z",
+          confidence: 0.92,
+        },
+        liveAnswerEvaluation: {
+          status: "waiting-for-answer",
+          lastUpdatedAt: "2026-03-12T12:01:00.000Z",
+          streakCount: 0,
+        },
+      },
+      providerRoute: {
+        routeKind: "local",
+        providerId: "local-pipeline-analysis",
+        modelId: "onnx-community/distilbert-base-uncased-mnli-ONNX",
+        selectedAt: "2026-03-12T12:01:00.000Z",
+      },
+    },
+  });
+
+  assert.equal(
+    transcriptReady.payload.graphState?.activeQuestion?.questionText,
+    "Tell me about a time you resolved a conflict.",
+  );
+  assert.equal(
+    transcriptReady.payload.providerRoute?.providerId,
+    "local-pipeline-analysis",
+  );
+  assert.equal(
+    transcriptReady.payload.graphState?.liveAnswerEvaluation?.status,
+    "waiting-for-answer",
+  );
+});

@@ -5,7 +5,7 @@ import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { BuiltInPipelineOrchestrator } from "../application/services/pipeline-orchestrator";
+import { LangChainPipelineOrchestrator } from "../application/services/langchain-pipeline-orchestrator";
 import { createSessionRecoveryService } from "../application/services/session-recovery";
 import type {
   FileMetadata,
@@ -140,7 +140,7 @@ async function createTestContext() {
     pipelineEventRepository,
     sessionRepository,
   });
-  const pipelineOrchestrator = new BuiltInPipelineOrchestrator({
+  const pipelineOrchestrator = new LangChainPipelineOrchestrator({
     analysisProvider: new LocalPipelineAnalysisProvider({
       clock: fixedClock,
       idGenerator,
