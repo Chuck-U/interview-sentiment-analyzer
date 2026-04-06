@@ -3,7 +3,10 @@ import type { QuestionDetectionPayload } from "../../../shared/question-detectio
 import type { TranscriptionResult } from "../../../shared/transcription";
 import { isAudioMediaChunkSource, type AudioMediaSource } from "../../../shared/session-lifecycle";
 import { LiveQuestionTranscriptBuffer } from "../../application/services/live-question-transcript-buffer";
-import { createDetectLiveQuestionUseCase } from "../../application/use-cases/detect-live-question";
+import {
+  createDetectLiveQuestionUseCase,
+  LIVE_QUESTION_MIN_SCORE,
+} from "../../application/use-cases/detect-live-question";
 import { parseTranscribeAudioRequest } from "../../guards/transcribe-audio-request";
 import { createTranscribeAudioUseCase } from "../../application/use-cases/transcribe-audio";
 
@@ -141,13 +144,17 @@ export function createTranscribeAudioIpcHandler(
               transcriptLength: textForQuestion.length,
             },
           });
-          const detectedQuestion = await detectLiveQuestionUseCase({
+          // pipeline step
+          const detection = await detectLiveQuestionUseCase({
             sessionId,
             chunkId,
             source,
             text: textForQuestion,
           });
-          if (detectedQuestion) {
+          if (
+            detection &&
+            detection.questionConfidence >= LIVE_QUESTION_MIN_SCORE
+          ) {
             Log.ger({
               type: "info",
               message: "[transcription] publishing detected question",
@@ -155,12 +162,13 @@ export function createTranscribeAudioIpcHandler(
                 sessionId: sessionId.slice(0, 8),
                 chunkId,
                 source,
-                questionScore: detectedQuestion.questionScore.toFixed(4),
-                nonQuestionScore: detectedQuestion.nonQuestionScore.toFixed(4),
-                preview: detectedQuestion.text.slice(0, 200),
+                questionScore: detection.questionScore.toFixed(4),
+                nonQuestionScore: detection.nonQuestionScore.toFixed(4),
+                questionConfidence: detection.questionConfidence.toFixed(4),
+                preview: detection.text.slice(0, 200),
               },
             });
-            dependencies.publishQuestionDetected?.(detectedQuestion);
+            dependencies.publishQuestionDetected?.(detection);
           }
         }
       } catch (questionDetectionError) {

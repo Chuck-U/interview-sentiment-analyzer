@@ -2,7 +2,6 @@ import { isNonEmptyNumber } from "@/backend/guards/checks";
 import { log } from "../../../lib/logger";
 import type { QuestionDetectionPayload } from "../../../shared/question-detection";
 import type { AudioMediaSource } from "../../../shared/session-lifecycle";
-const QUESTION_REGEX = new RegExp(/[A-Z][^?.|]*/, "i");
 
 export const DISTILBERT_MNLI_MODEL_ID =
   "onnx-community/distilbert-base-uncased-mnli-ONNX";
@@ -16,8 +15,8 @@ export const QUESTION_CLASSIFIER_LABELS = {
   introduction: "An introduction. Example: 'I'm John Doe', 'my name is Sarah, thanks for'",
 } as const;
 
+/** Default minimum `questionConfidence` (0–1) for publishing a detected question. */
 export const LIVE_QUESTION_MIN_SCORE = 0.3;
-export const LIVE_QUESTION_MIN_MARGIN = 0.12;
 
 
 type ZeroShotClassificationPipeline = (
@@ -129,12 +128,6 @@ export function evaluateQuestionScores(
   };
 }
 
-type Score = {
-  label: string;
-  score: number;
-};
-
-
 export function mapQuestionDetectionResult(args: {
   readonly sessionId: string;
   readonly chunkId: string;
@@ -142,90 +135,12 @@ export function mapQuestionDetectionResult(args: {
   readonly text: string;
   readonly raw: unknown;
   readonly detectedAt?: string;
-  readonly minScore?: number;
-  readonly minMargin?: number;
-}): QuestionDetectionPayload | null {
+}): QuestionDetectionPayload {
   const output = normalizeZeroShotOutput(args.raw);
   const evaluation = evaluateQuestionScores(output);
 
-  const scores = (
-    Object.keys(QUESTION_CLASSIFIER_LABELS) as QuestionClassifierLabelKey[]
-  )
-    .map((key) => ({
-      label: QUESTION_CLASSIFIER_LABELS[key],
-      score: evaluation.scores[key],
-    }))
-    .sort((a: Score, b: Score) => b.score - a.score);
-
   const questionScore = evaluation.scores.question;
   const nonQuestionScore = evaluation.scores.nonQuestion;
-
-  if (scores[0]?.label === QUESTION_CLASSIFIER_LABELS.question || (scores.find(score => score.label === QUESTION_CLASSIFIER_LABELS.question)?.score ?? 0) > 0.2) {
-    log.ger({
-      type: "info",
-      message: "[question-detection] question detected by label",
-      data: {
-        sessionId: args.sessionId.slice(0, 8),
-        chunkId: args.chunkId,
-        source: args.source,
-        scores,
-        questionScore: scores[0]?.score.toFixed(4),
-      },
-    });
-    return {
-      sessionId: args.sessionId,
-      chunkId: args.chunkId,
-      source: args.source,
-      text: args.text.trim(),
-      questionScore,
-      nonQuestionScore,
-      statementScore: scores.find(score => score.label === QUESTION_CLASSIFIER_LABELS.statement)?.score ?? 0,
-      anecdoteScore: scores.find(score => score.label === QUESTION_CLASSIFIER_LABELS.anecdote)?.score ?? 0,
-      greetingScore: scores.find(score => score.label === QUESTION_CLASSIFIER_LABELS.greeting)?.score ?? 0,
-      introductionScore: scores.find(score => score.label === QUESTION_CLASSIFIER_LABELS.introduction)?.score ?? 0,
-      topLabel: evaluation.topLabel,
-      questionConfidence: evaluation.questionConfidence,
-      detectedAt: args.detectedAt ?? new Date().toISOString(),
-    };
-  }
-  const minScore = args.minScore ?? LIVE_QUESTION_MIN_SCORE;
-  const minMargin = args.minMargin ?? LIVE_QUESTION_MIN_MARGIN;
-  const margin = questionScore - nonQuestionScore;
-  // Add a regex that looks for a capital letter, followed by any number of word or non-word characters excluding ? | .
-
-  // log.ger({
-  //   type: "info",
-  //   message: "[question-detection] classifier scores computed",
-  //   data: {
-  //     text: args.text,
-  //     questionScore: questionScore.toFixed(4),
-  //     nonQuestionScore: nonQuestionScore.toFixed(4),
-  //     margin: margin.toFixed(4),
-  //     minScore,
-  //     minMargin,
-  //   },
-  // });
-
-  if (questionScore < minScore) {
-    return null;
-  }
-
-  if (margin < minMargin) {
-    return null;
-  }
-
-  log.ger({
-    type: "info",
-    message: "[question-detection] question detected by margin",
-    data: {
-      sessionId: args.sessionId.slice(0, 8),
-      chunkId: args.chunkId,
-      source: args.source,
-      questionScore: questionScore.toFixed(4),
-      nonQuestionScore: nonQuestionScore.toFixed(4),
-      preview: args.text.trim().slice(0, 200),
-    },
-  });
 
   return {
     sessionId: args.sessionId,
@@ -234,10 +149,10 @@ export function mapQuestionDetectionResult(args: {
     text: args.text.trim(),
     questionScore,
     nonQuestionScore,
-    statementScore: scores.find(score => score.label === QUESTION_CLASSIFIER_LABELS.statement)?.score ?? 0,
-    anecdoteScore: scores.find(score => score.label === QUESTION_CLASSIFIER_LABELS.anecdote)?.score ?? 0,
-    greetingScore: scores.find(score => score.label === QUESTION_CLASSIFIER_LABELS.greeting)?.score ?? 0,
-    introductionScore: scores.find(score => score.label === QUESTION_CLASSIFIER_LABELS.introduction)?.score ?? 0,
+    statementScore: evaluation.scores.statement,
+    anecdoteScore: evaluation.scores.anecdote,
+    greetingScore: evaluation.scores.greeting,
+    introductionScore: evaluation.scores.introduction,
     topLabel: evaluation.topLabel,
     questionConfidence: evaluation.questionConfidence,
     detectedAt: args.detectedAt ?? new Date().toISOString(),
@@ -288,7 +203,6 @@ export function createDetectLiveQuestionUseCase(
         multi_label: false,
       },
     );
-    // const isolatedQuestion = text.match(QUESTION_REGEX)?.[0];
 
     return mapQuestionDetectionResult({
       sessionId: input.sessionId,

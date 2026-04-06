@@ -1,7 +1,24 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import {
+  QUESTION_CLASSIFIER_LABELS,
+} from "../application/use-cases/detect-live-question";
 import { createTranscribeAudioIpcHandler } from "../interfaces/controllers/transcription-controller";
+
+const MN_LI_KEYS = Object.keys(QUESTION_CLASSIFIER_LABELS) as Array<
+  keyof typeof QUESTION_CLASSIFIER_LABELS
+>;
+const MN_LI_LABEL_ORDER = MN_LI_KEYS.map((key) => QUESTION_CLASSIFIER_LABELS[key]);
+
+function mnliMockRaw(
+  scoresByKey: Partial<
+    Record<keyof typeof QUESTION_CLASSIFIER_LABELS, number>
+  >,
+): { labels: string[]; scores: number[] } {
+  const scores = MN_LI_KEYS.map((k) => scoresByKey[k] ?? 0);
+  return { labels: [...MN_LI_LABEL_ORDER], scores };
+}
 
 test("transcribeAudio IPC handler publishes detected question payloads", async () => {
   const published: unknown[] = [];
@@ -16,13 +33,11 @@ test("transcribeAudio IPC handler publishes detected question payloads", async (
       }
 
       if (modelId === "onnx-community/distilbert-base-uncased-mnli-ONNX") {
-        return async () => ({
-          labels: [
-            "a spoken interview question",
-            "a spoken statement or answer",
-          ],
-          scores: [0.88, 0.12],
-        });
+        return async () =>
+          mnliMockRaw({
+            question: 0.88,
+            nonQuestion: 0.12,
+          });
       }
 
       throw new Error(`Unexpected model ${modelId}`);
@@ -73,13 +88,11 @@ test("transcribeAudio IPC handler does not publish non-question transcripts", as
       }
 
       if (modelId === "onnx-community/distilbert-base-uncased-mnli-ONNX") {
-        return async () => ({
-          labels: [
-            "a spoken interview question",
-            "a spoken statement or answer",
-          ],
-          scores: [0.11, 0.89],
-        });
+        return async () =>
+          mnliMockRaw({
+            question: 0.11,
+            nonQuestion: 0.89,
+          });
       }
 
       throw new Error(`Unexpected model ${modelId}`);
@@ -119,13 +132,11 @@ test("transcribeAudio rolls up short ASR snippets before question detection", as
       }
 
       if (modelId === "onnx-community/distilbert-base-uncased-mnli-ONNX") {
-        return async () => ({
-          labels: [
-            "a spoken interview question",
-            "a spoken statement or answer",
-          ],
-          scores: [0.88, 0.12],
-        });
+        return async () =>
+          mnliMockRaw({
+            question: 0.88,
+            nonQuestion: 0.12,
+          });
       }
 
       throw new Error(`Unexpected model ${modelId}`);

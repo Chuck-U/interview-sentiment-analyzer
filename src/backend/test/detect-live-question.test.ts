@@ -22,16 +22,15 @@ test("mapQuestionDetectionResult matches labels by name instead of order", () =>
     },
   });
 
-  assert.ok(detection);
   assert.equal(
-    detection?.text,
+    detection.text,
     "Can you walk me through a time you handled conflict?",
   );
-  assert.equal(detection?.questionScore, 0.92);
-  assert.equal(detection?.nonQuestionScore, 0.08);
+  assert.equal(detection.questionScore, 0.92);
+  assert.equal(detection.nonQuestionScore, 0.08);
 });
 
-test("mapQuestionDetectionResult rejects low-confidence classifications", () => {
+test("mapQuestionDetectionResult returns payload with low questionConfidence when classifier favors non-question", () => {
   const detection = mapQuestionDetectionResult({
     sessionId: "session-1",
     chunkId: "chunk-1",
@@ -46,7 +45,9 @@ test("mapQuestionDetectionResult rejects low-confidence classifications", () => 
     },
   });
 
-  assert.equal(detection, null);
+  assert.equal(detection.questionScore, 0.15);
+  assert.equal(detection.nonQuestionScore, 0.85);
+  assert.ok(detection.questionConfidence < 0.3);
 });
 
 test("detectLiveQuestion returns null for blank transcripts", async () => {
