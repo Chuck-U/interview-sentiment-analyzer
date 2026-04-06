@@ -1,12 +1,17 @@
 import { useEffect } from "react";
 
-import { DEFAULT_SHORTCUT_ID_RECORDING_TOGGLE } from "@/shared/shortcuts";
+import {
+  DEFAULT_SHORTCUT_ID_PING_WINDOWS,
+  DEFAULT_SHORTCUT_ID_RECORDING_TOGGLE,
+} from "@/shared/shortcuts";
 
 import { useAppDispatch } from "../store/hooks";
 import { setFeedbackMessage } from "../store/slices/sessionRecordingSlice";
 import {
   setAlwaysOnTop,
   setPinned,
+  setPingShortcutAccelerator,
+  setPingShortcutEnabled,
   setRecordingShortcutAccelerator,
   setShortcutEnabled,
   setWindowBounds,
@@ -25,15 +30,19 @@ export function useShortcutsWindowEffects() {
           return;
         }
 
-        const entry =
+        const recordingEntry =
           config.shortcuts[DEFAULT_SHORTCUT_ID_RECORDING_TOGGLE];
+        const pingEntry = config.shortcuts[DEFAULT_SHORTCUT_ID_PING_WINDOWS];
 
-        if (!entry) {
-          return;
+        if (recordingEntry) {
+          dispatch(setShortcutEnabled(recordingEntry.enabled));
+          dispatch(setRecordingShortcutAccelerator(recordingEntry.accelerator));
         }
 
-        dispatch(setShortcutEnabled(entry.enabled));
-        dispatch(setRecordingShortcutAccelerator(entry.accelerator));
+        if (pingEntry) {
+          dispatch(setPingShortcutEnabled(pingEntry.enabled));
+          dispatch(setPingShortcutAccelerator(pingEntry.accelerator));
+        }
       })
       .catch((error: unknown) => {
         if (!isSubscribed) {

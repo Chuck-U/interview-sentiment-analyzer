@@ -20,6 +20,7 @@ export const WINDOW_CONTROL_EVENT_CHANNELS = {
   boundsChanged: "window-controls:event-bounds-changed",
   alwaysOnTopChanged: "window-controls:event-always-on-top-changed",
   pinnedChanged: "window-controls:event-pinned-changed",
+  borderPingFlash: "window-controls:event-border-ping-flash",
 } as const;
 
 export type WindowBoundsSnapshot = {
@@ -89,6 +90,7 @@ export type WindowControlsBridge = {
   ): Unsubscribe;
   onAlwaysOnTopChanged(listener: (alwaysOnTop: boolean) => void): Unsubscribe;
   onPinnedChanged(listener: (pinned: boolean) => void): Unsubscribe;
+  onBorderPingFlash(listener: () => void): Unsubscribe;
   bringToFront(): void;
   sendToBack(): void;
   // moveWindowTo(request: MoveWindowToRequest): Promise<void>;

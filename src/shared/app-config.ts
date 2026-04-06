@@ -11,6 +11,7 @@ import {
   type AiProviderConfig,
 } from "./ai-provider";
 import {
+  DEFAULT_SHORTCUT_ID_PING_WINDOWS,
   DEFAULT_SHORTCUT_ID_RECORDING_TOGGLE,
   SHORTCUT_ACTIONS,
   type ShortcutAction,
@@ -60,6 +61,11 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
       enabled: true,
       accelerator: "CommandOrControl+Shift+R",
       actions: ["focusWindow", "toggleRecording"],
+    },
+    [DEFAULT_SHORTCUT_ID_PING_WINDOWS]: {
+      enabled: true,
+      accelerator: "CommandOrControl+Shift+Y",
+      actions: ["pingAllWindows"],
     },
   },
   captureOptions: DEFAULT_CAPTURE_OPTIONS_CONFIG,

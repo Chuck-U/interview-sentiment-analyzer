@@ -11,6 +11,7 @@ export const SHORTCUTS_CONFIG_SCHEMA_VERSION = 1 as const;
 export const SHORTCUT_ACTIONS = [
   "toggleRecording",
   "focusWindow",
+  "pingAllWindows",
 ] as const;
 
 export type ShortcutAction = (typeof SHORTCUT_ACTIONS)[number];
@@ -31,6 +32,11 @@ export type SetShortcutEnabledRequest = {
   readonly enabled: boolean;
 };
 
+export type SetShortcutAcceleratorRequest = {
+  readonly shortcutId: string;
+  readonly accelerator: string;
+};
+
 export const DEFAULT_RECORDING_CAPTURE_SOURCES: readonly MediaChunkSource[] = [
   "microphone",
   "desktop-capture",
@@ -47,6 +53,9 @@ export const SHORTCUT_ACTION_SCHEMA = z.enum(SHORTCUT_ACTIONS);
 
 export const DEFAULT_SHORTCUT_ID_RECORDING_TOGGLE = "recording-toggle";
 
+/** Global ping flash; default avoids CommandOrControl+Shift+P (IDE command palette conflict). */
+export const DEFAULT_SHORTCUT_ID_PING_WINDOWS = "ping-windows";
+
 export const DEFAULT_SHORTCUTS_CONFIG: ShortcutsConfig = {
   schemaVersion: SHORTCUTS_CONFIG_SCHEMA_VERSION,
   shortcuts: {
@@ -54,6 +63,11 @@ export const DEFAULT_SHORTCUTS_CONFIG: ShortcutsConfig = {
       enabled: true,
       accelerator: "CommandOrControl+Shift+R",
       actions: ["focusWindow", "toggleRecording"],
+    },
+    [DEFAULT_SHORTCUT_ID_PING_WINDOWS]: {
+      enabled: true,
+      accelerator: "CommandOrControl+Shift+Y",
+      actions: ["pingAllWindows"],
     },
   },
 };
@@ -104,6 +118,25 @@ export function normalizeSetShortcutEnabledRequest(
   return result.data;
 }
 
+const setShortcutAcceleratorRequestSchema = z.object({
+  shortcutId: z.string().trim().min(1, "shortcutId must be non-empty"),
+  accelerator: z
+    .string()
+    .trim()
+    .min(1, "accelerator must be a non-empty string"),
+});
+
+export function normalizeSetShortcutAcceleratorRequest(
+  input: unknown,
+): SetShortcutAcceleratorRequest {
+  const result = setShortcutAcceleratorRequestSchema.safeParse(input);
+  if (!result.success) {
+    throw result.error;
+  }
+
+  return result.data;
+}
+
 function assertCaptureSourcesAreKnown(
   sources: readonly MediaChunkSource[],
 ): void {
@@ -132,12 +165,16 @@ export const SHORTCUTS_IPC_CHANNELS = {
   ensureConfig: "shortcuts:ensure-config",
   getConfig: "shortcuts:get-config",
   setShortcutEnabled: "shortcuts:set-shortcut-enabled",
+  setShortcutAccelerator: "shortcuts:set-shortcut-accelerator",
 } as const;
 
 export type ShortcutsBridge = {
   ensureConfig(): Promise<void>;
   getConfig(): Promise<ShortcutsConfig>;
   setShortcutEnabled(request: SetShortcutEnabledRequest): Promise<void>;
+  setShortcutAccelerator(
+    request: SetShortcutAcceleratorRequest,
+  ): Promise<void>;
 };
 
 // For main-process action handlers.

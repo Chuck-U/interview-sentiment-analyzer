@@ -1,41 +1,26 @@
 
-import type { OptionsProps } from "./Options";
+import type { ShortcutSettingsCardProps } from "./ShortcutSettingsCard";
 import { ShortcutSettingsCard } from "./ShortcutSettingsCard";
 
-// type OptionsOverviewCardProps = Pick<
-//   OptionsProps,
-//   | "statusLabel"
-//   | "statusVariant"
-//   | "platformLabel"
-//   | "windowSizeLabel"
-//   | "windowBoundsLabel"
-//   | "shortcutLabel"
-//   | "isShortcutEnabled"
-//   | "onSetShortcutEnabled"
-//   | "isBusy"
-// >;
+export type OptionsOverviewCardProps = Pick<
+  ShortcutSettingsCardProps,
+  | "recordingShortcutLabel"
+  | "recordingAccelerator"
+  | "isRecordingShortcutEnabled"
+  | "onSetRecordingShortcutEnabled"
+  | "onSaveRecordingAccelerator"
+  | "pingShortcutLabel"
+  | "pingAccelerator"
+  | "isPingShortcutEnabled"
+  | "onSetPingShortcutEnabled"
+  | "onSavePingAccelerator"
+  | "isBusy"
+>;
 
-interface OptionsOverviewCardProps {
-  shortcutLabel: string;
-  isShortcutEnabled: boolean;
-  onSetShortcutEnabled: (enabled: boolean) => void;
-  isBusy: boolean;
-}
-
-export function OptionsOverviewCard({
-  shortcutLabel,
-  isShortcutEnabled,
-  onSetShortcutEnabled,
-  isBusy,
-}: OptionsOverviewCardProps) {
+export function OptionsOverviewCard(props: OptionsOverviewCardProps) {
   return (
     <div>
-      <ShortcutSettingsCard
-        shortcutLabel={shortcutLabel}
-        isShortcutEnabled={isShortcutEnabled}
-        isBusy={isBusy}
-        onSetShortcutEnabled={onSetShortcutEnabled}
-      />
+      <ShortcutSettingsCard {...props} />
     </div>
   );
 }

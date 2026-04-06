@@ -5,6 +5,8 @@ import type { WindowBoundsSnapshot } from "@/shared/window-controls";
 export type ShortcutsWindowState = {
   readonly recordingShortcutAccelerator: string;
   readonly isShortcutEnabled: boolean;
+  readonly pingShortcutAccelerator: string;
+  readonly isPingShortcutEnabled: boolean;
   readonly windowBounds: WindowBoundsSnapshot | null;
   readonly isAlwaysOnTop: boolean;
   readonly isPinned: boolean;
@@ -13,6 +15,8 @@ export type ShortcutsWindowState = {
 const initialState: ShortcutsWindowState = {
   recordingShortcutAccelerator: "CommandOrControl+Shift+R",
   isShortcutEnabled: true,
+  pingShortcutAccelerator: "CommandOrControl+Shift+Y",
+  isPingShortcutEnabled: true,
   windowBounds: null,
   isAlwaysOnTop: true,
   isPinned: false,
@@ -27,6 +31,12 @@ const shortcutsWindowSlice = createSlice({
     },
     setShortcutEnabled(state, action: PayloadAction<boolean>) {
       state.isShortcutEnabled = action.payload;
+    },
+    setPingShortcutAccelerator(state, action: PayloadAction<string>) {
+      state.pingShortcutAccelerator = action.payload;
+    },
+    setPingShortcutEnabled(state, action: PayloadAction<boolean>) {
+      state.isPingShortcutEnabled = action.payload;
     },
     setWindowBounds(state, action: PayloadAction<WindowBoundsSnapshot | null>) {
       state.windowBounds = action.payload;
@@ -43,6 +53,8 @@ const shortcutsWindowSlice = createSlice({
 export const {
   setRecordingShortcutAccelerator,
   setShortcutEnabled,
+  setPingShortcutAccelerator,
+  setPingShortcutEnabled,
   setWindowBounds,
   setAlwaysOnTop,
   setPinned,

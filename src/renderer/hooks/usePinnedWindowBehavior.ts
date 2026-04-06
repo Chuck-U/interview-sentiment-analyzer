@@ -7,7 +7,7 @@ const DRAG_REGION_STYLE = {
   WebkitAppRegion: "drag",
 } as CSSProperties;
 
-const NO_DRAG_REGION_STYLE = {
+export const NO_DRAG_REGION_STYLE = {
   WebkitAppRegion: "no-drag",
 } as CSSProperties;
 

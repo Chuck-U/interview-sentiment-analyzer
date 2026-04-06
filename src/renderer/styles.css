@@ -5,6 +5,23 @@
 
 @custom-variant dark (&:is(.dark *));
 
+@keyframes border-ping-flash {
+  0% {
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.border-ping-flash-layer {
+  /* Three flashes per shortcut press (keyframes are one pulse; repeat 3×). */
+  animation: border-ping-flash 380ms ease-out 0s 3 forwards;
+}
+
 :root {
   color-scheme: dark;
   font-family:

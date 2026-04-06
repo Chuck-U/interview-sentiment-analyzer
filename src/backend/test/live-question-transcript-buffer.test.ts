@@ -25,11 +25,11 @@ test("LiveQuestionTranscriptBuffer evaluates two fragments when combined is long
   const b = new LiveQuestionTranscriptBuffer();
   b.pushSample("tell us about");
   assert.equal(b.shouldEvaluate(), false);
-  b.pushSample("a time you had to be creative");
+  b.pushSample("a time you had to be creative in production");
   assert.equal(b.shouldEvaluate(), true);
   assert.equal(
     b.getCombinedText(),
-    "tell us about a time you had to be creative",
+    "tell us about a time you had to be creative in production",
   );
 });
 
@@ -39,4 +39,11 @@ test("clear resets buffer", () => {
   b.clear();
   assert.equal(b.getSampleCount(), 0);
   assert.equal(b.getCombinedText(), "");
+});
+
+test("LiveQuestionTranscriptBuffer seam-dedupes overlapping consecutive snippets", () => {
+  const b = new LiveQuestionTranscriptBuffer();
+  b.pushSample("we need more");
+  b.pushSample("more context here");
+  assert.equal(b.getCombinedText(), "we need more context here");
 });

@@ -20,9 +20,16 @@ export type OptionsProps = {
   readonly isBusy: boolean;
   readonly onToggleRecording: (enabled: boolean) => void;
 
-  readonly shortcutLabel: string;
-  readonly isShortcutEnabled: boolean;
-  readonly onSetShortcutEnabled: (enabled: boolean) => void;
+  readonly recordingShortcutLabel: string;
+  readonly recordingAccelerator: string;
+  readonly isRecordingShortcutEnabled: boolean;
+  readonly onSetRecordingShortcutEnabled: (enabled: boolean) => void;
+  readonly onSaveRecordingAccelerator: (accelerator: string) => void;
+  readonly pingShortcutLabel: string;
+  readonly pingAccelerator: string;
+  readonly isPingShortcutEnabled: boolean;
+  readonly onSetPingShortcutEnabled: (enabled: boolean) => void;
+  readonly onSavePingAccelerator: (accelerator: string) => void;
 
   readonly recordingState: RecordingStateSnapshot | null;
   readonly onExportRecording?: () => void;
@@ -73,9 +80,16 @@ export function Options({
   isRecording,
   isBusy,
   onToggleRecording,
-  shortcutLabel,
-  isShortcutEnabled,
-  onSetShortcutEnabled,
+  recordingShortcutLabel,
+  recordingAccelerator,
+  isRecordingShortcutEnabled,
+  onSetRecordingShortcutEnabled,
+  onSaveRecordingAccelerator,
+  pingShortcutLabel,
+  pingAccelerator,
+  isPingShortcutEnabled,
+  onSetPingShortcutEnabled,
+  onSavePingAccelerator,
   recordingState,
   onExportRecording,
   permissions,
@@ -128,9 +142,16 @@ export function Options({
         isRecording={isRecording}
         isBusy={isBusy}
         onToggleRecording={onToggleRecording}
-        shortcutLabel={shortcutLabel}
-        isShortcutEnabled={isShortcutEnabled}
-        onSetShortcutEnabled={onSetShortcutEnabled}
+        recordingShortcutLabel={recordingShortcutLabel}
+        recordingAccelerator={recordingAccelerator}
+        isRecordingShortcutEnabled={isRecordingShortcutEnabled}
+        onSetRecordingShortcutEnabled={onSetRecordingShortcutEnabled}
+        onSaveRecordingAccelerator={onSaveRecordingAccelerator}
+        pingShortcutLabel={pingShortcutLabel}
+        pingAccelerator={pingAccelerator}
+        isPingShortcutEnabled={isPingShortcutEnabled}
+        onSetPingShortcutEnabled={onSetPingShortcutEnabled}
+        onSavePingAccelerator={onSavePingAccelerator}
         recordingState={recordingState}
         onExportRecording={onExportRecording}
         permissions={permissions}

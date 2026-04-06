@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import { WINDOW_ROLES, type CardWindowRole } from "@/shared/window-registry";
 import type { SessionSnapshot } from "@/shared/session-lifecycle";
 import {
+  DEFAULT_SHORTCUT_ID_PING_WINDOWS,
   DEFAULT_SHORTCUT_ID_RECORDING_TOGGLE,
   formatElectronAcceleratorLabel,
 } from "@/shared/shortcuts";
@@ -29,12 +30,17 @@ import { QuestionBoxMain } from "../components/QuestionBoxMain";
 import { useQuestionBox } from "./hooks/useQuestionBox";
 import { OptionsWorkspace } from "./Slot/OptionsWorkspace";
 import { useCaptureOptions } from "./capture-options/useCaptureOptions";
-import { usePinnedWindowBehavior } from "./hooks/usePinnedWindowBehavior";
+import { NO_DRAG_REGION_STYLE, usePinnedWindowBehavior } from "./hooks/usePinnedWindowBehavior";
 import { useRecordingSession } from "./hooks/useRecordingSession";
 import { useShortcutsWindowEffects } from "./hooks/useShortcutsWindowEffects";
 import { useAppDispatch, useAppSelector } from "./store/hooks";
 import { setFeedbackMessage } from "./store/slices/sessionRecordingSlice";
-import { setShortcutEnabled } from "./store/slices/shortcutsWindowSlice";
+import {
+  setPingShortcutAccelerator,
+  setPingShortcutEnabled,
+  setRecordingShortcutAccelerator,
+  setShortcutEnabled,
+} from "./store/slices/shortcutsWindowSlice";
 import { WindowPinControl } from "./window-controls/window-pin-control";
 
 function getStatusCopy(session: SessionSnapshot | null): {
@@ -110,102 +116,104 @@ function QuestionBoxNavControls() {
   };
 
   return (
-    <TooltipProvider delayDuration={300}>
-      <div className="flex flex-0 items-center justify-center gap-0.5 px-1 [&>button]:[webkit-app-region:no-drag] [&>button]:[webkit-app-region:no-drag] ">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              className="text-muted-foreground hover:text-foreground"
-              onClick={togglePauseResume}
-              aria-label={isPaused ? "Resume" : "Pause"}
-            >
-              {isPaused ? (
-                <RiPlayFill className="size-4" />
-              ) : (
-                <RiPauseFill className="size-4" />
-              )}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">
-            {isPaused ? "Resume (jump to latest)" : "Pause new cards on top"}
-          </TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              className="text-muted-foreground hover:text-foreground"
-              disabled={!canPrev}
-              onClick={goPrevious}
-              aria-label="Previous question"
-            >
-              <RiArrowUpSLine className="size-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">Previous</TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              className="text-muted-foreground hover:text-foreground"
-              disabled={!canNext}
-              onClick={goNext}
-              aria-label="Next question"
-            >
-              <RiArrowDownSLine className="size-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">Next</TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              className="text-muted-foreground hover:text-foreground"
-              onClick={handleMockStream}
-              aria-label={
-                isMockRunning
-                  ? "Cancel mock classification test"
-                  : "Run bundled speech sample through ASR and question classifier"
-              }
-            >
-              {isMockRunning ? <RiStopFill className="size-3.5" /> : <RiPlayFill className="size-3.5" />}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">
-            {isMockRunning
-              ? "Cancel in-flight mock test"
-              : "Decode bundled WAV (HF transformers.js jfk sample) and transcribe"}
-          </TooltipContent>
+    <div style={NO_DRAG_REGION_STYLE}>
+      <TooltipProvider delayDuration={300}>
+        <div className="flex flex-0 items-center justify-center gap-0.5 px-1 [&>button]:[webkit-app-region:no-drag] [&>button]:[webkit-app-region:no-drag] ">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                className="text-muted-foreground hover:text-foreground"
+                onClick={togglePauseResume}
+                aria-label={isPaused ? "Resume" : "Pause"}
+              >
+                {isPaused ? (
+                  <RiPlayFill className="size-4" />
+                ) : (
+                  <RiPauseFill className="size-4" />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              {isPaused ? "Resume (jump to latest)" : "Pause new cards on top"}
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                className="text-muted-foreground hover:text-foreground"
+                disabled={!canPrev}
+                onClick={goPrevious}
+                aria-label="Previous question"
+              >
+                <RiArrowUpSLine className="size-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Previous</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                className="text-muted-foreground hover:text-foreground"
+                disabled={!canNext}
+                onClick={goNext}
+                aria-label="Next question"
+              >
+                <RiArrowDownSLine className="size-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Next</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                className="text-muted-foreground hover:text-foreground"
+                onClick={handleMockStream}
+                aria-label={
+                  isMockRunning
+                    ? "Cancel mock classification test"
+                    : "Run bundled speech sample through ASR and question classifier"
+                }
+              >
+                {isMockRunning ? <RiStopFill className="size-3.5" /> : <RiPlayFill className="size-3.5" />}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              {isMockRunning
+                ? "Cancel in-flight mock test"
+                : "Decode bundled WAV (HF transformers.js jfk sample) and transcribe"}
+            </TooltipContent>
 
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              className="text-muted-foreground hover:text-foreground"
-              onClick={resetQuestions}
-              aria-label="clear questions"
-            >
-              <RiRefreshLine className="size-3.5" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">Clear questions</TooltipContent>
-        </Tooltip>
-      </div>
-    </TooltipProvider>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                className="text-muted-foreground hover:text-foreground"
+                onClick={resetQuestions}
+                aria-label="clear questions"
+              >
+                <RiRefreshLine className="size-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Clear questions</TooltipContent>
+          </Tooltip>
+        </div>
+      </TooltipProvider>
+    </div>
   );
 }
 
@@ -237,8 +245,14 @@ function CardWindowMainInner({ role }: { readonly role: CardWindowRole }) {
   const recordingShortcutAccelerator = useAppSelector(
     (state) => state.shortcutsWindow.recordingShortcutAccelerator,
   );
-  const isShortcutEnabled = useAppSelector(
+  const isRecordingShortcutEnabled = useAppSelector(
     (state) => state.shortcutsWindow.isShortcutEnabled,
+  );
+  const pingShortcutAccelerator = useAppSelector(
+    (state) => state.shortcutsWindow.pingShortcutAccelerator,
+  );
+  const isPingShortcutEnabled = useAppSelector(
+    (state) => state.shortcutsWindow.isPingShortcutEnabled,
   );
   const windowBounds = useAppSelector(
     (state) => state.shortcutsWindow.windowBounds,
@@ -258,9 +272,9 @@ function CardWindowMainInner({ role }: { readonly role: CardWindowRole }) {
     onError: handleCaptureOptionsError,
   });
 
-  const handleSetShortcutEnabled = useCallback(
+  const handleSetRecordingShortcutEnabled = useCallback(
     (enabled: boolean) => {
-      const previous = isShortcutEnabled;
+      const previous = isRecordingShortcutEnabled;
       dispatch(setShortcutEnabled(enabled));
 
       void window.electronApp.shortcuts
@@ -279,7 +293,79 @@ function CardWindowMainInner({ role }: { readonly role: CardWindowRole }) {
           );
         });
     },
-    [dispatch, isShortcutEnabled],
+    [dispatch, isRecordingShortcutEnabled],
+  );
+
+  const handleSaveRecordingAccelerator = useCallback(
+    (accelerator: string) => {
+      const previous = recordingShortcutAccelerator;
+      dispatch(setRecordingShortcutAccelerator(accelerator));
+
+      void window.electronApp.shortcuts
+        .setShortcutAccelerator({
+          shortcutId: DEFAULT_SHORTCUT_ID_RECORDING_TOGGLE,
+          accelerator,
+        })
+        .catch((error: unknown) => {
+          dispatch(setRecordingShortcutAccelerator(previous));
+          dispatch(
+            setFeedbackMessage(
+              error instanceof Error
+                ? error.message
+                : "Unable to update recording shortcut.",
+            ),
+          );
+        });
+    },
+    [dispatch, recordingShortcutAccelerator],
+  );
+
+  const handleSetPingShortcutEnabled = useCallback(
+    (enabled: boolean) => {
+      const previous = isPingShortcutEnabled;
+      dispatch(setPingShortcutEnabled(enabled));
+
+      void window.electronApp.shortcuts
+        .setShortcutEnabled({
+          shortcutId: DEFAULT_SHORTCUT_ID_PING_WINDOWS,
+          enabled,
+        })
+        .catch((error: unknown) => {
+          dispatch(setPingShortcutEnabled(previous));
+          dispatch(
+            setFeedbackMessage(
+              error instanceof Error
+                ? error.message
+                : "Unable to update ping shortcut.",
+            ),
+          );
+        });
+    },
+    [dispatch, isPingShortcutEnabled],
+  );
+
+  const handleSavePingAccelerator = useCallback(
+    (accelerator: string) => {
+      const previous = pingShortcutAccelerator;
+      dispatch(setPingShortcutAccelerator(accelerator));
+
+      void window.electronApp.shortcuts
+        .setShortcutAccelerator({
+          shortcutId: DEFAULT_SHORTCUT_ID_PING_WINDOWS,
+          accelerator,
+        })
+        .catch((error: unknown) => {
+          dispatch(setPingShortcutAccelerator(previous));
+          dispatch(
+            setFeedbackMessage(
+              error instanceof Error
+                ? error.message
+                : "Unable to update ping shortcut.",
+            ),
+          );
+        });
+    },
+    [dispatch, pingShortcutAccelerator],
   );
 
   const isRecording = currentSession?.status === "active";
@@ -291,13 +377,19 @@ function CardWindowMainInner({ role }: { readonly role: CardWindowRole }) {
   const windowBoundsLabel = windowBounds
     ? `Position ${windowBounds.x}, ${windowBounds.y}`
     : undefined;
-  const shortcutLabel = useMemo(
+  const recordingShortcutLabel = useMemo(
     () =>
       formatElectronAcceleratorLabel(
         recordingShortcutAccelerator,
         platformLabel,
       ),
     [platformLabel, recordingShortcutAccelerator],
+  );
+
+  const pingShortcutLabel = useMemo(
+    () =>
+      formatElectronAcceleratorLabel(pingShortcutAccelerator, platformLabel),
+    [platformLabel, pingShortcutAccelerator],
   );
 
   const handleAttemptDrag = useCallback(
@@ -334,9 +426,16 @@ function CardWindowMainInner({ role }: { readonly role: CardWindowRole }) {
           onToggleRecording={(enabled) => {
             void handleToggleRecording(enabled);
           }}
-          shortcutLabel={shortcutLabel}
-          isShortcutEnabled={isShortcutEnabled}
-          onSetShortcutEnabled={handleSetShortcutEnabled}
+          recordingShortcutLabel={recordingShortcutLabel}
+          recordingAccelerator={recordingShortcutAccelerator}
+          isRecordingShortcutEnabled={isRecordingShortcutEnabled}
+          onSetRecordingShortcutEnabled={handleSetRecordingShortcutEnabled}
+          onSaveRecordingAccelerator={handleSaveRecordingAccelerator}
+          pingShortcutLabel={pingShortcutLabel}
+          pingAccelerator={pingShortcutAccelerator}
+          isPingShortcutEnabled={isPingShortcutEnabled}
+          onSetPingShortcutEnabled={handleSetPingShortcutEnabled}
+          onSavePingAccelerator={handleSavePingAccelerator}
           recordingState={recordingState}
           onExportRecording={() => {
             void handleExportRecording();

@@ -1,3 +1,5 @@
+import { mergeConsecutiveAsrTexts } from "../../guards/merge-asr-transcript-seams";
+
 /**
  * Buffers short streaming ASR snippets per session/source so question detection
  * sees concatenated context instead of each fragment in isolation.
@@ -8,12 +10,10 @@ const DEFAULT_MAX_SAMPLES = 5;
 const DEFAULT_MIN_COMBINED_CHARS_FOR_MULTI_SAMPLE = 48;
 
 function trimJoin(samples: readonly string[]): string {
-  return samples
+  const nonEmpty = samples
     .map((s) => s.trim())
-    .filter((s) => s.length > 0)
-    .join(" ")
-    .replace(/\s+/g, " ")
-    .trim();
+    .filter((s) => s.length > 0);
+  return mergeConsecutiveAsrTexts(nonEmpty);
 }
 
 function endsWithSentenceBoundary(text: string): boolean {

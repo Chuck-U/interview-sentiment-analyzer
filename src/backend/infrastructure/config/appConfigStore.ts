@@ -11,6 +11,7 @@ import {
 import type { CaptureOptionsConfig } from "../../../shared/capture-options";
 import {
   SHORTCUTS_CONFIG_SCHEMA_VERSION,
+  type SetShortcutAcceleratorRequest,
   type SetShortcutEnabledRequest,
   type ShortcutsConfig,
   safeParseShortcutsConfig,
@@ -64,6 +65,31 @@ function tryMigrateLegacyConfig(input: unknown): AppConfig | null {
   };
 }
 
+function mergeMissingShortcutsFromDefaults(config: AppConfig): {
+  readonly merged: AppConfig;
+  readonly didMerge: boolean;
+} {
+  const defaults = cloneDefaultAppConfig();
+  let didMerge = false;
+  const shortcuts: AppConfig["shortcuts"] = { ...config.shortcuts };
+
+  for (const [id, entry] of Object.entries(defaults.shortcuts)) {
+    if (shortcuts[id] === undefined) {
+      shortcuts[id] = entry;
+      didMerge = true;
+    }
+  }
+
+  if (!didMerge) {
+    return { merged: config, didMerge: false };
+  }
+
+  return {
+    merged: { ...config, shortcuts },
+    didMerge: true,
+  };
+}
+
 export type AppConfigStore = {
   ensureConfigExists(): Promise<void>;
   loadConfig(): Promise<AppConfig>;
@@ -72,6 +98,9 @@ export type AppConfigStore = {
   loadCaptureOptionsConfig(): Promise<CaptureOptionsConfig>;
   loadAiProviderConfig(): Promise<AppConfig["aiProvider"]>;
   updateShortcutEnabled(args: SetShortcutEnabledRequest): Promise<void>;
+  updateShortcutAccelerator(
+    args: SetShortcutAcceleratorRequest,
+  ): Promise<void>;
   saveCaptureOptionsConfig(config: CaptureOptionsConfig): Promise<CaptureOptionsConfig>;
   saveAiProviderConfig(config: AppConfig["aiProvider"]): Promise<AppConfig["aiProvider"]>;
   loadWindowPreferences(): Promise<WindowPreferencesConfig>;
@@ -133,13 +162,20 @@ export function createAppConfigStore(
     const result = safeParseAppConfig(parsed);
 
     if (result.success) {
-      return result.data;
+      const { merged, didMerge } = mergeMissingShortcutsFromDefaults(
+        result.data,
+      );
+      if (didMerge) {
+        await writeAtomicJsonFile(configPath, merged);
+      }
+      return merged;
     }
 
     const migrated = tryMigrateLegacyConfig(parsed);
     if (migrated) {
-      await writeAtomicJsonFile(configPath, migrated);
-      return migrated;
+      const { merged } = mergeMissingShortcutsFromDefaults(migrated);
+      await writeAtomicJsonFile(configPath, merged);
+      return merged;
     }
 
     const defaults = cloneDefaultAppConfig();
@@ -182,6 +218,27 @@ export function createAppConfigStore(
           [args.shortcutId]: {
             ...existingEntry,
             enabled: args.enabled,
+          },
+        },
+      };
+
+      await saveConfig(updated);
+    },
+    async updateShortcutAccelerator(args) {
+      const current = await loadConfig();
+      const existingEntry = current.shortcuts[args.shortcutId];
+
+      if (!existingEntry) {
+        throw new Error(`Unknown shortcutId '${args.shortcutId}'`);
+      }
+
+      const updated: AppConfig = {
+        ...current,
+        shortcuts: {
+          ...current.shortcuts,
+          [args.shortcutId]: {
+            ...existingEntry,
+            accelerator: args.accelerator.trim(),
           },
         },
       };
