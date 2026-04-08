@@ -129,9 +129,10 @@ export class LiveTranscriptionStateGraph {
 
     switch (input.source) {
       case "desktop-capture":
-        if (provenance === "mixed-desktop-audio") {
-          break;
-        }
+        // Mixed desktop includes the interviewee mic in the same waveform; we still run
+        // question detection so unified desktop+mic sessions work. Provenance is stamped on
+        // events/logs so consumers know the stream is not interviewer-only. Answer scoring
+        // stays on the dedicated microphone path only.
         await this.processQuestionProducer(sessionState, input);
         break;
       case "system-audio":

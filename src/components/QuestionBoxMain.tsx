@@ -4,10 +4,9 @@ import { cn } from "@/lib/utils";
 
 import { QuestionStreamCard } from "./molecules/QuestionStreamCard";
 import { useQuestionBox } from "../renderer/hooks/useQuestionBox";
+import { QuestionDetectionPayload } from "@/shared/question-detection";
 
-export function QuestionBoxMain() {
-  const { allQuestions, viewIndex } = useQuestionBox();
-
+export function TopicBox({ allQuestions, viewIndex }: { allQuestions: readonly QuestionDetectionPayload[], viewIndex: number }) {
   const hasQuestions = allQuestions.length > 0;
 
   const stackItems = useMemo(
@@ -24,12 +23,7 @@ export function QuestionBoxMain() {
 
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col gap-3 overflow-hidden px-4 py-3 text-white">
-      <div className="flex shrink-0 flex-col gap-1">
-        <span className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
-          Current Topic
-        </span>
 
-      </div>
 
       <div className="relative min-h-0 flex-1">
         {hasQuestions ? (
@@ -62,4 +56,11 @@ export function QuestionBoxMain() {
       </div>
     </div>
   );
+}
+
+
+export function QuestionBoxMain() {
+
+  const { allQuestions, viewIndex } = useQuestionBox();
+  return (<TopicBox allQuestions={allQuestions} viewIndex={viewIndex} />)
 }

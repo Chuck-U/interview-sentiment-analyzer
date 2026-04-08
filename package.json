@@ -35,7 +35,7 @@
   "dependencies": {
     "@audio/webm-decode": "^1.0.0",
     "@fontsource-variable/nunito-sans": "^5.2.7",
-    "@huggingface/transformers": "^4.0.0",
+    "@huggingface/transformers": "^4.0.1",
     "@langchain/langgraph": "^1.2.2",
     "@reduxjs/toolkit": "^2.11.2",
     "@remixicon/react": "^4.9.0",

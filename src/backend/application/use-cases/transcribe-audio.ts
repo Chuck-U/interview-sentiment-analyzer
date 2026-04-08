@@ -80,17 +80,6 @@ export function createTranscribeAudioUseCase(
       ...(chunks && chunks.length > 0 ? { chunks } : {}),
     };
 
-    log.ger?.({
-      type: "trace",
-      message: "[transcription] transcribeAudio complete",
-      data: {
-        sessionId: input.sessionId.slice(0, 8),
-        chunkId: input.chunkId,
-        source: input.source,
-        textLength: text,
-        duration: performance.now() - start,
-      },
-    });
 
     return result;
   };
