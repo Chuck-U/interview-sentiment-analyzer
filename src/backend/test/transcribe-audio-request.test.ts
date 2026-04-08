@@ -138,3 +138,48 @@ test("parseTranscribeAudioRequest rejects unsupported audio source", () => {
   );
 });
 
+test("parseTranscribeAudioRequest accepts valid provenance values", () => {
+  const provenanceValues = [
+    "dedicated-microphone",
+    "clean-system-audio",
+    "mixed-desktop-audio",
+  ] as const;
+
+  for (const provenance of provenanceValues) {
+    const result = parseTranscribeAudioRequest({
+      sessionId: "sess-123",
+      chunkId: "chunk-abc",
+      pcmSamples: [0],
+      source: "microphone",
+      provenance,
+    });
+    assert.equal(result.provenance, provenance);
+  }
+});
+
+test("parseTranscribeAudioRequest omits provenance when not provided", () => {
+  const result = parseTranscribeAudioRequest({
+    sessionId: "sess-123",
+    chunkId: "chunk-abc",
+    pcmSamples: [0],
+    source: "microphone",
+  });
+  assert.equal(result.provenance, undefined);
+});
+
+test("parseTranscribeAudioRequest rejects invalid provenance values", () => {
+  assert.throws(
+    () =>
+      parseTranscribeAudioRequest({
+        sessionId: "sess-123",
+        chunkId: "chunk-abc",
+        pcmSamples: [0],
+        source: "microphone",
+        provenance: "bogus",
+      }),
+    (err) =>
+      err instanceof Error &&
+      err.message === "transcribeAudio provenance is not a supported value",
+  );
+});
+

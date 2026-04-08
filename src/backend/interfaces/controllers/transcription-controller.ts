@@ -1,6 +1,6 @@
 import { logger } from "../../../lib/logger";
 import type { QuestionDetectionPayload } from "../../../shared/question-detection";
-import type { TranscriptionResult } from "../../../shared/transcription";
+import type { CaptureProvenance, TranscriptionResult } from "../../../shared/transcription";
 import { isAudioMediaChunkSource, type AudioMediaSource } from "../../../shared/session-lifecycle";
 import { LiveQuestionMemory } from "../../application/services/live-question-memory";
 import { LiveQuestionTranscriptBuffer } from "../../application/services/live-question-transcript-buffer";
@@ -27,6 +27,7 @@ export type PostTranscriptionContext = {
   readonly sessionId: string;
   readonly chunkId: string;
   readonly source: AudioMediaSource;
+  readonly provenance?: CaptureProvenance;
   readonly transcription: TranscriptionResult;
 };
 
@@ -261,9 +262,16 @@ export function createTranscribeAudioIpcHandler(
         chunkId,
         source,
         recordedAt: parsedRequest.recordedAt,
+        provenance: parsedRequest.provenance,
       });
 
-      const ctx: PostTranscriptionContext = { sessionId, chunkId, source, transcription };
+      const ctx: PostTranscriptionContext = {
+        sessionId,
+        chunkId,
+        source,
+        provenance: parsedRequest.provenance,
+        transcription,
+      };
       for (const hook of hooks) {
         await hook(ctx);
       }

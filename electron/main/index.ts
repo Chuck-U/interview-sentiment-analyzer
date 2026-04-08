@@ -1109,6 +1109,7 @@ async function initializeApp() {
           storageLayoutResolver,
           sessionId: input.sessionId,
           source: input.source,
+          provenance: input.provenance,
           text: input.text,
           timestamp: input.timestamp,
         });
@@ -1132,6 +1133,7 @@ async function initializeApp() {
             sessionId: ctx.sessionId,
             chunkId: ctx.chunkId,
             source: ctx.source,
+            provenance: ctx.provenance,
             transcription: ctx.transcription,
           });
         },

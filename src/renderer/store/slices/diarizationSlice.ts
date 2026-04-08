@@ -1,10 +1,13 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 
-import type { TranscriptChunk } from "@/shared/transcription";
+import type { CaptureProvenance, TranscriptChunk } from "@/shared/transcription";
+import type { AudioMediaSource } from "@/shared/session-lifecycle";
 
 export type TranscriptSegment = {
   sessionId: string;
   chunkId: string;
+  source?: AudioMediaSource;
+  provenance?: CaptureProvenance;
   text: string;
   chunks?: TranscriptChunk[];
 };

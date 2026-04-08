@@ -3,6 +3,7 @@ import path from "node:path";
 
 import type { SessionStorageLayoutResolver } from "../../application/ports/session-lifecycle";
 import type { AudioMediaSource } from "../../../shared/session-lifecycle";
+import type { CaptureProvenance } from "../../../shared/transcription";
 
 export const SESSION_TRANSCRIPT_LOG_FILE_NAME = "transcript.log";
 export const LEGACY_SESSION_TRANSCRIPT_LOG_FILE_NAME = "transcrpt.log";
@@ -11,11 +12,18 @@ export type AppendSessionTranscriptLogInput = {
   readonly storageLayoutResolver: SessionStorageLayoutResolver;
   readonly sessionId: string;
   readonly source: AudioMediaSource;
+  readonly provenance?: CaptureProvenance;
   readonly text: string;
   readonly timestamp?: string;
 };
 
-function mapTranscriptLogSpeaker(source: AudioMediaSource): string {
+function mapTranscriptLogSpeaker(
+  source: AudioMediaSource,
+  provenance?: CaptureProvenance,
+): string {
+  if (provenance === "mixed-desktop-audio") {
+    return "mixed-audio";
+  }
   switch (source) {
     case "desktop-capture":
       return "interviewer";
@@ -41,7 +49,7 @@ export async function appendSessionTranscriptLog(
     LEGACY_SESSION_TRANSCRIPT_LOG_FILE_NAME,
   );
   const timestamp = input.timestamp ?? new Date().toISOString();
-  const speaker = mapTranscriptLogSpeaker(input.source);
+  const speaker = mapTranscriptLogSpeaker(input.source, input.provenance);
   const text = normalizeTranscriptLogText(input.text);
   const line = `${timestamp}\t${speaker}\t${text}\n`;
 

@@ -96,6 +96,157 @@ test("live transcription state graph refuses to score microphone answers until a
   assert.equal(publishedAssessments.length, 0);
 });
 
+test("mixed desktop-capture does not set activeQuestion", async () => {
+  const publishedQuestions: QuestionDetectionPayload[] = [];
+  const graph = new LiveTranscriptionStateGraph({
+    detectLiveQuestion: async ({ chunkId, detectedAt, text }) =>
+      createQuestionDetectionPayload({
+        chunkId,
+        detectedAt: detectedAt ?? "2026-04-06T12:00:00.000Z",
+        text,
+      }),
+    detectLiveAnswerRelevance: async () => {
+      throw new Error("answer relevance should not run for mixed input");
+    },
+    publishQuestionDetected(payload) {
+      publishedQuestions.push(payload);
+    },
+  });
+
+  const graphState = await graph.process({
+    sessionId: "session-mixed-q",
+    chunkId: "mixed-chunk",
+    source: "desktop-capture",
+    provenance: "mixed-desktop-audio",
+    transcription: {
+      sessionId: "session-mixed-q",
+      chunkId: "mixed-chunk",
+      source: "desktop-capture",
+      text: "Tell me about a time you led a migration.",
+      recordedAt: "2026-04-06T12:00:00.000Z",
+    },
+  });
+
+  assert.equal(publishedQuestions.length, 0);
+  assert.equal(graphState.activeQuestion, undefined);
+});
+
+test("mixed desktop-capture does not feed answer scoring", async () => {
+  const publishedAssessments: AnswerRelevanceAssessmentPayload[] = [];
+  const graph = new LiveTranscriptionStateGraph({
+    detectLiveQuestion: async ({ chunkId, detectedAt, text }) =>
+      createQuestionDetectionPayload({
+        chunkId,
+        detectedAt: detectedAt ?? "2026-04-06T12:00:00.000Z",
+        text,
+      }),
+    detectLiveAnswerRelevance: async () => {
+      throw new Error("answer relevance should not run for mixed mic input");
+    },
+    publishQuestionDetected() {},
+    publishAnswerRelevance(payload) {
+      publishedAssessments.push(payload);
+    },
+  });
+
+  await graph.process({
+    sessionId: "session-mixed-a",
+    chunkId: "question-chunk",
+    source: "desktop-capture",
+    provenance: "clean-system-audio",
+    transcription: {
+      sessionId: "session-mixed-a",
+      chunkId: "question-chunk",
+      source: "desktop-capture",
+      text: "What was the biggest challenge?",
+      recordedAt: "2026-04-06T12:00:00.000Z",
+    },
+  });
+
+  const graphState = await graph.process({
+    sessionId: "session-mixed-a",
+    chunkId: "answer-chunk",
+    source: "microphone",
+    provenance: "mixed-desktop-audio",
+    transcription: {
+      sessionId: "session-mixed-a",
+      chunkId: "answer-chunk",
+      source: "microphone",
+      text: "I rebuilt the whole system.",
+      recordedAt: "2026-04-06T12:00:05.000Z",
+    },
+  });
+
+  assert.equal(publishedAssessments.length, 0);
+  assert.notEqual(graphState.activeQuestion, undefined);
+});
+
+test("clean system-audio can produce an active question", async () => {
+  const publishedQuestions: QuestionDetectionPayload[] = [];
+  const graph = new LiveTranscriptionStateGraph({
+    detectLiveQuestion: async ({ chunkId, detectedAt, text }) =>
+      createQuestionDetectionPayload({
+        chunkId,
+        detectedAt: detectedAt ?? "2026-04-06T12:00:00.000Z",
+        text,
+      }),
+    detectLiveAnswerRelevance: async () => {
+      throw new Error("answer relevance should not run");
+    },
+    publishQuestionDetected(payload) {
+      publishedQuestions.push(payload);
+    },
+  });
+
+  const graphState = await graph.process({
+    sessionId: "session-sys-audio",
+    chunkId: "sys-chunk",
+    source: "system-audio",
+    provenance: "clean-system-audio",
+    transcription: {
+      sessionId: "session-sys-audio",
+      chunkId: "sys-chunk",
+      source: "system-audio",
+      text: "What was the biggest challenge?",
+      recordedAt: "2026-04-06T12:00:00.000Z",
+    },
+  });
+
+  assert.equal(publishedQuestions.length, 1);
+  assert.notEqual(graphState.activeQuestion, undefined);
+});
+
+test("dedicated microphone stays answer-only", async () => {
+  const publishedQuestions: QuestionDetectionPayload[] = [];
+  const graph = new LiveTranscriptionStateGraph({
+    detectLiveQuestion: async () => null,
+    detectLiveAnswerRelevance: async () => {
+      throw new Error("no question yet");
+    },
+    publishQuestionDetected(payload) {
+      publishedQuestions.push(payload);
+    },
+  });
+
+  const graphState = await graph.process({
+    sessionId: "session-ded-mic",
+    chunkId: "mic-chunk",
+    source: "microphone",
+    provenance: "dedicated-microphone",
+    transcription: {
+      sessionId: "session-ded-mic",
+      chunkId: "mic-chunk",
+      source: "microphone",
+      text: "I worked on the backend.",
+      recordedAt: "2026-04-06T12:00:00.000Z",
+    },
+  });
+
+  assert.equal(publishedQuestions.length, 0);
+  assert.equal(graphState.activeQuestion, undefined);
+  assert.equal(graphState.liveAnswerEvaluation?.status, "waiting-for-question");
+});
+
 test("live transcription state graph scores buffered answer windows and tracks the three-window streak", async () => {
   const publishedAssessments: AnswerRelevanceAssessmentPayload[] = [];
   const appendedLogs: string[] = [];

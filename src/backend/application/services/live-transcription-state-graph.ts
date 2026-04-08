@@ -1,3 +1,4 @@
+import { traceable } from "langsmith/traceable";
 import type {
   PipelineActiveQuestionState,
   PipelineSessionGraphState,
@@ -5,7 +6,7 @@ import type {
 import type { AnswerRelevanceAssessmentPayload } from "../../../shared/answer-relevance";
 import type { QuestionDetectionPayload } from "../../../shared/question-detection";
 import type { AudioMediaSource } from "../../../shared/session-lifecycle";
-import type { TranscriptionResult } from "../../../shared/transcription";
+import type { CaptureProvenance, TranscriptionResult } from "../../../shared/transcription";
 import { LiveQuestionTranscriptBuffer } from "./live-question-transcript-buffer";
 import {
   LiveAnswerIntervalBuffer,
@@ -20,6 +21,7 @@ import type { DetectLiveQuestionInput } from "../use-cases/detect-live-question"
 type AppendTranscriptLogInput = {
   readonly sessionId: string;
   readonly source: AudioMediaSource;
+  readonly provenance?: CaptureProvenance;
   readonly text: string;
   readonly timestamp?: string;
 };
@@ -28,6 +30,7 @@ type LiveTranscriptionStateGraphInput = {
   readonly sessionId: string;
   readonly chunkId: string;
   readonly source: AudioMediaSource;
+  readonly provenance?: CaptureProvenance;
   readonly transcription: TranscriptionResult;
 };
 
@@ -55,6 +58,14 @@ export type LiveTranscriptionStateGraphDependencies = {
 };
 
 const DEFAULT_MINIMUM_QUESTION_CONFIDENCE = 0.3;
+
+function isLangSmithTracingEnabled(): boolean {
+  return (
+    process.env.LANGCHAIN_TRACING_V2 === "true" ||
+    (typeof process.env.LANGSMITH_API_KEY === "string" &&
+      process.env.LANGSMITH_API_KEY.length > 0)
+  );
+}
 
 function copyGraphState(graphState: PipelineSessionGraphState): PipelineSessionGraphState {
   return {
@@ -84,6 +95,8 @@ function toActiveQuestionState(
 
 export class LiveTranscriptionStateGraph {
   private readonly minimumQuestionConfidence: number;
+  private readonly tracedDetectLiveQuestion: LiveTranscriptionStateGraphDependencies["detectLiveQuestion"];
+  private readonly tracedDetectLiveAnswerRelevance: LiveTranscriptionStateGraphDependencies["detectLiveAnswerRelevance"];
 
   private readonly sessions = new Map<string, LiveTranscriptionSessionState>();
 
@@ -92,21 +105,44 @@ export class LiveTranscriptionStateGraph {
   ) {
     this.minimumQuestionConfidence =
       dependencies.minimumQuestionConfidence ?? DEFAULT_MINIMUM_QUESTION_CONFIDENCE;
+
+    if (isLangSmithTracingEnabled()) {
+      this.tracedDetectLiveQuestion = traceable(
+        dependencies.detectLiveQuestion,
+        { name: "detectLiveQuestion", tags: ["live-transcription"] },
+      );
+      this.tracedDetectLiveAnswerRelevance = traceable(
+        dependencies.detectLiveAnswerRelevance,
+        { name: "detectLiveAnswerRelevance", tags: ["live-transcription"] },
+      );
+    } else {
+      this.tracedDetectLiveQuestion = dependencies.detectLiveQuestion;
+      this.tracedDetectLiveAnswerRelevance = dependencies.detectLiveAnswerRelevance;
+    }
   }
 
   async process(
     input: LiveTranscriptionStateGraphInput,
   ): Promise<PipelineSessionGraphState> {
     const sessionState = this.getOrCreateSessionState(input.sessionId);
+    const provenance = input.provenance ?? input.transcription.provenance;
 
     switch (input.source) {
       case "desktop-capture":
+        if (provenance === "mixed-desktop-audio") {
+          break;
+        }
         await this.processQuestionProducer(sessionState, input);
         break;
-      case "microphone":
-        await this.processAnswerConsumer(sessionState, input);
-        break;
       case "system-audio":
+        if (provenance !== "mixed-desktop-audio") {
+          await this.processQuestionProducer(sessionState, input);
+        }
+        break;
+      case "microphone":
+        if (provenance === "dedicated-microphone" || !provenance) {
+          await this.processAnswerConsumer(sessionState, input);
+        }
         break;
       default:
         break;
@@ -134,6 +170,7 @@ export class LiveTranscriptionStateGraph {
       activeQuestion,
       sessionState.answerBuffer.flushAll(),
       sessionState,
+      "dedicated-microphone",
     );
 
     return copyGraphState(sessionState.graphState);
@@ -181,11 +218,12 @@ export class LiveTranscriptionStateGraph {
     await this.dependencies.appendTranscriptLog?.({
       sessionId: input.sessionId,
       source: input.source,
+      provenance: input.provenance,
       text: rolledUpText,
       timestamp: detectedAt,
     });
 
-    const detectedQuestion = await this.dependencies.detectLiveQuestion({
+    const detectedQuestion = await this.tracedDetectLiveQuestion({
       sessionId: input.sessionId,
       chunkId: input.chunkId,
       source: input.source,
@@ -251,6 +289,7 @@ export class LiveTranscriptionStateGraph {
       activeQuestion,
       readyIntervals,
       sessionState,
+      input.provenance,
     );
   }
 
@@ -260,11 +299,12 @@ export class LiveTranscriptionStateGraph {
     activeQuestion: PipelineActiveQuestionState,
     intervals: readonly LiveAnswerInterval[],
     sessionState: LiveTranscriptionSessionState,
+    provenance?: CaptureProvenance,
   ): Promise<void> {
     for (const interval of intervals) {
       const priorStreakCount =
         sessionState.graphState.liveAnswerEvaluation?.streakCount ?? 0;
-      const evaluation = await this.dependencies.detectLiveAnswerRelevance({
+      const evaluation = await this.tracedDetectLiveAnswerRelevance({
         activeQuestion,
         answerWindowText: interval.text,
         evaluatedAt: interval.windowEndedAt,
@@ -275,6 +315,7 @@ export class LiveTranscriptionStateGraph {
       await this.dependencies.appendTranscriptLog?.({
         sessionId,
         source,
+        provenance,
         text: interval.text,
         timestamp: interval.windowEndedAt,
       });

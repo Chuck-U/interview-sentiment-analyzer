@@ -91,6 +91,7 @@ export class CaptureManager {
   private screenshotCapture: ScreenshotCapture | null = null;
   private displayStream: MediaStream | null = null;
   private audioMixSession: AudioMixSession | null = null;
+  private desktopCaptureHasMixedMicrophone = false;
   private exportStatus: RecordingExportStatus = "idle";
   private exportFilePath?: string;
   private exportErrorMessage?: string;
@@ -193,6 +194,10 @@ export class CaptureManager {
       exportFilePath: this.exportFilePath,
       exportErrorMessage: this.exportErrorMessage,
     };
+  }
+
+  isDesktopCaptureMixed(): boolean {
+    return this.desktopCaptureHasMixedMicrophone;
   }
 
   setExportStatus(
@@ -384,6 +389,7 @@ export class CaptureManager {
         );
       } else {
         const microphoneEnabled = sources.includes("microphone");
+        this.desktopCaptureHasMixedMicrophone = microphoneEnabled;
         const desktopStream = new MediaStream([
           videoTrack.clone(),
           ...(await this.buildMixedDesktopAudioTracks({

@@ -1,4 +1,5 @@
 import { Annotation, StateGraph } from "@langchain/langgraph";
+import type { RunnableConfig } from "@langchain/core/runnables";
 
 import type {
   PipelineStageExecutionRequest,
@@ -40,6 +41,14 @@ const pipelineExecutionState = Annotation.Root({
   completedRun: Annotation<PipelineStageRunRecord | undefined>,
   finalizedSession: Annotation<SessionEntity | null | undefined>,
 });
+
+function isLangSmithTracingEnabled(): boolean {
+  return (
+    process.env.LANGCHAIN_TRACING_V2 === "true" ||
+    (typeof process.env.LANGSMITH_API_KEY === "string" &&
+      process.env.LANGSMITH_API_KEY.length > 0)
+  );
+}
 
 export class LangChainPipelineOrchestrator extends BuiltInPipelineOrchestrator {
   constructor(dependencies: PipelineOrchestratorDependencies) {
@@ -187,11 +196,27 @@ export class LangChainPipelineOrchestrator extends BuiltInPipelineOrchestrator {
       .compile();
 
     try {
-      const result = await graph.invoke({
-        claimedRun,
-        executionContext,
-        sourceEvent: toRequestedStageEvent(sourceEvent),
-      });
+      const invokeConfig: RunnableConfig | undefined =
+        isLangSmithTracingEnabled()
+          ? {
+              metadata: {
+                sessionId: claimedRun.sessionId,
+                stageName: claimedRun.stageName,
+                runId: claimedRun.runId,
+              },
+              tags: ["batch-pipeline"],
+              runName: claimedRun.stageName,
+            }
+          : undefined;
+
+      const result = await graph.invoke(
+        {
+          claimedRun,
+          executionContext,
+          sourceEvent: toRequestedStageEvent(sourceEvent),
+        },
+        invokeConfig,
+      );
 
       if (result.finalizedSession) {
         this.dependencies.eventPublisher?.publishSessionFinalized(

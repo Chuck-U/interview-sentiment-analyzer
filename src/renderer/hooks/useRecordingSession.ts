@@ -3,7 +3,8 @@ import { useCallback, useEffect, useRef } from "react";
 import { CaptureManager } from "@/renderer/recording/capture-manager";
 import { AudioChunkAccumulator } from "@/lib/audio-chunk-accumulator";
 import { selectCaptureSources } from "@/renderer/store/slices/captureOptionsSlice";
-import { isAudioMediaChunkSource } from "@/shared/session-lifecycle";
+import { isAudioMediaChunkSource, type AudioMediaSource } from "@/shared/session-lifecycle";
+import type { CaptureProvenance } from "@/shared/transcription";
 import {
   clearTranscription,
   segmentReceived,
@@ -24,6 +25,20 @@ import { logger } from "@/lib/logger";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
 
 const log = logger.forSource("useRecordingSession");
+
+function resolveProvenance(
+  source: AudioMediaSource,
+  desktopIsMixed: boolean,
+): CaptureProvenance {
+  switch (source) {
+    case "microphone":
+      return "dedicated-microphone";
+    case "system-audio":
+      return "clean-system-audio";
+    case "desktop-capture":
+      return desktopIsMixed ? "mixed-desktop-audio" : "clean-system-audio";
+  }
+}
 
 type UseRecordingSessionOptions = {
   readonly manageCapture?: boolean;
@@ -69,6 +84,8 @@ export function useRecordingSession(
           segmentReceived({
             sessionId: result.sessionId,
             chunkId: result.chunkId,
+            source: result.source,
+            provenance: result.provenance,
             text: result.text,
             chunks: result.chunks,
           }),
@@ -99,7 +116,7 @@ export function useRecordingSession(
   }, []);
 
   const createCaptureManager = useCallback(() => {
-    return new CaptureManager({
+    const manager = new CaptureManager({
       async onChunkAvailable(
         sessionId,
         source,
@@ -121,6 +138,8 @@ export function useRecordingSession(
           (source === "desktop-capture" || source === "microphone")
         ) {
           void (async () => {
+            const provenance: CaptureProvenance | undefined =
+              resolveProvenance(source as AudioMediaSource, manager.isDesktopCaptureMixed());
             log.ger({
               type: "info",
               message: "[transcription] chunk queued for ASR (after persist)",
@@ -128,6 +147,7 @@ export function useRecordingSession(
                 sessionId: sessionId.slice(0, 8),
                 chunkId: result.chunkId,
                 source,
+                provenance,
                 bufferBytes: buffer.byteLength,
               },
             });
@@ -144,6 +164,7 @@ export function useRecordingSession(
                   sessionId,
                   chunkId: result.chunkId,
                   recordedAt,
+                  provenance,
                 });
               log.ger({
                 type: "info",
@@ -203,6 +224,7 @@ export function useRecordingSession(
         );
       },
     });
+    return manager;
   }, [dispatch]);
 
   const handleStartRecording = useCallback(async () => {

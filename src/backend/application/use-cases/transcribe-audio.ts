@@ -1,6 +1,7 @@
 import { log } from "../../../lib/logger";
 import { DEFAULT_TRANSCRIPTION_MODEL_ID } from "../../../shared/model-manifest";
 import type {
+  CaptureProvenance,
   TranscriptionResult,
 } from "../../../shared/transcription";
 import type { AudioMediaSource } from "../../../shared/session-lifecycle";
@@ -12,6 +13,7 @@ export type TranscribeAudioInput = {
   readonly chunkId: string;
   readonly source: AudioMediaSource;
   readonly recordedAt?: string;
+  readonly provenance?: CaptureProvenance;
 };
 
 type AsrPipeline = (
@@ -74,6 +76,7 @@ export function createTranscribeAudioUseCase(
       sessionId: input.sessionId,
       chunkId: input.chunkId,
       recordedAt: input.recordedAt,
+      ...(input.provenance ? { provenance: input.provenance } : {}),
       ...(chunks && chunks.length > 0 ? { chunks } : {}),
     };
 
