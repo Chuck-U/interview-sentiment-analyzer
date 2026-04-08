@@ -11,6 +11,7 @@ export type TranscribeAudioInput = {
   readonly sessionId: string;
   readonly chunkId: string;
   readonly source: AudioMediaSource;
+  readonly recordedAt?: string;
 };
 
 type AsrPipeline = (
@@ -72,6 +73,7 @@ export function createTranscribeAudioUseCase(
       text,
       sessionId: input.sessionId,
       chunkId: input.chunkId,
+      recordedAt: input.recordedAt,
       ...(chunks && chunks.length > 0 ? { chunks } : {}),
     };
 

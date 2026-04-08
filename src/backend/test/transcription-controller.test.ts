@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { test } from "@jest/globals";
 
 import {
   QUESTION_CLASSIFIER_LABELS,
@@ -323,13 +323,60 @@ test("transcript log append utility maps sources to readable speaker labels", as
       timestamp: "2026-04-02T12:00:05.000Z",
     });
 
-    const logPath = path.join(appDataRoot, "sessions", "session-log", "transcrpt.log");
+    const logPath = path.join(appDataRoot, "sessions", "session-log", "transcript.log");
     const content = await readFile(logPath, "utf8");
 
     assert.equal(
       content,
       "2026-04-02T12:00:00.000Z\tinterviewer\tTell me about yourself.\n"
         + "2026-04-02T12:00:05.000Z\tyou\tI built a compiler.\n",
+    );
+  } finally {
+    const { rm } = await import("node:fs/promises");
+    await rm(appDataRoot, { recursive: true, force: true });
+  }
+});
+
+test("transcript log append utility migrates the legacy filename on next write", async () => {
+  const { mkdtemp, mkdir, readFile, writeFile } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const path = await import("node:path");
+  const { appendSessionTranscriptLog } = await import(
+    "../infrastructure/storage/session-transcript-log"
+  );
+  const { createSessionStorageLayoutResolver } = await import(
+    "../infrastructure/storage/session-storage-layout"
+  );
+
+  const appDataRoot = await mkdtemp(path.join(tmpdir(), "session-transcript-log-migrate-"));
+  const storageLayoutResolver = createSessionStorageLayoutResolver(appDataRoot);
+  const sessionRoot = path.join(appDataRoot, "sessions", "session-log");
+
+  try {
+    await mkdir(sessionRoot, { recursive: true });
+    await writeFile(
+      path.join(sessionRoot, "transcrpt.log"),
+      "2026-04-02T12:00:00.000Z\tinterviewer\tLegacy line.\n",
+      "utf8",
+    );
+
+    await appendSessionTranscriptLog({
+      storageLayoutResolver,
+      sessionId: "session-log",
+      source: "microphone",
+      text: " New line. ",
+      timestamp: "2026-04-02T12:00:05.000Z",
+    });
+
+    const content = await readFile(
+      path.join(sessionRoot, "transcript.log"),
+      "utf8",
+    );
+
+    assert.equal(
+      content,
+      "2026-04-02T12:00:00.000Z\tinterviewer\tLegacy line.\n"
+        + "2026-04-02T12:00:05.000Z\tyou\tNew line.\n",
     );
   } finally {
     const { rm } = await import("node:fs/promises");

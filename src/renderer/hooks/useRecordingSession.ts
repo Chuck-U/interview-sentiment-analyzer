@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { CaptureManager } from "@/renderer/recording/capture-manager";
 import { AudioChunkAccumulator } from "@/lib/audio-chunk-accumulator";
 import { selectCaptureSources } from "@/renderer/store/slices/captureOptionsSlice";
+import { isAudioMediaChunkSource } from "@/shared/session-lifecycle";
 import {
   clearTranscription,
   segmentReceived,
@@ -21,8 +22,6 @@ import type { SessionSnapshot } from "@/shared/session-lifecycle";
 import { logger } from "@/lib/logger";
 
 import { useAppDispatch, useAppSelector } from "../store/hooks";
-// TODO: restore when multi-source transcription is re-enabled
-// import { isAudioMediaChunkSource } from "@/shared/session-lifecycle";
 
 const log = logger.forSource("useRecordingSession");
 
@@ -39,7 +38,7 @@ export function useRecordingSession(
     store.getState().sessionRecording.currentSession,
   );
   const captureManagerRef = useRef<CaptureManager | null>(null);
-  const chunkAccumulatorRef = useRef(new AudioChunkAccumulator());
+  const chunkAccumulatorsRef = useRef(new Map<string, AudioChunkAccumulator>());
 
   const currentSession = useAppSelector(
     (state) => state.sessionRecording.currentSession,
@@ -78,6 +77,27 @@ export function useRecordingSession(
     return unsubscribe;
   }, [dispatch]);
 
+  const getChunkAccumulator = useCallback((source: string) => {
+    const existing = chunkAccumulatorsRef.current.get(source);
+
+    if (existing) {
+      return existing;
+    }
+
+    const created = new AudioChunkAccumulator();
+    chunkAccumulatorsRef.current.set(source, created);
+
+    return created;
+  }, []);
+
+  const resetChunkAccumulators = useCallback(() => {
+    for (const accumulator of chunkAccumulatorsRef.current.values()) {
+      accumulator.reset();
+    }
+
+    chunkAccumulatorsRef.current.clear();
+  }, []);
+
   const createCaptureManager = useCallback(() => {
     return new CaptureManager({
       async onChunkAvailable(
@@ -96,10 +116,10 @@ export function useRecordingSession(
           recordedAt,
           buffer,
         });
-        // Only transcribe the desktop-capture source because it already
-        // carries the mixed recording audio stream for a single transcript.
-        // TODO: restore multi-source transcription behind a config flag.
-        if (source === "desktop-capture") {
+        if (
+          isAudioMediaChunkSource(source) &&
+          (source === "desktop-capture" || source === "microphone")
+        ) {
           void (async () => {
             log.ger({
               type: "info",
@@ -112,7 +132,7 @@ export function useRecordingSession(
               },
             });
             try {
-              const pcm = await chunkAccumulatorRef.current.decodeChunk(buffer);
+              const pcm = await getChunkAccumulator(source).decodeChunk(buffer);
               if (pcm.length === 0) {
                 return;
               }
@@ -123,6 +143,7 @@ export function useRecordingSession(
                   pcmSamples: Array.from(pcm),
                   sessionId,
                   chunkId: result.chunkId,
+                  recordedAt,
                 });
               log.ger({
                 type: "info",
@@ -225,7 +246,7 @@ export function useRecordingSession(
         captureManagerRef.current.destroy();
         captureManagerRef.current = null;
       }
-      chunkAccumulatorRef.current.reset();
+      resetChunkAccumulators();
 
       if (manageCapture) {
         const manager = createCaptureManager();
@@ -252,7 +273,9 @@ export function useRecordingSession(
   }, [
     createCaptureManager,
     dispatch,
+    getChunkAccumulator,
     manageCapture,
+    resetChunkAccumulators,
     syncIncomingSessionFromMain,
   ]);
 
@@ -273,7 +296,7 @@ export function useRecordingSession(
       if (captureManagerRef.current) {
         await captureManagerRef.current.stopCapture();
       }
-      chunkAccumulatorRef.current.reset();
+      resetChunkAccumulators();
 
       const response =
         await window.electronApp.sessionLifecycle.finalizeSession({
@@ -295,7 +318,7 @@ export function useRecordingSession(
     } finally {
       dispatch(setIsStopping(false));
     }
-  }, [dispatch, syncIncomingSessionFromMain]);
+  }, [dispatch, resetChunkAccumulators, syncIncomingSessionFromMain]);
 
   const handleExportRecording = useCallback(async () => {
     const session = currentSessionRef.current;
@@ -473,7 +496,7 @@ export function useRecordingSession(
       void captureManagerRef.current
         .stopCapture()
         .then(() => {
-          chunkAccumulatorRef.current.reset();
+          resetChunkAccumulators();
         })
         .catch((error: unknown) => {
           dispatch(
@@ -499,9 +522,9 @@ export function useRecordingSession(
         captureManagerRef.current.destroy();
         captureManagerRef.current = null;
       }
-      chunkAccumulatorRef.current.reset();
+      resetChunkAccumulators();
     };
-  }, []);
+  }, [resetChunkAccumulators]);
 
   const handleCloseApplication = useCallback(async () => {
     dispatch(setFeedbackMessage("Closing application."));

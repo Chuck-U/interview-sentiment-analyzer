@@ -1,10 +1,11 @@
-import { appendFile, mkdir } from "node:fs/promises";
+import { access, appendFile, mkdir, rename } from "node:fs/promises";
 import path from "node:path";
 
 import type { SessionStorageLayoutResolver } from "../../application/ports/session-lifecycle";
 import type { AudioMediaSource } from "../../../shared/session-lifecycle";
 
-export const SESSION_TRANSCRIPT_LOG_FILE_NAME = "transcrpt.log";
+export const SESSION_TRANSCRIPT_LOG_FILE_NAME = "transcript.log";
+export const LEGACY_SESSION_TRANSCRIPT_LOG_FILE_NAME = "transcrpt.log";
 
 export type AppendSessionTranscriptLogInput = {
   readonly storageLayoutResolver: SessionStorageLayoutResolver;
@@ -35,12 +36,24 @@ export async function appendSessionTranscriptLog(
   const sessionRoot =
     input.storageLayoutResolver.resolveSessionLayout(input.sessionId).sessionRoot;
   const logPath = path.join(sessionRoot, SESSION_TRANSCRIPT_LOG_FILE_NAME);
+  const legacyLogPath = path.join(
+    sessionRoot,
+    LEGACY_SESSION_TRANSCRIPT_LOG_FILE_NAME,
+  );
   const timestamp = input.timestamp ?? new Date().toISOString();
   const speaker = mapTranscriptLogSpeaker(input.source);
   const text = normalizeTranscriptLogText(input.text);
   const line = `${timestamp}\t${speaker}\t${text}\n`;
 
   await mkdir(sessionRoot, { recursive: true });
+  try {
+    await access(legacyLogPath);
+    await access(logPath).catch(async () => {
+      await rename(legacyLogPath, logPath);
+    });
+  } catch {
+    // No legacy file to migrate; append directly to the canonical path.
+  }
   await appendFile(logPath, line, "utf8");
 
   return logPath;

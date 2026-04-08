@@ -128,6 +128,7 @@ export function createLiveQuestionDetectionHook(
         chunkId,
         source,
         text: textForQuestion,
+        detectedAt: transcription.recordedAt,
       });
 
       if (detection && detection.questionConfidence >= minimumQuestionConfidence) {
@@ -259,6 +260,7 @@ export function createTranscribeAudioIpcHandler(
         sessionId,
         chunkId,
         source,
+        recordedAt: parsedRequest.recordedAt,
       });
 
       const ctx: PostTranscriptionContext = { sessionId, chunkId, source, transcription };

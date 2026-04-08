@@ -18,6 +18,7 @@ export function parseTranscribeAudioRequest(input: unknown): TranscriptionReques
   const chunkId = body.chunkId;
   const pcmSamples = body.pcmSamples;
   const source = body.source;
+  const recordedAt = body.recordedAt;
 
   if (!isNonEmptyString(sessionId)) {
     throw new Error("transcribeAudio requires sessionId");
@@ -42,6 +43,9 @@ export function parseTranscribeAudioRequest(input: unknown): TranscriptionReques
     chunkId,
     pcmSamples: sanitizedPcmSamples,
     source,
+    ...(isNonEmptyString(recordedAt)
+      ? { recordedAt: recordedAt.trim() }
+      : {}),
   };
 }
 

@@ -23,6 +23,7 @@ export type TranscriptionRequest = {
   readonly sessionId: string;
   readonly chunkId: string;
   readonly source: MediaChunkSource;
+  readonly recordedAt?: string;
 };
 
 export type TranscriptionResult = {
@@ -30,6 +31,7 @@ export type TranscriptionResult = {
   readonly text: string;
   readonly sessionId: string;
   readonly chunkId: string;
+  readonly recordedAt?: string;
   /** Word/segment-level timestamps when the model returns them. */
   readonly chunks?: TranscriptChunk[];
 };

@@ -1,4 +1,5 @@
 import type { AppControlsBridge } from "./app-controls";
+import type { AnswerRelevanceEventsBridge } from "./answer-relevance";
 import type { AiProviderBridge } from "./ai-provider";
 import type { CaptureOptionsBridge } from "./capture-options";
 import type { ModelInitBridge } from "./model-init";
@@ -29,4 +30,5 @@ export type ElectronAppBridge = {
   readonly transcription: TranscriptionBridge;
   readonly transcriptionEvents: TranscriptionEventsBridge;
   readonly questionDetectionEvents: QuestionDetectionEventsBridge;
+  readonly answerRelevanceEvents: AnswerRelevanceEventsBridge;
 };
