@@ -50,6 +50,10 @@ import {
   normalizeSetAiProviderApiKeyRequest,
 } from "../../src/shared/ai-provider";
 import {
+  OPENROUTER_KEY_CHANNELS,
+  normalizeSetOpenRouterKeyRequest,
+} from "../../src/shared/openrouter-key";
+import {
   clampWindowSize,
   parseMoveWindowByRequest,
   parseSetAlwaysOnTopRequest,
@@ -89,7 +93,7 @@ import {
 } from "../../src/shared/transcription";
 import { QUESTION_DETECTION_EVENT_CHANNELS } from "../../src/shared/question-detection";
 import * as modelLifecycle from "../../src/backend/infrastructure/ml/model-lifecycle-service";
-import { createEmbeddingAnswerRelevanceScorer } from "../../src/backend/infrastructure/ml/embedding-answer-relevance-scorer";
+import { createOpenRouterAnswerRelevanceScorer } from "../../src/backend/infrastructure/openrouter/openrouter-answer-relevance-scorer";
 import { LiveTranscriptionStateGraph } from "../../src/backend/application/services/live-transcription-state-graph";
 import {
   createTranscribeAudioIpcHandler,
@@ -1018,6 +1022,27 @@ async function initializeApp() {
       },
     );
 
+    ipcMain.handle(OPENROUTER_KEY_CHANNELS.getStatus, async () => {
+      const apiKey = await secretStore.getApiKey("openrouter");
+      return {
+        hasKey: typeof apiKey === "string" && apiKey.trim().length > 0,
+      };
+    });
+
+    ipcMain.handle(OPENROUTER_KEY_CHANNELS.setKey, async (_event, raw: unknown) => {
+      const parsed = normalizeSetOpenRouterKeyRequest(
+        typeof raw === "string" ? { key: raw } : raw,
+      );
+      const didStore = await secretStore.setApiKey("openrouter", parsed.key);
+      if (!didStore) {
+        throw new Error("Secure storage is unavailable; API key could not be saved.");
+      }
+    });
+
+    ipcMain.handle(OPENROUTER_KEY_CHANNELS.deleteKey, async () => {
+      await secretStore.deleteApiKey("openrouter");
+    });
+
     ipcMain.handle(AI_PROVIDER_CHANNELS.listModels, async (_event, input: unknown) => {
       const provider = normalizeAiProvider(input);
       const apiKey = await secretStore.getApiKey(provider);
@@ -1093,13 +1118,68 @@ async function initializeApp() {
       log.ger({ type: "warn", message: "[cleanup] startup cleanup failed", data: err }),
     );
 
+    const liveTranscriptionGraphHolder: { graph?: LiveTranscriptionStateGraph } = {};
+
+    const sessionLifecycleBackend = createSessionLifecycleBackend(app, {
+      onChunkRegistered(chunk) {
+        publishToAllWindows(
+          SESSION_LIFECYCLE_EVENT_CHANNELS.chunkRegistered,
+          chunk,
+        );
+      },
+      onRecoveryIssue(issue) {
+        publishToAllWindows(
+          SESSION_LIFECYCLE_EVENT_CHANNELS.recoveryIssue,
+          issue,
+        );
+      },
+      onSessionChanged(session) {
+        currentSession = session;
+        publishToAllWindows(
+          SESSION_LIFECYCLE_EVENT_CHANNELS.sessionChanged,
+          session,
+        );
+      },
+      onSessionFinalized(session) {
+        currentSession = session;
+        publishToAllWindows(
+          SESSION_LIFECYCLE_EVENT_CHANNELS.sessionFinalized,
+          session,
+        );
+        void liveTranscriptionGraphHolder.graph
+          ?.flushSession(session.id)
+          .finally(() => liveTranscriptionGraphHolder.graph?.clearSession(session.id));
+      },
+    });
+
+    registerSessionLifecycleIpc(ipcMain, sessionLifecycleBackend.controller);
+
     const detectLiveQuestion = createDetectLiveQuestionUseCase({
       getPipeline: modelLifecycle.getPipeline,
     });
+
+    const resolveOpenRouterApiKey = async (): Promise<string | null> => {
+      const fromEnv = process.env.OPENROUTER_API_KEY?.trim();
+      if (fromEnv && fromEnv.length > 0) return fromEnv;
+      const stored = (await secretStore.getApiKey("openrouter"))?.trim() ?? "";
+      return stored.length > 0 ? stored : null;
+    };
+
     const detectLiveAnswerRelevance = createDetectLiveAnswerRelevanceUseCase({
-      scoreAnswerRelevance: createEmbeddingAnswerRelevanceScorer({
-        getPipeline: modelLifecycle.getPipeline,
-      }),
+      scoreAnswerRelevance: async (input) => {
+        const key = await resolveOpenRouterApiKey();
+        if (!key) {
+          throw new Error("OpenRouter API key required for live answer relevance");
+        }
+        const openRouterScorer = createOpenRouterAnswerRelevanceScorer({
+          apiKey: key,
+          ...(process.env.OPENROUTER_MODEL?.trim()
+            ? { model: process.env.OPENROUTER_MODEL.trim() }
+            : {}),
+          fetchImpl: globalThis.fetch,
+        });
+        return openRouterScorer(input);
+      },
     });
     const liveTranscriptionGraph = new LiveTranscriptionStateGraph({
       detectLiveQuestion,
@@ -1123,7 +1203,12 @@ async function initializeApp() {
       publishAnswerRelevance(payload: AnswerRelevanceAssessmentPayload) {
         publishToAllWindows(ANSWER_RELEVANCE_EVENT_CHANNELS.assessed, payload);
       },
+      appendPipelineEvent: (event) =>
+        sessionLifecycleBackend.appendPipelineEvent(event),
+      isLiveOpenRouterRelevanceEnabled: async () =>
+        (await resolveOpenRouterApiKey()) !== null,
     });
+    liveTranscriptionGraphHolder.graph = liveTranscriptionGraph;
 
     const transcribeAudioHandler = createTranscribeAudioIpcHandler({
       getPipeline: modelLifecycle.getPipeline,
@@ -1381,43 +1466,6 @@ async function initializeApp() {
       const request = parseSetPinnedRequest(input);
       return setWindowPinned(targetWindow, request.pinned);
     });
-
-    const sessionLifecycleBackend = createSessionLifecycleBackend(
-      app,
-      {
-        onChunkRegistered(chunk) {
-          publishToAllWindows(
-            SESSION_LIFECYCLE_EVENT_CHANNELS.chunkRegistered,
-            chunk,
-          );
-        },
-        onRecoveryIssue(issue) {
-          publishToAllWindows(
-            SESSION_LIFECYCLE_EVENT_CHANNELS.recoveryIssue,
-            issue,
-          );
-        },
-        onSessionChanged(session) {
-          currentSession = session;
-          publishToAllWindows(
-            SESSION_LIFECYCLE_EVENT_CHANNELS.sessionChanged,
-            session,
-          );
-        },
-        onSessionFinalized(session) {
-          currentSession = session;
-          publishToAllWindows(
-            SESSION_LIFECYCLE_EVENT_CHANNELS.sessionFinalized,
-            session,
-          );
-          void liveTranscriptionGraph
-            .flushSession(session.id)
-            .finally(() => liveTranscriptionGraph.clearSession(session.id));
-        },
-      },
-    );
-
-    registerSessionLifecycleIpc(ipcMain, sessionLifecycleBackend.controller);
 
     const recordingPersistence = createRecordingPersistenceService(storageLayoutResolver);
     const recordingExport = createRecordingExportService(storageLayoutResolver);

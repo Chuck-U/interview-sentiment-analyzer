@@ -12,6 +12,11 @@ import {
   normalizeAiProviderModels,
   type AiProviderBridge,
 } from "../../src/shared/ai-provider";
+import {
+  OPENROUTER_KEY_CHANNELS,
+  normalizeSetOpenRouterKeyRequest,
+  type OpenRouterKeyBridge,
+} from "../../src/shared/openrouter-key";
 import type { ElectronAppBridge } from "../../src/shared/electron-app";
 import type {
   TranscriptionBridge,
@@ -232,6 +237,19 @@ const shortcutsBridge: ShortcutsBridge = {
   },
 };
 
+const openRouterKeyBridge: OpenRouterKeyBridge = {
+  async getKeyStatus() {
+    return await ipcRenderer.invoke(OPENROUTER_KEY_CHANNELS.getStatus);
+  },
+  async setKey(key) {
+    const { key: normalized } = normalizeSetOpenRouterKeyRequest({ key });
+    await ipcRenderer.invoke(OPENROUTER_KEY_CHANNELS.setKey, normalized);
+  },
+  async deleteKey() {
+    await ipcRenderer.invoke(OPENROUTER_KEY_CHANNELS.deleteKey);
+  },
+};
+
 const aiProviderBridge: AiProviderBridge = {
   async getConfig() {
     return await ipcRenderer
@@ -437,6 +455,7 @@ const electronAppBridge: ElectronAppBridge = {
   recording: recordingBridge,
   recordingEvents: recordingEventsBridge,
   aiProvider: aiProviderBridge,
+  openRouterKey: openRouterKeyBridge,
   captureOptions: captureOptionsBridge,
   appControls: appControlsBridge,
   windowControls: windowControlsBridge,

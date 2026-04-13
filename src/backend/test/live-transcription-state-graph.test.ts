@@ -292,42 +292,45 @@ test("live transcription state graph scores buffered answer windows and tracks t
     },
   });
 
-  await graph.process({
-    sessionId: "session-1",
-    chunkId: "answer-1",
-    source: "microphone",
-    transcription: {
+  const mic = (
+    chunkId: string,
+    text: string,
+    recordedAt: string,
+    pcmDurationMs: number,
+    pcmRms: number,
+  ) =>
+    graph.process({
       sessionId: "session-1",
-      chunkId: "answer-1",
+      chunkId,
       source: "microphone",
-      text: "I mostly talked about travel.",
-      recordedAt: "2026-04-06T12:00:01.000Z",
-    },
-  });
-  await graph.process({
-    sessionId: "session-1",
-    chunkId: "answer-2",
-    source: "microphone",
-    transcription: {
-      sessionId: "session-1",
-      chunkId: "answer-2",
-      source: "microphone",
-      text: "Then I drifted into hobbies.",
-      recordedAt: "2026-04-06T12:00:11.000Z",
-    },
-  });
-  await graph.process({
-    sessionId: "session-1",
-    chunkId: "answer-3",
-    source: "microphone",
-    transcription: {
-      sessionId: "session-1",
-      chunkId: "answer-3",
-      source: "microphone",
-      text: "After that I talked about a concert.",
-      recordedAt: "2026-04-06T12:00:21.000Z",
-    },
-  });
+      transcription: {
+        sessionId: "session-1",
+        chunkId,
+        source: "microphone",
+        text,
+        recordedAt,
+        pcmDurationMs,
+        pcmRms,
+      },
+    });
+
+  await mic("a1", "I mostly talked about travel.", "2026-04-06T12:00:01.000Z", 500, 0.02);
+  await mic("s1", "", "2026-04-06T12:00:01.500Z", 2000, 0.001);
+  await mic("s2", "", "2026-04-06T12:00:03.500Z", 2000, 0.001);
+
+  await mic("a2", "Then I drifted into hobbies.", "2026-04-06T12:00:06.000Z", 500, 0.02);
+  await mic("s3", "", "2026-04-06T12:00:06.500Z", 2000, 0.001);
+  await mic("s4", "", "2026-04-06T12:00:08.500Z", 2000, 0.001);
+
+  await mic(
+    "a3",
+    "After that I talked about a concert.",
+    "2026-04-06T12:00:11.000Z",
+    500,
+    0.02,
+  );
+  await mic("s5", "", "2026-04-06T12:00:11.500Z", 2000, 0.001);
+  await mic("s6", "", "2026-04-06T12:00:13.500Z", 2000, 0.001);
 
   const finalState = await graph.flushSession("session-1");
 
@@ -345,4 +348,84 @@ test("live transcription state graph scores buffered answer windows and tracks t
     "microphone:Then I drifted into hobbies.",
     "microphone:After that I talked about a concert.",
   ]);
+});
+
+test("live transcription state graph skips answer relevance when OpenRouter is disabled (no key)", async () => {
+  const publishedAssessments: AnswerRelevanceAssessmentPayload[] = [];
+  const pipelineEvents: string[] = [];
+  const appendedLogs: string[] = [];
+  const graph = new LiveTranscriptionStateGraph({
+    detectLiveQuestion: async ({ chunkId, detectedAt, text }) =>
+      createQuestionDetectionPayload({
+        chunkId,
+        detectedAt: detectedAt ?? "2026-04-06T12:00:00.000Z",
+        text,
+      }),
+    detectLiveAnswerRelevance: async () => {
+      throw new Error("answer relevance must not run when OpenRouter is disabled");
+    },
+    isLiveOpenRouterRelevanceEnabled: async () => false,
+    appendTranscriptLog: async (input) => {
+      appendedLogs.push(`${input.source}:${input.text}`);
+    },
+    appendPipelineEvent: async (event) => {
+      pipelineEvents.push(event.eventType);
+    },
+    publishAnswerRelevance(payload) {
+      publishedAssessments.push(payload);
+    },
+  });
+
+  await graph.process({
+    sessionId: "session-no-key",
+    chunkId: "question-chunk",
+    source: "desktop-capture",
+    transcription: {
+      sessionId: "session-no-key",
+      chunkId: "question-chunk",
+      source: "desktop-capture",
+      text: "Tell me about a time you led a migration.",
+      recordedAt: "2026-04-06T12:00:00.000Z",
+    },
+  });
+
+  const mic = (
+    chunkId: string,
+    text: string,
+    recordedAt: string,
+    pcmDurationMs: number,
+    pcmRms: number,
+  ) =>
+    graph.process({
+      sessionId: "session-no-key",
+      chunkId,
+      source: "microphone",
+      transcription: {
+        sessionId: "session-no-key",
+        chunkId,
+        source: "microphone",
+        text,
+        recordedAt,
+        pcmDurationMs,
+        pcmRms,
+      },
+    });
+
+  await mic("a1", "I mostly talked about travel.", "2026-04-06T12:00:01.000Z", 500, 0.02);
+  await mic("s1", "", "2026-04-06T12:00:01.500Z", 2000, 0.001);
+  await mic("s2", "", "2026-04-06T12:00:03.500Z", 2000, 0.001);
+
+  const finalState = await graph.flushSession("session-no-key");
+
+  assert.equal(publishedAssessments.length, 0);
+  assert.equal(pipelineEvents.length, 0);
+  assert.deepEqual(appendedLogs, [
+    "desktop-capture:Tell me about a time you led a migration.",
+  ]);
+  assert.equal(finalState.liveAnswerEvaluation?.status, "waiting-for-answer");
+  assert.equal(finalState.liveAnswerEvaluation?.streakCount, 0);
+  assert.equal(
+    finalState.liveAnswerEvaluation?.answerWindowText,
+    "I mostly talked about travel.",
+  );
 });

@@ -3,6 +3,7 @@ import type {
   PipelineArtifactRef,
   PipelineEventEnvelope,
   PipelineExecutableStageName,
+  PipelineSessionGraphState,
   PipelineStageRunRecord,
 } from "../../../shared";
 import {
@@ -131,6 +132,90 @@ export function createSessionSummaryRequestedEvent(input: {
       requestedAt: input.occurredAt,
       inputArtifacts: [...input.inputArtifacts],
       outputArtifacts: [],
+    },
+  });
+}
+
+export function createLiveAnswerRelevanceRequestedEvent(input: {
+  readonly sessionId: string;
+  readonly chunkId: string;
+  readonly eventId: string;
+  readonly correlationId: string;
+  readonly occurredAt: string;
+  readonly evaluationCorrelationId: string;
+  readonly activeQuestionText: string;
+  readonly answerWindowText: string;
+  readonly windowStartedAt: string;
+  readonly windowEndedAt: string;
+  readonly micChunkIds: readonly string[];
+  readonly graphState?: PipelineSessionGraphState;
+}): PipelineEventEnvelope<"live_answer_relevance.requested"> {
+  return createPipelineEventEnvelope({
+    eventId: input.eventId,
+    eventType: "live_answer_relevance.requested",
+    sessionId: input.sessionId,
+    chunkId: input.chunkId,
+    correlationId: input.correlationId,
+    occurredAt: input.occurredAt,
+    payload: {
+      inputArtifacts: [],
+      outputArtifacts: [],
+      ...(input.graphState !== undefined ? { graphState: input.graphState } : {}),
+      requestedAt: input.occurredAt,
+      activeQuestionText: input.activeQuestionText,
+      answerWindowText: input.answerWindowText,
+      windowStartedAt: input.windowStartedAt,
+      windowEndedAt: input.windowEndedAt,
+      micChunkIds: [...input.micChunkIds],
+      evaluationCorrelationId: input.evaluationCorrelationId,
+    },
+  });
+}
+
+export function createLiveAnswerRelevanceReadyEvent(input: {
+  readonly sessionId: string;
+  readonly chunkId: string;
+  readonly eventId: string;
+  readonly correlationId: string;
+  readonly occurredAt: string;
+  readonly evaluationCorrelationId: string;
+  readonly onTopic: boolean;
+  readonly offTopicPoints: readonly string[];
+  readonly relevanceScore?: number;
+  readonly offTopicSignal?: number;
+  readonly streakCount?: number;
+  readonly modelId?: string;
+  readonly providerRequestId?: string;
+  readonly usage?: {
+    readonly promptTokens?: number;
+    readonly completionTokens?: number;
+    readonly cachedTokens?: number;
+  };
+  readonly graphState?: PipelineSessionGraphState;
+}): PipelineEventEnvelope<"live_answer_relevance.ready"> {
+  return createPipelineEventEnvelope({
+    eventId: input.eventId,
+    eventType: "live_answer_relevance.ready",
+    sessionId: input.sessionId,
+    chunkId: input.chunkId,
+    correlationId: input.correlationId,
+    occurredAt: input.occurredAt,
+    payload: {
+      inputArtifacts: [],
+      outputArtifacts: [],
+      ...(input.graphState !== undefined ? { graphState: input.graphState } : {}),
+      completedAt: input.occurredAt,
+      onTopic: input.onTopic,
+      offTopicPoints: [...input.offTopicPoints],
+      evaluationCorrelationId: input.evaluationCorrelationId,
+      ...(input.relevanceScore !== undefined ? { relevanceScore: input.relevanceScore } : {}),
+      ...(input.offTopicSignal !== undefined ? { offTopicSignal: input.offTopicSignal } : {}),
+      ...(input.streakCount !== undefined ? { streakCount: input.streakCount } : {}),
+      ...(input.modelId !== undefined ? { modelId: input.modelId } : {}),
+      ...(input.providerRequestId !== undefined
+        ? { providerRequestId: input.providerRequestId }
+        : {}),
+      ...(input.usage !== undefined ? { usage: input.usage } : {}),
     },
   });
 }

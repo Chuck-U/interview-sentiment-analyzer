@@ -248,3 +248,52 @@ test("pipeline events preserve graph-state snapshots and provider routes", () =>
     "waiting-for-answer",
   );
 });
+
+test("live answer relevance pipeline events validate and accept empty artifacts", () => {
+  const requested = createPipelineEventEnvelope({
+    eventId: "live-ar-req-1",
+    eventType: "live_answer_relevance.requested",
+    sessionId: "session-1",
+    chunkId: "mic-chunk-9",
+    correlationId: "corr-live-1",
+    occurredAt: "2026-04-06T12:05:00.000Z",
+    payload: {
+      inputArtifacts: [],
+      outputArtifacts: [],
+      requestedAt: "2026-04-06T12:05:00.000Z",
+      activeQuestionText: "What was your role?",
+      answerWindowText: "I owned the API layer.",
+      windowStartedAt: "2026-04-06T12:04:50.000Z",
+      windowEndedAt: "2026-04-06T12:05:00.000Z",
+      micChunkIds: ["mic-chunk-8", "mic-chunk-9"],
+      evaluationCorrelationId: "eval-corr-1",
+    },
+  });
+
+  assert.equal(requested.eventType, "live_answer_relevance.requested");
+  assert.equal(requested.payloadSchemaVersion, 1);
+
+  const ready = createPipelineEventEnvelope({
+    eventId: "live-ar-ready-1",
+    eventType: "live_answer_relevance.ready",
+    sessionId: "session-1",
+    chunkId: "mic-chunk-9",
+    correlationId: "corr-live-1",
+    occurredAt: "2026-04-06T12:05:01.000Z",
+    payload: {
+      inputArtifacts: [],
+      outputArtifacts: [],
+      completedAt: "2026-04-06T12:05:01.000Z",
+      onTopic: true,
+      offTopicPoints: [],
+      relevanceScore: 0.88,
+      offTopicSignal: 0.12,
+      streakCount: 0,
+      evaluationCorrelationId: "eval-corr-1",
+      usage: { promptTokens: 120, completionTokens: 40, cachedTokens: 80 },
+    },
+  });
+
+  assert.equal(ready.eventType, "live_answer_relevance.ready");
+  assert.equal(ready.payload.onTopic, true);
+});

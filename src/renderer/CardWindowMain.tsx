@@ -513,15 +513,16 @@ function CardWindowMainInner({ role }: { readonly role: CardWindowRole }) {
 
   return (
     <div
-      className="flex h-fit min-h-0 w-full flex-col bg-transparent"
+      className="flex h-fit min-h-0 w-full flex-col"
       id={role}
     >
       <nav
         className={cn(
-          "relative z-[70] mb-px flex w-full shrink-0 flex-col items-end justify-baseline rounded-md shadow-b-md transition-colors duration-200 ease-in-out group-hover:border-yellow-a10",
+          "relative z-[70] mb-px flex w-full shrink-0 flex-col items-end justify-baseline rounded-md shadow-b-md transition-colors duration-200 ease-in-out group-hover:border-yellow-a10 ",
           isPinned
             ? "border-dashed border-yellow-a10"
             : "border-transparent from-bg-yellow-a1/5 to-transparent linear-gradient-to-b",
+          "!bg-[#f9f8470d]"
         )}
         draggable={!isPinned}
         style={dragRegionStyle}
@@ -556,7 +557,7 @@ function CardWindowMainInner({ role }: { readonly role: CardWindowRole }) {
         </div>
       </nav>
       <div
-        className="flex min-h-0 w-full flex-1 flex-col overflow-hidden bg-transparent"
+        className="flex min-h-0 w-full flex-1 flex-col overflow-hidden "
         draggable={!isPinned}
         style={dragRegionStyle}
       >

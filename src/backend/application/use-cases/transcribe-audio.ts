@@ -1,9 +1,9 @@
-import { log } from "../../../lib/logger";
 import { DEFAULT_TRANSCRIPTION_MODEL_ID } from "../../../shared/model-manifest";
 import type {
   CaptureProvenance,
   TranscriptionResult,
 } from "../../../shared/transcription";
+import { LIVE_TRANSCRIPTION_SAMPLE_RATE } from "../../../shared/transcription";
 import type { AudioMediaSource } from "../../../shared/session-lifecycle";
 import { normalizeAsrOutput } from "../../guards/normalize-asr-output";
 
@@ -33,7 +33,6 @@ export function createTranscribeAudioUseCase(
   return async function transcribeAudio(
     input: TranscribeAudioInput,
   ): Promise<TranscriptionResult> {
-    const start = performance.now();
     const pipelineUnknown: unknown = await dependencies.getPipeline(
       DEFAULT_TRANSCRIPTION_MODEL_ID,
     );
@@ -53,8 +52,8 @@ export function createTranscribeAudioUseCase(
       sumSq += v * v;
     }
     pcmStats.rms = Math.sqrt(sumSq / (input.pcm.length || 1));
-
-
+    const pcmDurationMs =
+      (input.pcm.length / LIVE_TRANSCRIPTION_SAMPLE_RATE) * 1000;
 
     // Typical live desktop-capture slice is ~6s at 16 kHz mono (AUDIO_CHUNK_INTERVAL_MS).
     // chunk_length_s above that lets one internal ASR window cover most slices; short PCM
@@ -76,6 +75,8 @@ export function createTranscribeAudioUseCase(
       sessionId: input.sessionId,
       chunkId: input.chunkId,
       recordedAt: input.recordedAt,
+      pcmRms: pcmStats.rms,
+      pcmDurationMs,
       ...(input.provenance ? { provenance: input.provenance } : {}),
       ...(chunks && chunks.length > 0 ? { chunks } : {}),
     };

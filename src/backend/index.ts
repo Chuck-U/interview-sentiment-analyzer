@@ -40,6 +40,7 @@ import { LocalPipelineAnalysisProvider } from "./infrastructure/providers/local-
 import { createSessionStorageLayoutResolver } from "./infrastructure/storage/session-storage-layout";
 import type {
   MediaChunkSnapshot,
+  PipelineEventEnvelope,
   SessionLifecycleRecoveryIssue,
   SessionSnapshot,
 } from "../shared";
@@ -122,6 +123,7 @@ export type SessionLifecycleBackendEvents = {
 
 export type SessionLifecycleBackend = {
   readonly controller: ReturnType<typeof createSessionLifecycleController>;
+  readonly appendPipelineEvent: (event: PipelineEventEnvelope) => Promise<void>;
   recover(): Promise<void>;
 };
 
@@ -265,6 +267,8 @@ export function createSessionLifecycleBackend(
 
   return {
     controller,
+    appendPipelineEvent: (event: PipelineEventEnvelope) =>
+      pipelineEventRepository.append(event),
     async recover() {
       await recover();
       await pipelineOrchestrator.recover();
