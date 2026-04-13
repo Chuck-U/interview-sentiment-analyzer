@@ -280,7 +280,7 @@ export function AiProviderCard() {
 
   return (
 
-    <div className="flex flex-col gap-[24px]">
+    <div className="flex flex-col gap-[24px]" style={noDragStyle}>
       <div className="flex flex-col gap-3 rounded-md border gap-y-4 p-4 bg-ring/10 my-5">
         <div className="flex flex-col gap-1.5">
           <h3 className="text-sm font-semibold leading-none">OpenRouter</h3>
@@ -293,16 +293,7 @@ export function AiProviderCard() {
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between">
             <h4 className="text-sm font-medium leading-7">API key</h4>
-            {openRouterStatusLoading ? (
-              <Skeleton className="h-6 w-14 rounded-md" />
-            ) : (
-              <Badge
-                variant={openRouterHasStoredKey ? "default" : "secondary"}
-                className="text-md leading-7"
-              >
-                {openRouterHasStoredKey ? "Saved" : "Empty"}
-              </Badge>
-            )}
+
           </div>
 
           <div className="flex flex-col gap-2" style={noDragStyle}>
@@ -339,9 +330,7 @@ export function AiProviderCard() {
             </InputGroup>
 
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-muted-foreground">
-                Enter a new key to replace the stored OpenRouter credential.
-              </p>
+
               <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
                 {openRouterHasStoredKey ? (
                   <Button
@@ -381,7 +370,6 @@ export function AiProviderCard() {
         </div>
       </div>
 
-      <div className="mx-3 h-px bg-yellow-contrast/30" />
 
       <div className="flex flex-col gap-3 rounded-md border gap-y-4 p-4 bg-ring/10 my-5">
 
@@ -467,8 +455,6 @@ export function AiProviderCard() {
           </div>
         </div>
       </div>
-
-      <div className=" px-4 h-px bg-yellow-contrast/30 mx-3" />
 
       <div className="flex flex-col gap-1.5 mx-2 border-t my-5">
         <div className="flex items-center justify-between gap-3" style={noDragStyle}>

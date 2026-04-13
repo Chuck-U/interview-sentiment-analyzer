@@ -558,12 +558,12 @@ function CardWindowMainInner({ role }: { readonly role: CardWindowRole }) {
       </nav>
       <div
         className="flex min-h-0 w-full flex-1 flex-col overflow-hidden "
-        draggable={!isPinned}
-        style={dragRegionStyle}
+        style={noDragRegionStyle}
       >
         <div className="flex min-h-0 flex-1">
           <div
             className="flex min-h-0 flex-1 overflow-hidden"
+            draggable={false}
             style={noDragRegionStyle}
           >
             {content}

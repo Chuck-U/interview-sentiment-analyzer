@@ -359,7 +359,8 @@ function createWindow(
     fullscreenable: false,
     skipTaskbar: true,
     hasShadow: true,
-    focusable: false,
+    /** Required for text fields: `false` blocks normal keyboard focus on Windows (and can break inputs). */
+    focusable: WINDOW_ROLES.options === role ? true : false,
     movable: true,
     // preload: we should split the preload into different files for different roles.
 
