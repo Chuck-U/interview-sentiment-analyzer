@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from "react";
-
+import { DRAG_REGION_STYLE } from "./hooks/usePinnedWindowBehavior";
 import {
   RiArrowDownSLine,
   RiArrowUpSLine,
@@ -116,9 +116,9 @@ function QuestionBoxNavControls() {
   };
 
   return (
-    <div style={NO_DRAG_REGION_STYLE}>
+    <div style={DRAG_REGION_STYLE} className="flex flex-col justify-center mx-auto">
       <TooltipProvider delayDuration={300}>
-        <div className="flex flex-0 items-center justify-center gap-0.5 px-1 [&>button]:[webkit-app-region:no-drag] [&>button]:[webkit-app-region:no-drag] ">
+        <div className="flex max-w-1/2 items-center justify-center gap-0.5 px-1" style={NO_DRAG_REGION_STYLE}>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button

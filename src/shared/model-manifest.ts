@@ -62,7 +62,8 @@ export type ModelMatrixEntry = {
 };
 
 export const DEFAULT_TRANSCRIPTION_MODEL_ID =
-  "onnx-community/moonshine-base-ONNX";
+  "distil-whisper/distil-small.en";
+// "onnx-community/whisper-base";
 
 export const ASR_MODEL_CANDIDATE_IDS = [
   DEFAULT_TRANSCRIPTION_MODEL_ID,
