@@ -133,10 +133,7 @@ export function useRecordingSession(
           recordedAt,
           buffer,
         });
-        if (
-          isAudioMediaChunkSource(source) &&
-          (source === "desktop-capture" || source === "microphone")
-        ) {
+        if (isAudioMediaChunkSource(source)) {
           void (async () => {
             const provenance: CaptureProvenance | undefined =
               resolveProvenance(source as AudioMediaSource, manager.isDesktopCaptureMixed());
