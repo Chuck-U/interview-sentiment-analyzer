@@ -33,6 +33,8 @@ export const PIPELINE_STAGE_NAMES = [
   "session.summary.ready",
   "coaching.requested",
   "coaching.ready",
+  "live_answer_relevance.requested",
+  "live_answer_relevance.ready",
   "pipeline.failed",
 ] as const;
 
@@ -502,6 +504,82 @@ const coachingReadyPayloadSchema = pipelineArtifactPayloadSchema.extend({
   coachingFormat: z.enum(["markdown", "json"]),
 });
 
+const liveAnswerTokenUsageSnapshotSchema = z.object({
+  promptTokens: z
+    .number()
+    .int("live answer usage promptTokens must be an integer")
+    .nonnegative()
+    .optional(),
+  completionTokens: z
+    .number()
+    .int("live answer usage completionTokens must be an integer")
+    .nonnegative()
+    .optional(),
+  cachedTokens: z
+    .number()
+    .int("live answer usage cachedTokens must be an integer")
+    .nonnegative()
+    .optional(),
+});
+
+const liveAnswerRelevanceRequestedPayloadSchema =
+  pipelineArtifactPayloadSchema.extend({
+    requestedAt: nonEmptyTrimmedStringSchema(
+      "live_answer_relevance.requested payload requires requestedAt",
+    ),
+    activeQuestionText: nonEmptyTrimmedStringSchema(
+      "live_answer_relevance.requested payload requires activeQuestionText",
+    ),
+    answerWindowText: z.string(),
+    windowStartedAt: nonEmptyTrimmedStringSchema(
+      "live_answer_relevance.requested payload requires windowStartedAt",
+    ),
+    windowEndedAt: nonEmptyTrimmedStringSchema(
+      "live_answer_relevance.requested payload requires windowEndedAt",
+    ),
+    micChunkIds: z.array(
+      nonEmptyTrimmedStringSchema(
+        "live_answer_relevance.requested payload requires non-empty micChunkIds entries",
+      ),
+    ),
+    evaluationCorrelationId: nonEmptyTrimmedStringSchema(
+      "live_answer_relevance.requested payload requires evaluationCorrelationId",
+    ),
+  });
+
+const liveAnswerRelevanceReadyPayloadSchema = pipelineArtifactPayloadSchema.extend({
+  completedAt: nonEmptyTrimmedStringSchema(
+    "live_answer_relevance.ready payload requires completedAt",
+  ),
+  onTopic: z.boolean(),
+  offTopicPoints: z.array(z.string()),
+  relevanceScore: z
+    .number()
+    .min(0, "live_answer_relevance.ready relevanceScore must be at least 0")
+    .max(1, "live_answer_relevance.ready relevanceScore must be at most 1")
+    .optional(),
+  offTopicSignal: z
+    .number()
+    .min(0, "live_answer_relevance.ready offTopicSignal must be at least 0")
+    .max(1, "live_answer_relevance.ready offTopicSignal must be at most 1")
+    .optional(),
+  streakCount: z
+    .number()
+    .int("live_answer_relevance.ready streakCount must be an integer")
+    .nonnegative()
+    .optional(),
+  evaluationCorrelationId: nonEmptyTrimmedStringSchema(
+    "live_answer_relevance.ready payload requires evaluationCorrelationId",
+  ),
+  modelId: optionalTrimmedStringSchema(
+    "live_answer_relevance.ready payload requires a non-empty modelId when provided",
+  ),
+  providerRequestId: optionalTrimmedStringSchema(
+    "live_answer_relevance.ready payload requires a non-empty providerRequestId when provided",
+  ),
+  usage: liveAnswerTokenUsageSnapshotSchema.optional(),
+});
+
 const pipelineFailedPayloadSchema = pipelineArtifactPayloadSchema.extend({
   failedAt: nonEmptyTrimmedStringSchema("pipeline.failed payload requires failedAt"),
   failedStageName: pipelineStageNameSchema,
@@ -569,6 +647,12 @@ export type CoachingRequestedPayload = z.infer<
   typeof coachingRequestedPayloadSchema
 >;
 export type CoachingReadyPayload = z.infer<typeof coachingReadyPayloadSchema>;
+export type LiveAnswerRelevanceRequestedPayload = z.infer<
+  typeof liveAnswerRelevanceRequestedPayloadSchema
+>;
+export type LiveAnswerRelevanceReadyPayload = z.infer<
+  typeof liveAnswerRelevanceReadyPayloadSchema
+>;
 export type PipelineFailedPayload = z.infer<typeof pipelineFailedPayloadSchema>;
 
 export type PipelinePayloadByEventType = {
@@ -594,6 +678,8 @@ export type PipelinePayloadByEventType = {
   readonly "session.summary.ready": SessionSummaryReadyPayload;
   readonly "coaching.requested": CoachingRequestedPayload;
   readonly "coaching.ready": CoachingReadyPayload;
+  readonly "live_answer_relevance.requested": LiveAnswerRelevanceRequestedPayload;
+  readonly "live_answer_relevance.ready": LiveAnswerRelevanceReadyPayload;
   readonly "pipeline.failed": PipelineFailedPayload;
 };
 
@@ -723,6 +809,8 @@ export const PIPELINE_PAYLOAD_SCHEMA_VERSIONS: Readonly<
   "session.summary.ready": 1,
   "coaching.requested": 1,
   "coaching.ready": 1,
+  "live_answer_relevance.requested": 1,
+  "live_answer_relevance.ready": 1,
   "pipeline.failed": 1,
 };
 
@@ -751,6 +839,8 @@ export const PIPELINE_PAYLOAD_SCHEMAS: {
   "session.summary.ready": sessionSummaryReadyPayloadSchema,
   "coaching.requested": coachingRequestedPayloadSchema,
   "coaching.ready": coachingReadyPayloadSchema,
+  "live_answer_relevance.requested": liveAnswerRelevanceRequestedPayloadSchema,
+  "live_answer_relevance.ready": liveAnswerRelevanceReadyPayloadSchema,
   "pipeline.failed": pipelineFailedPayloadSchema,
 };
 
@@ -1042,6 +1132,20 @@ export const PIPELINE_ARTIFACT_HANDOFF_RULES: Readonly<
     ],
     requiredOutputKinds: ["coaching-feedback"],
     allowedOutputKinds: ["coaching-feedback"],
+  },
+  "live_answer_relevance.requested": {
+    requiresChunkId: true,
+    requiredInputKinds: [],
+    allowedInputKinds: [...PIPELINE_ARTIFACT_KINDS],
+    requiredOutputKinds: [],
+    allowedOutputKinds: [...PIPELINE_ARTIFACT_KINDS],
+  },
+  "live_answer_relevance.ready": {
+    requiresChunkId: true,
+    requiredInputKinds: [],
+    allowedInputKinds: [...PIPELINE_ARTIFACT_KINDS],
+    requiredOutputKinds: [],
+    allowedOutputKinds: [...PIPELINE_ARTIFACT_KINDS],
   },
   "pipeline.failed": {
     requiresChunkId: false,

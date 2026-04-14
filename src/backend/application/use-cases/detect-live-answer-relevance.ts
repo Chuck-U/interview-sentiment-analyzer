@@ -99,6 +99,7 @@ function tokenize(text: string): string[] {
 export type ScoreAnswerRelevanceInput = {
   readonly questionText: string;
   readonly answerWindowText: string;
+  readonly abortSignal?: AbortSignal;
 };
 
 export type AnswerRelevanceScorerKind =
@@ -112,9 +113,20 @@ export type AnswerRelevanceScorerDescriptor = {
   readonly modelId: string;
 };
 
+export type ScoreAnswerRelevanceUsage = {
+  readonly promptTokens?: number;
+  readonly completionTokens?: number;
+  readonly cachedTokens?: number;
+};
+
 export type ScoreAnswerRelevanceResult = {
   readonly relevanceScore: number;
   readonly scorer?: AnswerRelevanceScorerDescriptor;
+  readonly onTopic?: boolean;
+  readonly offTopicPoints?: readonly string[];
+  readonly usage?: ScoreAnswerRelevanceUsage;
+  readonly modelId?: string;
+  readonly providerRequestId?: string;
 };
 
 export type DetectLiveAnswerRelevanceInput = {
@@ -122,6 +134,7 @@ export type DetectLiveAnswerRelevanceInput = {
   readonly answerWindowText: string;
   readonly evaluatedAt: string;
   readonly previousStreakCount: number;
+  readonly abortSignal?: AbortSignal;
 };
 
 export type DetectLiveAnswerRelevanceDependencies = {
@@ -137,6 +150,11 @@ export type DetectLiveAnswerRelevanceResult =
   PipelineLiveAnswerEvaluationState & {
     readonly streakCount: number;
     readonly lastUpdatedAt: string;
+    readonly onTopic?: boolean;
+    readonly offTopicPoints?: readonly string[];
+    readonly usage?: ScoreAnswerRelevanceUsage;
+    readonly modelId?: string;
+    readonly providerRequestId?: string;
   };
 
 function normalizeThreshold(
@@ -248,10 +266,12 @@ export function createDetectLiveAnswerRelevanceUseCase(
       };
     }
 
-    const { relevanceScore } = await scoreAnswerRelevance({
+    const scored = await scoreAnswerRelevance({
       questionText: input.activeQuestion.questionText,
       answerWindowText,
+      abortSignal: input.abortSignal,
     });
+    const { relevanceScore } = scored;
     const normalizedRelevanceScore = clampScore(relevanceScore);
     const offTopicSignal = clampScore(1 - normalizedRelevanceScore);
     const isStrongDrift = offTopicSignal >= strongDriftThreshold;
@@ -271,6 +291,15 @@ export function createDetectLiveAnswerRelevanceUseCase(
       offTopicSignal,
       streakCount: nextStreakCount,
       lastUpdatedAt: input.evaluatedAt,
+      ...(scored.onTopic !== undefined ? { onTopic: scored.onTopic } : {}),
+      ...(scored.offTopicPoints !== undefined
+        ? { offTopicPoints: [...scored.offTopicPoints] }
+        : {}),
+      ...(scored.usage !== undefined ? { usage: scored.usage } : {}),
+      ...(scored.modelId !== undefined ? { modelId: scored.modelId } : {}),
+      ...(scored.providerRequestId !== undefined
+        ? { providerRequestId: scored.providerRequestId }
+        : {}),
     };
   };
 }

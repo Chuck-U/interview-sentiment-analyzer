@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import {
   RiEyeLine,
@@ -11,13 +11,6 @@ import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import {
   InputGroup,
   InputGroupAddon,
@@ -51,22 +44,30 @@ import {
   toggleApiKeyVisibility,
 } from "@/renderer/store/slices/aiProviderSlice";
 
+/** Chat / model provider list; OpenRouter is configured in its own section above. */
+const CHAT_AI_PROVIDERS = AI_PROVIDERS.filter(
+  (p): p is Exclude<AiProvider, "openrouter"> => p !== "openrouter",
+);
+
 const PROVIDER_LABELS = {
   openai: "OpenAI",
   anthropic: "Anthropic",
   google: "Google AI",
+  openrouter: "OpenRouter",
 } satisfies Record<AiProvider, string>;
 
 const API_KEY_PLACEHOLDERS = {
   openai: "sk-...",
   anthropic: "sk-ant-...",
   google: "AIza...",
+  openrouter: "...",
 } satisfies Record<AiProvider, string>;
 
 const MODEL_PLACEHOLDERS = {
   openai: "Choose an OpenAI model",
   anthropic: "Choose an Anthropic model",
   google: "Choose a Google model",
+  openrouter: "Choose an OpenRouter model",
 } satisfies Record<AiProvider, string>;
 
 const DEFAULT_MODEL_VALUE = "__provider-default__";
@@ -111,6 +112,25 @@ export function AiProviderCard() {
   const noDragStyle = { WebkitAppRegion: "no-drag" } as CSSProperties;
   const selectedProvider = config.provider;
   const selectedProviderLabel = PROVIDER_LABELS[selectedProvider];
+
+  const [openRouterDraftKey, setOpenRouterDraftKey] = useState("");
+  const [openRouterKeyVisible, setOpenRouterKeyVisible] = useState(false);
+  const [openRouterHasStoredKey, setOpenRouterHasStoredKey] = useState(false);
+  const [openRouterStatusLoading, setOpenRouterStatusLoading] = useState(true);
+  const [isSavingOpenRouterKey, setIsSavingOpenRouterKey] = useState(false);
+  const [isRemovingOpenRouterKey, setIsRemovingOpenRouterKey] = useState(false);
+
+  const refreshOpenRouterKeyStatus = useCallback(async () => {
+    setOpenRouterStatusLoading(true);
+    try {
+      const status = await window.electronApp.openRouterKey.getKeyStatus();
+      setOpenRouterHasStoredKey(status.hasKey);
+    } catch (error: unknown) {
+      toast.error(`Unable to read OpenRouter key status. ${getErrorMessage(error)}`);
+    } finally {
+      setOpenRouterStatusLoading(false);
+    }
+  }, []);
   const selectedModelValue = config.modelId ?? DEFAULT_MODEL_VALUE;
   const hasSavedModelOutsideResults = useMemo(
     () =>
@@ -132,6 +152,27 @@ export function AiProviderCard() {
         );
       });
   }, [dispatch, hasLoaded, isLoading]);
+
+  useEffect(() => {
+    void refreshOpenRouterKeyStatus();
+  }, [refreshOpenRouterKeyStatus]);
+
+  useEffect(() => {
+    if (!hasLoaded || isSavingProvider) {
+      return;
+    }
+    if (config.provider !== "openrouter") {
+      return;
+    }
+    void dispatch(persistAiProviderSelection("openai"))
+      .unwrap()
+      .then(() => dispatch(syncAiProviderKeyStatus("openai")).unwrap())
+      .catch((error: unknown) => {
+        toast.error(
+          `Could not move primary provider off OpenRouter. ${getErrorMessage(error)}`,
+        );
+      });
+  }, [dispatch, hasLoaded, isSavingProvider, config.provider]);
 
   async function handleProviderChange(nextProvider: AiProvider) {
     if (nextProvider === selectedProvider) {
@@ -203,9 +244,133 @@ export function AiProviderCard() {
       });
   }
 
+  async function handleSaveOpenRouterKey() {
+    const normalizedKey = openRouterDraftKey.trim();
+    if (normalizedKey.length === 0) {
+      toast.error("Enter an OpenRouter API key before saving.");
+      return;
+    }
+
+    setIsSavingOpenRouterKey(true);
+    try {
+      await window.electronApp.openRouterKey.setKey(normalizedKey);
+      setOpenRouterDraftKey("");
+      await refreshOpenRouterKeyStatus();
+      toast.success("OpenRouter API key saved.");
+    } catch (error: unknown) {
+      toast.error(`Unable to save the OpenRouter key. ${getErrorMessage(error)}`);
+    } finally {
+      setIsSavingOpenRouterKey(false);
+    }
+  }
+
+  async function handleRemoveOpenRouterKey() {
+    setIsRemovingOpenRouterKey(true);
+    try {
+      await window.electronApp.openRouterKey.deleteKey();
+      setOpenRouterDraftKey("");
+      await refreshOpenRouterKeyStatus();
+      toast.success("OpenRouter API key removed.");
+    } catch (error: unknown) {
+      toast.error(`Unable to remove the OpenRouter key. ${getErrorMessage(error)}`);
+    } finally {
+      setIsRemovingOpenRouterKey(false);
+    }
+  }
+
   return (
 
-    <div className="flex flex-col gap-[24px]">
+    <div className="flex flex-col gap-[24px]" style={noDragStyle}>
+      <div className="flex flex-col gap-3 rounded-md border gap-y-4 p-4 bg-ring/10 my-5">
+        <div className="flex flex-col gap-1.5">
+          <h3 className="text-sm font-semibold leading-none">OpenRouter</h3>
+          <p className="text-sm text-muted-foreground">
+            API key for live answer relevance while recording. This is separate from the chat
+            provider and model below.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-medium leading-7">API key</h4>
+
+          </div>
+
+          <div className="flex flex-col gap-2" style={noDragStyle}>
+            <InputGroup>
+              <InputGroupInput
+                id="openrouter-api-key"
+                type={openRouterKeyVisible ? "text" : "password"}
+                value={openRouterDraftKey}
+                placeholder={API_KEY_PLACEHOLDERS.openrouter}
+                onChange={(event) => {
+                  setOpenRouterDraftKey(event.target.value);
+                }}
+                disabled={isSavingOpenRouterKey || isRemovingOpenRouterKey}
+                aria-label="OpenRouter API key"
+              />
+              <InputGroupAddon align="inline-end">
+                <InputGroupButton
+                  aria-label={openRouterKeyVisible ? "Hide OpenRouter API key" : "Show OpenRouter API key"}
+                  onClick={() => {
+                    setOpenRouterKeyVisible((v) => !v);
+                  }}
+                  className={cn(
+                    "size-6",
+                    openRouterKeyVisible ? "text-yellow-indicator" : "text-foreground",
+                  )}
+                >
+                  {openRouterKeyVisible ? (
+                    <RiEyeOffLine data-icon="inline-end" />
+                  ) : (
+                    <RiEyeLine data-icon="inline-end" />
+                  )}
+                </InputGroupButton>
+              </InputGroupAddon>
+            </InputGroup>
+
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+
+              <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                {openRouterHasStoredKey ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={
+                      isSavingOpenRouterKey
+                      || isRemovingOpenRouterKey
+                      || openRouterStatusLoading
+                    }
+                    onClick={() => {
+                      void handleRemoveOpenRouterKey();
+                    }}
+                  >
+                    Remove key
+                  </Button>
+                ) : null}
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={
+                    isSavingOpenRouterKey
+                    || isRemovingOpenRouterKey
+                    || openRouterDraftKey.trim().length === 0
+                  }
+                  onClick={() => {
+                    void handleSaveOpenRouterKey();
+                  }}
+                >
+                  <RiSaveLine data-icon="inline-start" />
+                  Save key
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+
       <div className="flex flex-col gap-3 rounded-md border gap-y-4 p-4 bg-ring/10 my-5">
 
         <Label htmlFor="ai-provider-select">Provider</Label>
@@ -222,7 +387,7 @@ export function AiProviderCard() {
           </SelectTrigger>
           <SelectContent>
             <SelectGroup className="from-yellow-11/30 to-yellow-11/20 bg-gradient-to-b">
-              {AI_PROVIDERS.map((provider) => (
+              {CHAT_AI_PROVIDERS.map((provider) => (
                 <SelectItem key={provider} value={provider}>
                   {PROVIDER_LABELS[provider]}
                 </SelectItem>
@@ -290,8 +455,6 @@ export function AiProviderCard() {
           </div>
         </div>
       </div>
-
-      <div className=" px-4 h-px bg-yellow-contrast/30 mx-3" />
 
       <div className="flex flex-col gap-1.5 mx-2 border-t my-5">
         <div className="flex items-center justify-between gap-3" style={noDragStyle}>

@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from "react";
-
+import { DRAG_REGION_STYLE } from "./hooks/usePinnedWindowBehavior";
 import {
   RiArrowDownSLine,
   RiArrowUpSLine,
@@ -116,9 +116,9 @@ function QuestionBoxNavControls() {
   };
 
   return (
-    <div style={NO_DRAG_REGION_STYLE}>
+    <div style={DRAG_REGION_STYLE} className="flex flex-col justify-center mx-auto">
       <TooltipProvider delayDuration={300}>
-        <div className="flex flex-0 items-center justify-center gap-0.5 px-1 [&>button]:[webkit-app-region:no-drag] [&>button]:[webkit-app-region:no-drag] ">
+        <div className="flex max-w-1/2 items-center justify-center gap-0.5 px-1" style={NO_DRAG_REGION_STYLE}>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -513,15 +513,16 @@ function CardWindowMainInner({ role }: { readonly role: CardWindowRole }) {
 
   return (
     <div
-      className="flex h-fit min-h-0 w-full flex-col bg-transparent"
+      className="flex h-fit min-h-0 w-full flex-col"
       id={role}
     >
       <nav
         className={cn(
-          "relative z-[70] mb-px flex w-full shrink-0 flex-col items-end justify-baseline rounded-md shadow-b-md transition-colors duration-200 ease-in-out group-hover:border-yellow-a10",
+          "relative z-[70] mb-px flex w-full shrink-0 flex-col items-end justify-baseline rounded-md shadow-b-md transition-colors duration-200 ease-in-out group-hover:border-yellow-a10 ",
           isPinned
             ? "border-dashed border-yellow-a10"
             : "border-transparent from-bg-yellow-a1/5 to-transparent linear-gradient-to-b",
+          "!bg-[#f9f8470d]"
         )}
         draggable={!isPinned}
         style={dragRegionStyle}
@@ -556,13 +557,13 @@ function CardWindowMainInner({ role }: { readonly role: CardWindowRole }) {
         </div>
       </nav>
       <div
-        className="flex min-h-0 w-full flex-1 flex-col overflow-hidden bg-transparent"
-        draggable={!isPinned}
-        style={dragRegionStyle}
+        className="flex min-h-0 w-full flex-1 flex-col overflow-hidden "
+        style={noDragRegionStyle}
       >
         <div className="flex min-h-0 flex-1">
           <div
             className="flex min-h-0 flex-1 overflow-hidden"
+            draggable={false}
             style={noDragRegionStyle}
           >
             {content}

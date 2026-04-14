@@ -7,12 +7,18 @@ import { z } from "zod";
 const APP_DATA_SUBDIR = "interview-sentiment-analyzer";
 const SECRETS_FILE_NAME = "secrets.json";
 
-const SECRET_STORE_PROVIDERS = ["openai", "anthropic", "google"] as const;
+export const SECRET_STORE_PROVIDERS = [
+  "openai",
+  "anthropic",
+  "google",
+  "openrouter",
+] as const;
 export const secretStoreProviderSchema = z.enum(SECRET_STORE_PROVIDERS);
 const secretsFileSchema = z.object({
   openai: z.string().optional(),
   anthropic: z.string().optional(),
   google: z.string().optional(),
+  openrouter: z.string().optional(),
 });
 
 export type SecretStoreProvider = z.infer<typeof secretStoreProviderSchema>;

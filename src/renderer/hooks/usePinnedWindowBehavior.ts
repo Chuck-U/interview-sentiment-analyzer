@@ -3,7 +3,7 @@ import type { CSSProperties } from "react";
 
 import { useAppSelector } from "../store/hooks";
 
-const DRAG_REGION_STYLE = {
+export const DRAG_REGION_STYLE = {
   WebkitAppRegion: "drag",
 } as CSSProperties;
 

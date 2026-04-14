@@ -1,6 +1,10 @@
+import { randomUUID } from "node:crypto";
+
 import { traceable } from "langsmith/traceable";
+import { log } from "../../../lib/logger";
 import type {
   PipelineActiveQuestionState,
+  PipelineEventEnvelope,
   PipelineSessionGraphState,
 } from "../../../shared";
 import type { AnswerRelevanceAssessmentPayload } from "../../../shared/answer-relevance";
@@ -9,9 +13,13 @@ import type { AudioMediaSource } from "../../../shared/session-lifecycle";
 import type { CaptureProvenance, TranscriptionResult } from "../../../shared/transcription";
 import { LiveQuestionTranscriptBuffer } from "./live-question-transcript-buffer";
 import {
-  LiveAnswerIntervalBuffer,
-  type LiveAnswerInterval,
-} from "./live-answer-interval-buffer";
+  LiveAnswerWindowBuffer,
+  type LiveAnswerWindowInterval,
+} from "./live-answer-window-buffer";
+import {
+  createLiveAnswerRelevanceReadyEvent,
+  createLiveAnswerRelevanceRequestedEvent,
+} from "./pipeline-events";
 import type {
   DetectLiveAnswerRelevanceInput,
   DetectLiveAnswerRelevanceResult,
@@ -37,7 +45,9 @@ type LiveTranscriptionStateGraphInput = {
 type LiveTranscriptionSessionState = {
   graphState: PipelineSessionGraphState;
   questionBuffer: LiveQuestionTranscriptBuffer;
-  answerBuffer: LiveAnswerIntervalBuffer;
+  answerBuffer: LiveAnswerWindowBuffer;
+  /** Aborts in-flight OpenRouter scoring when a new question supersedes the active one. */
+  answerScoringAbort?: AbortController;
 };
 
 export type LiveTranscriptionStateGraphDependencies = {
@@ -55,6 +65,15 @@ export type LiveTranscriptionStateGraphDependencies = {
   readonly publishAnswerRelevance?: (
     payload: AnswerRelevanceAssessmentPayload,
   ) => void;
+  readonly appendPipelineEvent?: (
+    event: PipelineEventEnvelope,
+  ) => Promise<void>;
+  /**
+   * When provided and resolves false, skips live answer relevance (no OpenRouter pipeline,
+   * no SQLite live_answer_relevance.* events, no IPC assessment, no answer-window transcript log).
+   * Omitted means enabled (for tests and backwards compatibility).
+   */
+  readonly isLiveOpenRouterRelevanceEnabled?: () => Promise<boolean>;
 };
 
 const DEFAULT_MINIMUM_QUESTION_CONFIDENCE = 0.3;
@@ -165,7 +184,7 @@ export class LiveTranscriptionStateGraph {
       return copyGraphState(sessionState.graphState);
     }
 
-    await this.scoreReadyIntervals(
+    await this.scoreReadyWindows(
       sessionId,
       "microphone",
       activeQuestion,
@@ -191,7 +210,7 @@ export class LiveTranscriptionStateGraph {
     const created: LiveTranscriptionSessionState = {
       graphState: {},
       questionBuffer: new LiveQuestionTranscriptBuffer(),
-      answerBuffer: new LiveAnswerIntervalBuffer(),
+      answerBuffer: new LiveAnswerWindowBuffer(),
     };
     this.sessions.set(sessionId, created);
 
@@ -246,7 +265,9 @@ export class LiveTranscriptionStateGraph {
       streakCount: 0,
       lastUpdatedAt: detectedQuestion.detectedAt,
     };
-    sessionState.answerBuffer.reset(detectedQuestion.detectedAt);
+    sessionState.answerScoringAbort?.abort();
+    sessionState.answerScoringAbort = new AbortController();
+    sessionState.answerBuffer.reset();
     this.dependencies.publishQuestionDetected?.(detectedQuestion);
   }
 
@@ -267,13 +288,15 @@ export class LiveTranscriptionStateGraph {
       return;
     }
 
-    const { readyIntervals } = sessionState.answerBuffer.append({
+    const { readyWindows } = sessionState.answerBuffer.append({
       chunkId: input.chunkId,
       recordedAt,
       text: input.transcription.text,
+      pcmRms: input.transcription.pcmRms,
+      pcmDurationMs: input.transcription.pcmDurationMs,
     });
 
-    if (readyIntervals.length === 0) {
+    if (readyWindows.length === 0) {
       sessionState.graphState.liveAnswerEvaluation = {
         status: "buffering",
         activeQuestionText: activeQuestion.questionText,
@@ -284,33 +307,104 @@ export class LiveTranscriptionStateGraph {
       return;
     }
 
-    await this.scoreReadyIntervals(
+    await this.scoreReadyWindows(
       input.sessionId,
       input.source,
       activeQuestion,
-      readyIntervals,
+      readyWindows,
       sessionState,
       input.provenance,
     );
   }
 
-  private async scoreReadyIntervals(
+  private async scoreReadyWindows(
     sessionId: string,
     source: AudioMediaSource,
     activeQuestion: PipelineActiveQuestionState,
-    intervals: readonly LiveAnswerInterval[],
+    windows: readonly LiveAnswerWindowInterval[],
     sessionState: LiveTranscriptionSessionState,
     provenance?: CaptureProvenance,
   ): Promise<void> {
-    for (const interval of intervals) {
+    for (const interval of windows) {
       const priorStreakCount =
         sessionState.graphState.liveAnswerEvaluation?.streakCount ?? 0;
-      const evaluation = await this.tracedDetectLiveAnswerRelevance({
-        activeQuestion,
-        answerWindowText: interval.text,
-        evaluatedAt: interval.windowEndedAt,
-        previousStreakCount: priorStreakCount,
-      });
+
+      const relevanceEnabled =
+        this.dependencies.isLiveOpenRouterRelevanceEnabled === undefined
+          ? true
+          : await this.dependencies.isLiveOpenRouterRelevanceEnabled();
+
+      if (!relevanceEnabled) {
+        log.ger({
+          type: "info",
+          message:
+            "[live-transcription] skipping live answer relevance pipeline (no OpenRouter API key)",
+          data: {
+            sessionId,
+            windowEndedAt: interval.windowEndedAt,
+          },
+        });
+        sessionState.graphState.liveAnswerEvaluation = {
+          status: "waiting-for-answer",
+          activeQuestionText: activeQuestion.questionText,
+          answerWindowText: interval.text.trim() || undefined,
+          streakCount: priorStreakCount,
+          lastUpdatedAt: interval.windowEndedAt,
+        };
+        continue;
+      }
+
+      const evaluationCorrelationId = randomUUID();
+      const correlationId = evaluationCorrelationId;
+      const micChunkId =
+        interval.chunkIds[interval.chunkIds.length - 1] ?? activeQuestion.sourceChunkId;
+      const occurredAtRequested = new Date().toISOString();
+      const appendPipeline = this.dependencies.appendPipelineEvent;
+
+      if (appendPipeline) {
+        try {
+          await appendPipeline(
+            createLiveAnswerRelevanceRequestedEvent({
+              sessionId,
+              chunkId: micChunkId,
+              eventId: randomUUID(),
+              correlationId,
+              occurredAt: occurredAtRequested,
+              evaluationCorrelationId,
+              activeQuestionText: activeQuestion.questionText,
+              answerWindowText: interval.text,
+              windowStartedAt: interval.windowStartedAt,
+              windowEndedAt: interval.windowEndedAt,
+              micChunkIds: interval.chunkIds,
+              graphState: copyGraphState(sessionState.graphState),
+            }),
+          );
+        } catch (err) {
+          log.ger({
+            type: "warn",
+            message: "[live-transcription] pipeline live_answer_relevance.requested append failed",
+            data: {
+              error: err instanceof Error ? err.message : String(err),
+            },
+          });
+        }
+      }
+
+      let evaluation: DetectLiveAnswerRelevanceResult;
+      try {
+        evaluation = await this.tracedDetectLiveAnswerRelevance({
+          activeQuestion,
+          answerWindowText: interval.text,
+          evaluatedAt: interval.windowEndedAt,
+          previousStreakCount: priorStreakCount,
+          abortSignal: sessionState.answerScoringAbort?.signal,
+        });
+      } catch (err) {
+        if (err instanceof Error && err.name === "AbortError") {
+          continue;
+        }
+        throw err;
+      }
 
       sessionState.graphState.liveAnswerEvaluation = evaluation;
       await this.dependencies.appendTranscriptLog?.({
@@ -333,7 +427,49 @@ export class LiveTranscriptionStateGraph {
         offTopicSignal: evaluation.offTopicSignal,
         streakCount: evaluation.streakCount ?? 0,
         evaluatedAt: evaluation.lastUpdatedAt,
+        onTopic: evaluation.onTopic,
+        offTopicPoints: evaluation.offTopicPoints,
+        modelId: evaluation.modelId,
+        providerRequestId: evaluation.providerRequestId,
+        usage: evaluation.usage,
       });
+
+      const occurredAtReady = new Date().toISOString();
+      if (appendPipeline) {
+        try {
+          await appendPipeline(
+            createLiveAnswerRelevanceReadyEvent({
+              sessionId,
+              chunkId: micChunkId,
+              eventId: randomUUID(),
+              correlationId,
+              occurredAt: occurredAtReady,
+              evaluationCorrelationId,
+              onTopic:
+                evaluation.onTopic ??
+                (evaluation.relevanceScore !== undefined
+                  ? evaluation.relevanceScore >= 0.6
+                  : true),
+              offTopicPoints: evaluation.offTopicPoints ?? [],
+              relevanceScore: evaluation.relevanceScore,
+              offTopicSignal: evaluation.offTopicSignal,
+              streakCount: evaluation.streakCount,
+              modelId: evaluation.modelId,
+              providerRequestId: evaluation.providerRequestId,
+              usage: evaluation.usage,
+              graphState: copyGraphState(sessionState.graphState),
+            }),
+          );
+        } catch (err) {
+          log.ger({
+            type: "warn",
+            message: "[live-transcription] pipeline live_answer_relevance.ready append failed",
+            data: {
+              error: err instanceof Error ? err.message : String(err),
+            },
+          });
+        }
+      }
     }
   }
 }

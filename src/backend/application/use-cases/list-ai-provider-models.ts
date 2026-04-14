@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 import type {
   AiModelSnapshot,
   AiProvider,
@@ -7,6 +9,15 @@ import {
   GoogleModelListResponseSchema,
   OpenAiModelListResponseSchema,
 } from "../../../shared/types/models.types";
+
+const OpenRouterModelListResponseSchema = z.object({
+  data: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string().optional(),
+    }),
+  ),
+});
 
 export type ListAiProviderModelsRequest = {
   readonly provider: AiProvider;
@@ -89,6 +100,29 @@ async function listAnthropicModels(
   );
 }
 
+async function listOpenRouterModels(
+  dependencies: ListAiProviderModelsDependencies,
+  apiKey: string,
+): Promise<readonly AiModelSnapshot[]> {
+  const payload = await fetchJsonOrThrow(
+    dependencies.fetch,
+    "https://openrouter.ai/api/v1/models",
+    {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+      },
+    },
+  );
+  const result = OpenRouterModelListResponseSchema.parse(payload);
+
+  return sortModelsByName(
+    result.data.map((model) => ({
+      id: model.id,
+      name: model.name ?? model.id,
+    })),
+  );
+}
+
 async function listGoogleModels(
   dependencies: ListAiProviderModelsDependencies,
   apiKey: string,
@@ -121,6 +155,8 @@ export function createListAiProviderModelsUseCase(
         return listAnthropicModels(dependencies, request.apiKey);
       case "google":
         return listGoogleModels(dependencies, request.apiKey);
+      case "openrouter":
+        return listOpenRouterModels(dependencies, request.apiKey);
       default: {
         const exhaustiveProvider: never = request.provider;
         throw new Error(

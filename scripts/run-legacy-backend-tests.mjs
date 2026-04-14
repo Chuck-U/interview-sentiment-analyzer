@@ -13,7 +13,6 @@ const backendTestRoot = path.join(
 const jestMigratedTests = new Set([
   "detect-live-answer-relevance.test.js",
   "detect-live-question.test.js",
-  "live-answer-interval-buffer.test.js",
   "live-transcription-state-graph.test.js",
   "model-manifest.test.js",
   "transcribe-audio-request.test.js",

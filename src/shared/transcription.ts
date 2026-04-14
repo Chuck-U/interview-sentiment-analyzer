@@ -51,7 +51,19 @@ export type TranscriptionResult = {
   readonly provenance?: CaptureProvenance;
   /** Word/segment-level timestamps when the model returns them. */
   readonly chunks?: TranscriptChunk[];
+  /**
+   * RMS level of the PCM fed to ASR (live answer windowing / silence detection).
+   * Omitted when not computed (e.g. legacy callers).
+   */
+  readonly pcmRms?: number;
+  /**
+   * Duration of the PCM window in ms at {@link LIVE_TRANSCRIPTION_SAMPLE_RATE}.
+   */
+  readonly pcmDurationMs?: number;
 };
+
+/** Sample rate for live ASR / `pcmDurationMs` (mono). */
+export const LIVE_TRANSCRIPTION_SAMPLE_RATE = 16_000 as const;
 
 export type TranscriptionBridge = {
   transcribeAudio(request: TranscriptionRequest): Promise<TranscriptionResult>;
