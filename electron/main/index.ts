@@ -54,6 +54,10 @@ import {
   normalizeSetOpenRouterKeyRequest,
 } from "../../src/shared/openrouter-key";
 import {
+  OPENROUTER_RELEVANCE_CHANNELS,
+  normalizeOpenRouterRelevanceConfig,
+} from "../../src/shared/openrouter-relevance";
+import {
   clampWindowSize,
   parseMoveWindowByRequest,
   parseSetAlwaysOnTopRequest,
@@ -1044,6 +1048,15 @@ async function initializeApp() {
       await secretStore.deleteApiKey("openrouter");
     });
 
+    ipcMain.handle(OPENROUTER_RELEVANCE_CHANNELS.getConfig, async () => {
+      return appConfigStore.loadOpenRouterRelevanceConfig();
+    });
+
+    ipcMain.handle(OPENROUTER_RELEVANCE_CHANNELS.saveConfig, async (_event, raw: unknown) => {
+      const parsed = normalizeOpenRouterRelevanceConfig(raw);
+      return appConfigStore.saveOpenRouterRelevanceConfig(parsed);
+    });
+
     ipcMain.handle(AI_PROVIDER_CHANNELS.listModels, async (_event, input: unknown) => {
       const provider = normalizeAiProvider(input);
       const apiKey = await secretStore.getApiKey(provider);
@@ -1172,11 +1185,20 @@ async function initializeApp() {
         if (!key) {
           throw new Error("OpenRouter API key required for live answer relevance");
         }
+        const envModel = process.env.OPENROUTER_MODEL?.trim();
+        let resolvedModel: string | undefined;
+        if (envModel && envModel.length > 0) {
+          resolvedModel = envModel;
+        } else {
+          const relevanceCfg = await appConfigStore.loadOpenRouterRelevanceConfig();
+          const configured = relevanceCfg.modelId?.trim();
+          if (configured && configured.length > 0) {
+            resolvedModel = configured;
+          }
+        }
         const openRouterScorer = createOpenRouterAnswerRelevanceScorer({
           apiKey: key,
-          ...(process.env.OPENROUTER_MODEL?.trim()
-            ? { model: process.env.OPENROUTER_MODEL.trim() }
-            : {}),
+          ...(resolvedModel ? { model: resolvedModel } : {}),
           fetchImpl: globalThis.fetch,
         });
         return openRouterScorer(input);

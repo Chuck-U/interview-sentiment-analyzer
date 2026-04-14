@@ -17,6 +17,11 @@ import {
   normalizeSetOpenRouterKeyRequest,
   type OpenRouterKeyBridge,
 } from "../../src/shared/openrouter-key";
+import {
+  OPENROUTER_RELEVANCE_CHANNELS,
+  normalizeOpenRouterRelevanceConfig,
+  type OpenRouterRelevanceBridge,
+} from "../../src/shared/openrouter-relevance";
 import type { ElectronAppBridge } from "../../src/shared/electron-app";
 import type {
   TranscriptionBridge,
@@ -250,6 +255,19 @@ const openRouterKeyBridge: OpenRouterKeyBridge = {
   },
 };
 
+const openRouterRelevanceBridge: OpenRouterRelevanceBridge = {
+  async getConfig() {
+    return ipcRenderer
+      .invoke(OPENROUTER_RELEVANCE_CHANNELS.getConfig)
+      .then(normalizeOpenRouterRelevanceConfig);
+  },
+  async saveConfig(config) {
+    return ipcRenderer
+      .invoke(OPENROUTER_RELEVANCE_CHANNELS.saveConfig, normalizeOpenRouterRelevanceConfig(config))
+      .then(normalizeOpenRouterRelevanceConfig);
+  },
+};
+
 const aiProviderBridge: AiProviderBridge = {
   async getConfig() {
     return await ipcRenderer
@@ -456,6 +474,7 @@ const electronAppBridge: ElectronAppBridge = {
   recordingEvents: recordingEventsBridge,
   aiProvider: aiProviderBridge,
   openRouterKey: openRouterKeyBridge,
+  openRouterRelevance: openRouterRelevanceBridge,
   captureOptions: captureOptionsBridge,
   appControls: appControlsBridge,
   windowControls: windowControlsBridge,

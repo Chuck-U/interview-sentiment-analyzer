@@ -29,9 +29,11 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   AI_PROVIDERS,
+  type AiModelSnapshot,
   type AiProvider,
   type AiProviderConfig,
 } from "@/shared/ai-provider";
+import type { OpenRouterRelevanceConfig } from "@/shared/openrouter-relevance";
 import { useAppDispatch, useAppSelector } from "@/renderer/store/hooks";
 import {
   fetchAiProviderModels,
@@ -71,6 +73,9 @@ const MODEL_PLACEHOLDERS = {
 } satisfies Record<AiProvider, string>;
 
 const DEFAULT_MODEL_VALUE = "__provider-default__";
+
+/** Sentinel for “use scorer default” in saved OpenRouter relevance config. */
+const OPENROUTER_RELEVANCE_DEFAULT_MODEL_VALUE = "__openrouter-relevance-default__";
 
 function getErrorMessage(error: unknown): string {
   if (
@@ -119,6 +124,12 @@ export function AiProviderCard() {
   const [openRouterStatusLoading, setOpenRouterStatusLoading] = useState(true);
   const [isSavingOpenRouterKey, setIsSavingOpenRouterKey] = useState(false);
   const [isRemovingOpenRouterKey, setIsRemovingOpenRouterKey] = useState(false);
+  const [openRouterRelevanceConfig, setOpenRouterRelevanceConfig] = useState<
+    OpenRouterRelevanceConfig
+  >({});
+  const [openRouterModels, setOpenRouterModels] = useState<readonly AiModelSnapshot[]>([]);
+  const [isRefreshingOpenRouterModels, setIsRefreshingOpenRouterModels] = useState(false);
+  const [isSavingOpenRouterRelevanceModel, setIsSavingOpenRouterRelevanceModel] = useState(false);
 
   const refreshOpenRouterKeyStatus = useCallback(async () => {
     setOpenRouterStatusLoading(true);
@@ -131,6 +142,16 @@ export function AiProviderCard() {
       setOpenRouterStatusLoading(false);
     }
   }, []);
+
+  const loadOpenRouterRelevanceConfig = useCallback(async () => {
+    try {
+      const cfg = await window.electronApp.openRouterRelevance.getConfig();
+      setOpenRouterRelevanceConfig(cfg);
+    } catch (error: unknown) {
+      toast.error(`Unable to load OpenRouter relevance settings. ${getErrorMessage(error)}`);
+    }
+  }, []);
+
   const selectedModelValue = config.modelId ?? DEFAULT_MODEL_VALUE;
   const hasSavedModelOutsideResults = useMemo(
     () =>
@@ -156,6 +177,25 @@ export function AiProviderCard() {
   useEffect(() => {
     void refreshOpenRouterKeyStatus();
   }, [refreshOpenRouterKeyStatus]);
+
+  useEffect(() => {
+    void loadOpenRouterRelevanceConfig();
+  }, [loadOpenRouterRelevanceConfig]);
+
+  useEffect(() => {
+    if (!openRouterHasStoredKey) {
+      setOpenRouterModels([]);
+    }
+  }, [openRouterHasStoredKey]);
+
+  const openRouterRelevanceModelSelectValue =
+    openRouterRelevanceConfig.modelId ?? OPENROUTER_RELEVANCE_DEFAULT_MODEL_VALUE;
+  const hasSavedOpenRouterModelOutsideResults = useMemo(
+    () =>
+      openRouterRelevanceConfig.modelId !== undefined
+      && !openRouterModels.some((m) => m.id === openRouterRelevanceConfig.modelId),
+    [openRouterRelevanceConfig.modelId, openRouterModels],
+  );
 
   useEffect(() => {
     if (!hasLoaded || isSavingProvider) {
@@ -244,6 +284,44 @@ export function AiProviderCard() {
       });
   }
 
+  async function fetchOpenRouterModels() {
+    if (!openRouterHasStoredKey) {
+      toast.error("Save an OpenRouter API key before loading models.");
+      return;
+    }
+
+    setIsRefreshingOpenRouterModels(true);
+    try {
+      const list = await window.electronApp.aiProvider.listModels("openrouter");
+      setOpenRouterModels(list);
+    } catch (error: unknown) {
+      toast.error(`Unable to load OpenRouter models. ${getErrorMessage(error)}`);
+    } finally {
+      setIsRefreshingOpenRouterModels(false);
+    }
+  }
+
+  async function handleOpenRouterRelevanceModelChange(nextValue: string) {
+    const modelId =
+      nextValue === OPENROUTER_RELEVANCE_DEFAULT_MODEL_VALUE ? undefined : nextValue;
+
+    setIsSavingOpenRouterRelevanceModel(true);
+    try {
+      await window.electronApp.openRouterRelevance.saveConfig({ modelId });
+      const next = await window.electronApp.openRouterRelevance.getConfig();
+      setOpenRouterRelevanceConfig(next);
+      toast.success(
+        modelId
+          ? `Saved OpenRouter model ${modelId} for live answer relevance.`
+          : "Using built-in default model for live answer relevance.",
+      );
+    } catch (error: unknown) {
+      toast.error(`Unable to save OpenRouter model. ${getErrorMessage(error)}`);
+    } finally {
+      setIsSavingOpenRouterRelevanceModel(false);
+    }
+  }
+
   async function handleSaveOpenRouterKey() {
     const normalizedKey = openRouterDraftKey.trim();
     if (normalizedKey.length === 0) {
@@ -256,6 +334,7 @@ export function AiProviderCard() {
       await window.electronApp.openRouterKey.setKey(normalizedKey);
       setOpenRouterDraftKey("");
       await refreshOpenRouterKeyStatus();
+      await loadOpenRouterRelevanceConfig();
       toast.success("OpenRouter API key saved.");
     } catch (error: unknown) {
       toast.error(`Unable to save the OpenRouter key. ${getErrorMessage(error)}`);
@@ -270,6 +349,7 @@ export function AiProviderCard() {
       await window.electronApp.openRouterKey.deleteKey();
       setOpenRouterDraftKey("");
       await refreshOpenRouterKeyStatus();
+      await loadOpenRouterRelevanceConfig();
       toast.success("OpenRouter API key removed.");
     } catch (error: unknown) {
       toast.error(`Unable to remove the OpenRouter key. ${getErrorMessage(error)}`);
@@ -283,18 +363,18 @@ export function AiProviderCard() {
     <div className="flex flex-col gap-[24px]" style={noDragStyle}>
       <div className="flex flex-col gap-3 rounded-md border gap-y-4 p-4 bg-ring/10 my-5">
         <div className="flex flex-col gap-1.5">
-          <h3 className="text-sm font-semibold leading-none">OpenRouter</h3>
-          <p className="text-sm text-muted-foreground">
+          <div className="flex flex-row items-center justify-between">
+            <h3 className="text-sm font-semibold leading-none">OpenRouter</h3>
+            <Badge variant={openRouterHasStoredKey ? "default" : "destructive"} className="text-md  leading-7">
+              {openRouterHasStoredKey ? "Saved" : "Required"}
+            </Badge></div>
+          <span className="text-[10px] text-muted-foreground">
             API key for live answer relevance while recording. This is separate from the chat
             provider and model below.
-          </p>
+          </span>
         </div>
 
         <div className="flex flex-col gap-4">
-          <div className="flex items-center justify-between">
-            <h4 className="text-sm font-medium leading-7">API key</h4>
-
-          </div>
 
           <div className="flex flex-col gap-2" style={noDragStyle}>
             <InputGroup>
@@ -366,6 +446,84 @@ export function AiProviderCard() {
                 </Button>
               </div>
             </div>
+          </div>
+
+          <div className="border-t border-yellow-contrast/20 pt-4">
+            <div className="flex items-center justify-between gap-3" style={noDragStyle}>
+              <Label htmlFor="openrouter-relevance-model-select">Live scoring model</Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={
+                  !openRouterHasStoredKey
+                  || isRefreshingOpenRouterModels
+                  || openRouterStatusLoading
+                }
+                onClick={() => {
+                  void fetchOpenRouterModels();
+                }}
+              >
+                <RiRefreshLine data-icon="inline-start" />
+                Refresh
+              </Button>
+            </div>
+
+            {isRefreshingOpenRouterModels ? (
+              <Skeleton className="mt-2 h-8 w-full rounded-md" />
+            ) : (
+              <div className="mt-2" style={noDragStyle}>
+                <Select
+                  value={openRouterRelevanceModelSelectValue}
+                  onValueChange={(value) => {
+                    void handleOpenRouterRelevanceModelChange(value);
+                  }}
+                  disabled={
+                    !openRouterHasStoredKey
+                    || isSavingOpenRouterRelevanceModel
+                    || openRouterStatusLoading
+                  }
+                >
+                  <SelectTrigger
+                    id="openrouter-relevance-model-select"
+                    className="w-full border border-yellow-a9/30 border-2"
+                  >
+                    <SelectValue
+                      placeholder={
+                        openRouterHasStoredKey
+                          ? MODEL_PLACEHOLDERS.openrouter
+                          : "Save an OpenRouter key to choose a model"
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value={OPENROUTER_RELEVANCE_DEFAULT_MODEL_VALUE}>
+                        Built-in default
+                      </SelectItem>
+                      {hasSavedOpenRouterModelOutsideResults && openRouterRelevanceConfig.modelId ? (
+                        <SelectItem value={openRouterRelevanceConfig.modelId}>
+                          {openRouterRelevanceConfig.modelId} (saved)
+                        </SelectItem>
+                      ) : null}
+                      {openRouterModels.map((model) => (
+                        <SelectItem key={model.id} value={model.id}>
+                          {model.name}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            <span className="mt-2 block text-sm text-muted-foreground">
+              {openRouterHasStoredKey
+                ? openRouterModels.length > 0
+                  ? `Loaded ${openRouterModels.length} OpenRouter models for live scoring.`
+                  : "Refresh to load models from OpenRouter (uses the key above)."
+                : "Save an OpenRouter API key to configure the live scoring model."}
+            </span>
           </div>
         </div>
       </div>

@@ -27,7 +27,7 @@ export function RecordingControlCard({
   recordingState,
 }: RecordingControlCardProps) {
   return (
-    <div className="flex h-stretch  flex-col justify-between gap-y-4 px-2 mt-4 h-full overflow-y-auto">
+    <div className="flex h-stretch min-h-50vh  flex-col justify-between gap-y-4 px-2 mt-4 h-full overflow-y-auto">
       <div className="flex items-center justify-between gap-3">
         <div className="flex flex-col gap-1">
           <p className="text-sm font-medium">Start / Stop recording</p>
