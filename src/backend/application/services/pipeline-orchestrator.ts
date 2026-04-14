@@ -19,8 +19,13 @@ import {
   type SessionEntity,
 } from "../../domain/session/session";
 import type {
+  PipelineArtifactRef,
   PipelineEventEnvelope,
+  PipelineEventType,
   PipelineExecutableStageName,
+  PipelinePayload,
+  PipelineProviderRoute,
+  PipelineSessionGraphState,
   PipelineStageRunRecord,
 } from "../../../shared";
 import {
@@ -31,6 +36,13 @@ import { createQueuedStageRunFromEvent } from "./pipeline-events";
 
 const DEFAULT_LEASE_MS = 30_000;
 const DEFAULT_MAX_ATTEMPTS = 3;
+
+type PipelinePayloadWithExecutionMetadata = {
+  readonly inputArtifacts: readonly PipelineArtifactRef[];
+  readonly outputArtifacts: readonly PipelineArtifactRef[];
+  readonly graphState?: PipelineSessionGraphState;
+  readonly providerRoute?: PipelineProviderRoute;
+};
 
 export type PipelineOrchestrator = {
   recover(): Promise<void>;
@@ -49,11 +61,129 @@ export type PipelineOrchestratorDependencies = {
   readonly transactionManager: PipelineTransactionManager;
 };
 
+export type PipelineExecutionContext = {
+  readonly graphState: PipelineSessionGraphState;
+  readonly providerRoute: PipelineProviderRoute;
+};
+
 function addMilliseconds(timestamp: string, milliseconds: number): string {
   return new Date(new Date(timestamp).getTime() + milliseconds).toISOString();
 }
 
-function toRequestedStageEvent(
+function copyGraphState(
+  graphState: PipelineSessionGraphState | undefined,
+): PipelineSessionGraphState {
+  return {
+    ...(graphState ?? {}),
+    activeQuestion: graphState?.activeQuestion
+      ? { ...graphState.activeQuestion }
+      : undefined,
+    liveAnswerEvaluation: graphState?.liveAnswerEvaluation
+      ? { ...graphState.liveAnswerEvaluation }
+      : undefined,
+    metadata: graphState?.metadata ? { ...graphState.metadata } : undefined,
+  };
+}
+
+function toPayloadWithExecutionMetadata<TEventType extends PipelineEventType>(
+  event: PipelineEventEnvelope<TEventType>,
+): PipelinePayload<TEventType> & PipelinePayloadWithExecutionMetadata {
+  return event.payload as PipelinePayload<TEventType> &
+    PipelinePayloadWithExecutionMetadata;
+}
+
+export function createDefaultPipelineProviderRoute(
+  clock: Clock,
+): PipelineProviderRoute {
+  return {
+    routeKind: "local",
+    providerId: "local-pipeline-analysis",
+    selectedAt: clock.now().toISOString(),
+  };
+}
+
+export function resolveLatestPipelineGraphState(
+  events: readonly PipelineEventEnvelope[],
+): PipelineSessionGraphState {
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const graphState = toPayloadWithExecutionMetadata(events[index]).graphState;
+
+    if (graphState) {
+      return copyGraphState(graphState);
+    }
+  }
+
+  return {};
+}
+
+export function resolveLatestPipelineProviderRoute(
+  events: readonly PipelineEventEnvelope[],
+  clock: Clock,
+): PipelineProviderRoute {
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const providerRoute = toPayloadWithExecutionMetadata(events[index]).providerRoute;
+
+    if (providerRoute) {
+      return {
+        ...providerRoute,
+        metadata: providerRoute.metadata ? { ...providerRoute.metadata } : undefined,
+      };
+    }
+  }
+
+  return createDefaultPipelineProviderRoute(clock);
+}
+
+export async function resolvePipelineExecutionContext(input: {
+  readonly clock: Clock;
+  readonly pipelineEventRepository: PipelineEventRepository;
+  readonly sessionId: string;
+}): Promise<PipelineExecutionContext> {
+  const sessionEvents = await input.pipelineEventRepository.listBySessionId(
+    input.sessionId,
+  );
+
+  return {
+    graphState: resolveLatestPipelineGraphState(sessionEvents),
+    providerRoute: resolveLatestPipelineProviderRoute(sessionEvents, input.clock),
+  };
+}
+
+export function stampPipelineEventWithExecutionContext<
+  TEventType extends PipelineEventType,
+>(
+  event: PipelineEventEnvelope<TEventType>,
+  context: PipelineExecutionContext,
+): PipelineEventEnvelope<TEventType> {
+  const payload = toPayloadWithExecutionMetadata(event);
+
+  return createPipelineEventEnvelope({
+    eventId: event.eventId,
+    eventType: event.eventType,
+    sessionId: event.sessionId,
+    chunkId: event.chunkId,
+    stageName: event.stageName,
+    causationId: event.causationId,
+    correlationId: event.correlationId,
+    occurredAt: event.occurredAt,
+    payload: {
+      ...payload,
+      graphState: copyGraphState(payload.graphState ?? context.graphState),
+      providerRoute: payload.providerRoute ?? context.providerRoute,
+    } as PipelinePayload<TEventType>,
+  });
+}
+
+export function stampPipelineEventsWithExecutionContext(
+  events: readonly PipelineEventEnvelope[],
+  context: PipelineExecutionContext,
+): readonly PipelineEventEnvelope[] {
+  return events.map((event) =>
+    stampPipelineEventWithExecutionContext(event, context),
+  );
+}
+
+export function toRequestedStageEvent(
   event: PipelineEventEnvelope,
 ): PipelineEventEnvelope<PipelineExecutableStageName> {
   if (!isPipelineExecutableStageName(event.eventType)) {
@@ -69,6 +199,7 @@ function createFailureEvent(input: {
   readonly occurredAt: string;
   readonly run: PipelineStageRunRecord;
   readonly sourceEvent: PipelineEventEnvelope;
+  readonly executionContext?: PipelineExecutionContext;
 }): PipelineEventEnvelope<"pipeline.failed"> {
   return createPipelineEventEnvelope({
     eventId: input.eventId,
@@ -86,11 +217,13 @@ function createFailureEvent(input: {
       attempt: input.run.attempt,
       inputArtifacts: [...input.run.inputArtifacts],
       outputArtifacts: [],
+      graphState: input.executionContext?.graphState,
+      providerRoute: input.executionContext?.providerRoute,
     },
   });
 }
 
-function createFollowUpStageRuns(
+export function createFollowUpStageRuns(
   events: readonly PipelineEventEnvelope[],
   idGenerator: IdGenerator,
   queuedAt: string,
@@ -110,7 +243,7 @@ export class BuiltInPipelineOrchestrator implements PipelineOrchestrator {
   private readonly maxAttempts: number;
 
   constructor(
-    private readonly dependencies: PipelineOrchestratorDependencies,
+    protected readonly dependencies: PipelineOrchestratorDependencies,
   ) {
     this.maxAttempts = dependencies.maxAttempts ?? DEFAULT_MAX_ATTEMPTS;
   }
@@ -170,15 +303,32 @@ export class BuiltInPipelineOrchestrator implements PipelineOrchestrator {
     }
 
     try {
+      const executionContext = await resolvePipelineExecutionContext({
+        clock: this.dependencies.clock,
+        pipelineEventRepository: this.dependencies.pipelineEventRepository,
+        sessionId: claimedRun.sessionId,
+      });
       const executionResult = await this.executeStage({
         runId: claimedRun.runId,
         stageName: claimedRun.stageName,
         event: toRequestedStageEvent(sourceEvent),
         inputArtifacts: claimedRun.inputArtifacts,
+        graphState: executionContext.graphState,
+        providerRoute: executionContext.providerRoute,
       });
       const completedAt = this.dependencies.clock.now().toISOString();
-      const followUpStageRuns = createFollowUpStageRuns(
+      const settledExecutionContext: PipelineExecutionContext = {
+        graphState: copyGraphState(
+          executionResult.graphState ?? executionContext.graphState,
+        ),
+        providerRoute: executionResult.providerRoute ?? executionContext.providerRoute,
+      };
+      const emittedEvents = stampPipelineEventsWithExecutionContext(
         executionResult.emittedEvents,
+        settledExecutionContext,
+      );
+      const followUpStageRuns = createFollowUpStageRuns(
+        emittedEvents,
         this.dependencies.idGenerator,
         completedAt,
       );
@@ -197,7 +347,7 @@ export class BuiltInPipelineOrchestrator implements PipelineOrchestrator {
       await this.dependencies.transactionManager.withTransaction(async (scope) => {
         await scope.pipelineStageRunRepository.save(completedRun);
 
-        for (const event of executionResult.emittedEvents) {
+        for (const event of emittedEvents) {
           await scope.pipelineEventRepository.append(event);
         }
 
@@ -238,10 +388,11 @@ export class BuiltInPipelineOrchestrator implements PipelineOrchestrator {
     });
   }
 
-  private async handleClaimedRunFailure(
+  protected async handleClaimedRunFailure(
     claimedRun: PipelineStageRunRecord,
     sourceEvent: PipelineEventEnvelope,
     error: unknown,
+    executionContext?: PipelineExecutionContext,
   ): Promise<void> {
     const stageError =
       error instanceof Error ? error : new Error(String(error ?? "Unknown error"));
@@ -253,6 +404,7 @@ export class BuiltInPipelineOrchestrator implements PipelineOrchestrator {
       occurredAt: failedAt,
       run: claimedRun,
       sourceEvent,
+      executionContext,
     });
 
     await this.dependencies.transactionManager.withTransaction(async (scope) => {

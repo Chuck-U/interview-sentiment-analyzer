@@ -1,6 +1,7 @@
 export const TRANSFORMERS_PIPELINE_TASKS = [
   "automatic-speech-recognition",
   "audio-classification",
+  "feature-extraction",
   "text-classification",
   "zero-shot-audio-classification",
   "zero-shot-classification",
@@ -23,6 +24,7 @@ export type RealtimeAssessmentCapability =
   | "speech-to-text"
   | "speaker-diarization"
   | "question-detection"
+  | "answer-relevance"
   | "topic-tracking"
   | "rambling-detection"
   | "engagement-detection";
@@ -69,6 +71,18 @@ export const ASR_MODEL_CANDIDATE_IDS = [
 ] as const;
 
 export type AsrModelCandidateId = (typeof ASR_MODEL_CANDIDATE_IDS)[number];
+
+export const DEFAULT_ANSWER_RELEVANCE_MODEL_ID = "Xenova/bge-small-en-v1.5";
+
+export const ANSWER_RELEVANCE_MODEL_CANDIDATE_IDS = [
+  DEFAULT_ANSWER_RELEVANCE_MODEL_ID,
+  "Xenova/bge-base-en-v1.5",
+  "Xenova/all-MiniLM-L6-v2",
+  "Supabase/gte-small",
+] as const;
+
+export type AnswerRelevanceModelCandidateId =
+  (typeof ANSWER_RELEVANCE_MODEL_CANDIDATE_IDS)[number];
 
 export const ASR_MODEL_EVALUATIONS = [
   {
@@ -187,6 +201,161 @@ export const ASR_MODEL_EVALUATIONS = [
   },
 ] satisfies readonly ModelMatrixEntry[];
 
+export const ANSWER_RELEVANCE_MODEL_EVALUATIONS = [
+  {
+    id: DEFAULT_ANSWER_RELEVANCE_MODEL_ID,
+    task: "feature-extraction",
+    dtype: "q8",
+    priority: "required",
+    label: "BGE Small answer relevance embeddings",
+    capabilities: ["answer-relevance", "topic-tracking", "rambling-detection"],
+    runtime: "pipeline",
+    supportStatus: "ready",
+    includedInManifest: true,
+    approxRepositorySizeMb: null,
+    expectedLatencyPerChunk:
+      "Designed for short text embedding lookups, making it a safer low-latency live relevance default than pairwise rerankers.",
+    evaluation: {
+      latency: {
+        rating: "strong",
+        summary:
+          "Hugging Face MCP lists this as a transformers.js `feature-extraction` BERT model, which is a better fit for frequent live similarity checks than heavier rerankers.",
+      },
+      memory: {
+        rating: "strong",
+        summary:
+          "Smaller than the base BGE and reranker alternatives, keeping the local-first live path more practical in Electron.",
+      },
+      transcriptQuality: {
+        rating: "moderate",
+        summary:
+          "Not an ASR model; transcript quality is neutral because it consumes interviewer and candidate text after transcription.",
+      },
+      compatibility: {
+        rating: "strong",
+        summary:
+          "The Hub metadata reports `transformers.js` + `feature-extraction`, so it fits the existing `getPipeline()` loader with only a manifest and scorer seam update.",
+      },
+    },
+    notes:
+      "Hugging Face MCP reports `Xenova/bge-small-en-v1.5` as a transformers.js ONNX feature-extraction model with BERT architecture, making it the best low-latency local default for semantic answer relevance in this app.",
+  },
+  {
+    id: "Xenova/bge-base-en-v1.5",
+    task: "feature-extraction",
+    dtype: "q8",
+    priority: "optional",
+    label: "BGE Base higher-quality relevance embeddings",
+    capabilities: ["answer-relevance", "topic-tracking"],
+    runtime: "pipeline",
+    supportStatus: "ready",
+    includedInManifest: false,
+    approxRepositorySizeMb: null,
+    expectedLatencyPerChunk:
+      "Higher-quality semantic similarity candidate when the small model proves too weak, at a higher local runtime cost.",
+    evaluation: {
+      latency: {
+        rating: "moderate",
+        summary:
+          "Still pipeline-compatible, but the base model should cost more than the small default on CPU/WASM.",
+      },
+      memory: {
+        rating: "moderate",
+        summary:
+          "Bigger than the small default, so it should stay behind a seam until the latency budget is measured locally.",
+      },
+      transcriptQuality: {
+        rating: "moderate",
+        summary:
+          "Neutral for transcript quality because it operates on already-transcribed text.",
+      },
+      compatibility: {
+        rating: "strong",
+        summary:
+          "Hugging Face MCP reports the same transformers.js feature-extraction compatibility as the small model, so it is an easy local upgrade path.",
+      },
+    },
+    notes:
+      "Treat as the quality-first local fallback when `bge-small` under-scores partially relevant answers.",
+  },
+  {
+    id: "Xenova/all-MiniLM-L6-v2",
+    task: "feature-extraction",
+    dtype: "q8",
+    priority: "optional",
+    label: "MiniLM lightweight semantic similarity fallback",
+    capabilities: ["answer-relevance", "topic-tracking"],
+    runtime: "pipeline",
+    supportStatus: "ready",
+    includedInManifest: false,
+    approxRepositorySizeMb: null,
+    expectedLatencyPerChunk:
+      "Common lightweight embedding fallback when experimentation speed matters more than top relevance quality.",
+    evaluation: {
+      latency: {
+        rating: "strong",
+        summary:
+          "Widely used for fast embeddings and still compatible with the feature-extraction pipeline path.",
+      },
+      memory: {
+        rating: "strong",
+        summary:
+          "A pragmatic fallback when the BGE family proves too heavy or slow for some environments.",
+      },
+      transcriptQuality: {
+        rating: "moderate",
+        summary:
+          "Neutral for transcript quality because it scores text, not raw audio.",
+      },
+      compatibility: {
+        rating: "strong",
+        summary:
+          "Hugging Face MCP reports transformers.js ONNX support, so it fits the same scorer seam with only a model-id swap.",
+      },
+    },
+    notes:
+      "Keep as a lower-cost fallback for development and calibration work.",
+  },
+  {
+    id: "Supabase/gte-small",
+    task: "feature-extraction",
+    dtype: "q8",
+    priority: "optional",
+    label: "GTE Small embedding fallback",
+    capabilities: ["answer-relevance", "topic-tracking"],
+    runtime: "pipeline",
+    supportStatus: "ready",
+    includedInManifest: false,
+    approxRepositorySizeMb: null,
+    expectedLatencyPerChunk:
+      "Another local embedding fallback when we want a well-used English semantic model behind the same scorer contract.",
+    evaluation: {
+      latency: {
+        rating: "strong",
+        summary:
+          "The model is frequently used for embeddings and remains pipeline-compatible for low-latency local scoring.",
+      },
+      memory: {
+        rating: "strong",
+        summary:
+          "A practical fallback size for Electron if the default or base BGE options misbehave on some hardware.",
+      },
+      transcriptQuality: {
+        rating: "moderate",
+        summary:
+          "Neutral for transcript quality because it only consumes transcribed text.",
+      },
+      compatibility: {
+        rating: "strong",
+        summary:
+          "Hugging Face MCP reports transformers.js ONNX feature-extraction compatibility and English support.",
+      },
+    },
+    notes:
+      "Keep as a reliable English-only fallback under the same embeddings seam.",
+  },
+] satisfies readonly ModelMatrixEntry[];
+
 /**
  * Full evaluation matrix documenting every candidate model considered.
  *
@@ -196,6 +365,7 @@ export const ASR_MODEL_EVALUATIONS = [
  */
 export const MODEL_EVALUATION_MATRIX = [
   ...ASR_MODEL_EVALUATIONS,
+  ...ANSWER_RELEVANCE_MODEL_EVALUATIONS,
   {
     id: "onnx-community/distilbert-base-uncased-mnli-ONNX",
     task: "zero-shot-classification",
@@ -330,6 +500,13 @@ export const MODEL_MANIFEST = [
     dtype: "q8",
     priority: "required",
     label: "DistilBERT MNLI question and topic classifier",
+  },
+  {
+    id: DEFAULT_ANSWER_RELEVANCE_MODEL_ID,
+    task: "feature-extraction",
+    dtype: "q8",
+    priority: "required",
+    label: "BGE Small answer relevance embeddings",
   },
   {
     id: "onnx-community/wav2vec2-base-Speech_Emotion_Recognition-ONNX",

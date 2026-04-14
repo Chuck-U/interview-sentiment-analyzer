@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { test } from "@jest/globals";
 
 import {
+  ANSWER_RELEVANCE_MODEL_CANDIDATE_IDS,
+  ANSWER_RELEVANCE_MODEL_EVALUATIONS,
   ASR_MODEL_CANDIDATE_IDS,
   ASR_MODEL_EVALUATIONS,
+  DEFAULT_ANSWER_RELEVANCE_MODEL_ID,
   DEFAULT_TRANSCRIPTION_MODEL_ID,
   MODEL_EVALUATION_MATRIX,
   MODEL_MANIFEST,
@@ -52,4 +55,30 @@ test("cohere and ultravox stay out of the preload manifest for different reasons
   assert.equal(ultravox.task, "audio-text-to-text");
   assert.equal(ultravox.runtime, "low-level-api");
   assert.equal(ultravox.evaluation.compatibility.rating, "weak");
+});
+
+test("answer relevance candidates prefer BGE small as the manifest-ready default", () => {
+  assert.deepEqual(ANSWER_RELEVANCE_MODEL_CANDIDATE_IDS, [
+    "Xenova/bge-small-en-v1.5",
+    "Xenova/bge-base-en-v1.5",
+    "Xenova/all-MiniLM-L6-v2",
+    "Supabase/gte-small",
+  ]);
+
+  const defaultModel = ANSWER_RELEVANCE_MODEL_EVALUATIONS.find(
+    (entry) => entry.id === DEFAULT_ANSWER_RELEVANCE_MODEL_ID,
+  );
+
+  assert.ok(defaultModel);
+  assert.equal(defaultModel.task, "feature-extraction");
+  assert.equal(defaultModel.runtime, "pipeline");
+  assert.equal(defaultModel.includedInManifest, true);
+  assert.equal(defaultModel.evaluation.compatibility.rating, "strong");
+  assert.ok(
+    MODEL_MANIFEST.some((entry) => entry.id === DEFAULT_ANSWER_RELEVANCE_MODEL_ID),
+  );
+  assert.equal(
+    MODEL_EVALUATION_MATRIX.some((entry) => entry.id === DEFAULT_ANSWER_RELEVANCE_MODEL_ID),
+    true,
+  );
 });

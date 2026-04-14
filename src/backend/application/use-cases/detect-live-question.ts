@@ -35,6 +35,7 @@ export type DetectLiveQuestionInput = {
   readonly chunkId: string;
   readonly source: AudioMediaSource;
   readonly text: string;
+  readonly detectedAt?: string;
 };
 
 export type DetectLiveQuestionDependencies = {
@@ -210,6 +211,7 @@ export function createDetectLiveQuestionUseCase(
       source: input.source,
       text,
       raw,
+      detectedAt: input.detectedAt,
     });
   };
 }

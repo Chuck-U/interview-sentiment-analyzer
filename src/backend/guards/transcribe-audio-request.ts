@@ -1,4 +1,4 @@
-import type { TranscriptionRequest } from "../../shared/transcription";
+import { isCaptureProvenance, type TranscriptionRequest } from "../../shared/transcription";
 import { isAudioMediaChunkSource } from "../../shared/session-lifecycle";
 import { isNonEmptyArray, isNonEmptyString } from "./checks";
 
@@ -18,6 +18,8 @@ export function parseTranscribeAudioRequest(input: unknown): TranscriptionReques
   const chunkId = body.chunkId;
   const pcmSamples = body.pcmSamples;
   const source = body.source;
+  const recordedAt = body.recordedAt;
+  const provenance = body.provenance;
 
   if (!isNonEmptyString(sessionId)) {
     throw new Error("transcribeAudio requires sessionId");
@@ -31,6 +33,9 @@ export function parseTranscribeAudioRequest(input: unknown): TranscriptionReques
   if (!isAudioMediaChunkSource(source)) {
     throw new Error("transcribeAudio requires a supported audio source");
   }
+  if (provenance !== undefined && !isCaptureProvenance(provenance)) {
+    throw new Error("transcribeAudio provenance is not a supported value");
+  }
 
   // Sanitise to match the existing IPC handler's Float32Array conversion step.
   const sanitizedPcmSamples: number[] = (pcmSamples as unknown[]).map((n) => {
@@ -42,6 +47,10 @@ export function parseTranscribeAudioRequest(input: unknown): TranscriptionReques
     chunkId,
     pcmSamples: sanitizedPcmSamples,
     source,
+    ...(isNonEmptyString(recordedAt)
+      ? { recordedAt: recordedAt.trim() }
+      : {}),
+    ...(provenance ? { provenance } : {}),
   };
 }
 

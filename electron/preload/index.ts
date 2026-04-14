@@ -3,6 +3,10 @@ import { type SessionLifecycleBridge, type SessionLifecycleEventsBridge } from "
 import type { RecordingBridge, RecordingEventsBridge } from "../../src/shared/recording";
 import { APP_CONTROL_CHANNELS, type AppControlsBridge } from "../../src/shared/app-controls";
 import {
+  ANSWER_RELEVANCE_EVENT_CHANNELS,
+  type AnswerRelevanceEventsBridge,
+} from "../../src/shared/answer-relevance";
+import {
   AI_PROVIDER_CHANNELS,
   normalizeAiProviderConfig,
   normalizeAiProviderModels,
@@ -371,6 +375,15 @@ const questionDetectionEventsBridge: QuestionDetectionEventsBridge = {
   },
 };
 
+const answerRelevanceEventsBridge: AnswerRelevanceEventsBridge = {
+  onAssessment(listener) {
+    return subscribeToChannel(
+      ANSWER_RELEVANCE_EVENT_CHANNELS.assessed,
+      listener,
+    );
+  },
+};
+
 const modelInitBridge: ModelInitBridge = {
   startInit() {
     return ipcRenderer.invoke(MODEL_INIT_CHANNELS.startInit) as Promise<void>;
@@ -433,6 +446,7 @@ const electronAppBridge: ElectronAppBridge = {
   transcription: transcriptionBridge,
   transcriptionEvents: transcriptionEventsBridge,
   questionDetectionEvents: questionDetectionEventsBridge,
+  answerRelevanceEvents: answerRelevanceEventsBridge,
 };
 
 contextBridge.exposeInMainWorld("electronApp", electronAppBridge);

@@ -76,6 +76,19 @@ export const REDUCED_PIPELINE_ARTIFACT_KINDS = [
   "transcript",
 ] as const;
 
+export const PIPELINE_PROVIDER_ROUTE_KINDS = [
+  "local",
+  "external",
+  "hybrid",
+] as const;
+export const PIPELINE_LIVE_ANSWER_EVALUATION_STATUSES = [
+  "idle",
+  "waiting-for-question",
+  "waiting-for-answer",
+  "buffering",
+  "scored",
+  "off-topic",
+] as const;
 
 export type PipelineStageName = (typeof PIPELINE_STAGE_NAMES)[number];
 export type PipelineEventType = (typeof PIPELINE_EVENT_TYPES)[number];
@@ -84,12 +97,20 @@ export type PipelineExecutableStageName =
 export type PipelineArtifactKind = (typeof PIPELINE_ARTIFACT_KINDS)[number];
 export type PipelineStageRunStatus =
   (typeof PIPELINE_STAGE_RUN_STATUSES)[number];
+export type PipelineProviderRouteKind =
+  (typeof PIPELINE_PROVIDER_ROUTE_KINDS)[number];
+export type PipelineLiveAnswerEvaluationStatus =
+  (typeof PIPELINE_LIVE_ANSWER_EVALUATION_STATUSES)[number];
 
 const pipelineStageNameSchema = z.enum(PIPELINE_STAGE_NAMES);
 const pipelineEventTypeSchema = z.enum(PIPELINE_EVENT_TYPES);
 const pipelineExecutableStageNameSchema = z.enum(PIPELINE_EXECUTABLE_STAGE_NAMES);
 const pipelineArtifactKindSchema = z.enum(PIPELINE_ARTIFACT_KINDS);
 const mediaChunkSourceSchema = z.enum(MEDIA_CHUNK_SOURCES);
+const pipelineProviderRouteKindSchema = z.enum(PIPELINE_PROVIDER_ROUTE_KINDS);
+const pipelineLiveAnswerEvaluationStatusSchema = z.enum(
+  PIPELINE_LIVE_ANSWER_EVALUATION_STATUSES,
+);
 
 function nonEmptyTrimmedStringSchema(message: string) {
   return z.string().trim().min(1, message);
@@ -178,9 +199,95 @@ export type ReducedPipelineArtifactRef = z.infer<typeof reducedPipelineArtifactR
 
 const pipelineArtifactArraySchema = z.array(pipelineArtifactRefSchema);
 
+const pipelineProviderRouteSchema = z.object({
+  routeKind: pipelineProviderRouteKindSchema,
+  providerId: nonEmptyTrimmedStringSchema(
+    "pipeline provider routes require a non-empty providerId",
+  ),
+  modelId: optionalTrimmedStringSchema(
+    "pipeline provider routes require a non-empty modelId when provided",
+  ),
+  selectedAt: optionalTrimmedStringSchema(
+    "pipeline provider routes require a non-empty selectedAt when provided",
+  ),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+});
+
+const pipelineActiveQuestionStateSchema = z.object({
+  questionId: optionalTrimmedStringSchema(
+    "pipeline active question state requires a non-empty questionId when provided",
+  ),
+  questionText: nonEmptyTrimmedStringSchema(
+    "pipeline active question state requires questionText",
+  ),
+  sourceEventId: optionalTrimmedStringSchema(
+    "pipeline active question state requires a non-empty sourceEventId when provided",
+  ),
+  sourceChunkId: optionalTrimmedStringSchema(
+    "pipeline active question state requires a non-empty sourceChunkId when provided",
+  ),
+  detectedAt: nonEmptyTrimmedStringSchema(
+    "pipeline active question state requires detectedAt",
+  ),
+  confidence: z
+    .number()
+    .min(0, "pipeline active question state confidence must be at least 0")
+    .max(1, "pipeline active question state confidence must be at most 1")
+    .optional(),
+});
+
+const pipelineLiveAnswerEvaluationStateSchema = z.object({
+  status: pipelineLiveAnswerEvaluationStatusSchema,
+  activeQuestionText: optionalTrimmedStringSchema(
+    "pipeline live answer evaluation state requires a non-empty activeQuestionText when provided",
+  ),
+  answerWindowText: optionalTrimmedStringSchema(
+    "pipeline live answer evaluation state requires a non-empty answerWindowText when provided",
+  ),
+  relevanceScore: z
+    .number()
+    .min(0, "pipeline live answer evaluation relevanceScore must be at least 0")
+    .max(1, "pipeline live answer evaluation relevanceScore must be at most 1")
+    .optional(),
+  offTopicSignal: z
+    .number()
+    .min(0, "pipeline live answer evaluation offTopicSignal must be at least 0")
+    .max(1, "pipeline live answer evaluation offTopicSignal must be at most 1")
+    .optional(),
+  streakCount: z
+    .number()
+    .int("pipeline live answer evaluation streakCount must be an integer")
+    .nonnegative(
+      "pipeline live answer evaluation streakCount must be non-negative",
+    )
+    .optional(),
+  lastUpdatedAt: nonEmptyTrimmedStringSchema(
+    "pipeline live answer evaluation state requires lastUpdatedAt",
+  ),
+});
+
+const pipelineSessionGraphStateSchema = z.object({
+  activeQuestion: pipelineActiveQuestionStateSchema.optional(),
+  liveAnswerEvaluation: pipelineLiveAnswerEvaluationStateSchema.optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+});
+
+export type PipelineProviderRoute = z.infer<typeof pipelineProviderRouteSchema>;
+export type PipelineActiveQuestionState = z.infer<
+  typeof pipelineActiveQuestionStateSchema
+>;
+export type PipelineLiveAnswerEvaluationState = z.infer<
+  typeof pipelineLiveAnswerEvaluationStateSchema
+>;
+export type PipelineSessionGraphState = z.infer<
+  typeof pipelineSessionGraphStateSchema
+>;
+
 const pipelineArtifactPayloadSchema = z.object({
   inputArtifacts: pipelineArtifactArraySchema,
   outputArtifacts: pipelineArtifactArraySchema,
+  graphState: pipelineSessionGraphStateSchema.optional(),
+  providerRoute: pipelineProviderRouteSchema.optional(),
 });
 
 const chunkRegisteredPayloadSchema = pipelineArtifactPayloadSchema.extend({

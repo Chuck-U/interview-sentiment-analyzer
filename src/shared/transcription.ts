@@ -1,5 +1,20 @@
 import type { AudioMediaSource, MediaChunkSource, Unsubscribe } from "./session-lifecycle";
 
+export const CAPTURE_PROVENANCE_KINDS = [
+  "dedicated-microphone",
+  "clean-system-audio",
+  "mixed-desktop-audio",
+] as const;
+
+export type CaptureProvenance = (typeof CAPTURE_PROVENANCE_KINDS)[number];
+
+export function isCaptureProvenance(value: unknown): value is CaptureProvenance {
+  return (
+    typeof value === "string" &&
+    (CAPTURE_PROVENANCE_KINDS as readonly string[]).includes(value)
+  );
+}
+
 export const TRANSCRIPTION_CHANNELS = {
   transcribeAudio: "transcription:transcribe-audio",
 } as const;
@@ -23,6 +38,8 @@ export type TranscriptionRequest = {
   readonly sessionId: string;
   readonly chunkId: string;
   readonly source: MediaChunkSource;
+  readonly recordedAt?: string;
+  readonly provenance?: CaptureProvenance;
 };
 
 export type TranscriptionResult = {
@@ -30,6 +47,8 @@ export type TranscriptionResult = {
   readonly text: string;
   readonly sessionId: string;
   readonly chunkId: string;
+  readonly recordedAt?: string;
+  readonly provenance?: CaptureProvenance;
   /** Word/segment-level timestamps when the model returns them. */
   readonly chunks?: TranscriptChunk[];
 };
@@ -56,6 +75,7 @@ export type SessionTranscriptArtifactV1 = {
   readonly chunkId: string;
   readonly sessionId: string;
   readonly source: AudioMediaSource;
+  readonly provenance?: CaptureProvenance;
   /** Full text for the chunk window. */
   readonly text: string;
   /** Optional sub-spans with [start,end] times in seconds (same as {@link TranscriptChunk}). */
@@ -74,6 +94,7 @@ export function buildSessionTranscriptArtifact(args: {
   readonly chunkId: string;
   readonly sessionId: string;
   readonly source: AudioMediaSource;
+  readonly provenance?: CaptureProvenance;
   readonly text: string;
   readonly chunks?: readonly TranscriptChunk[];
   readonly completedAt?: string;
@@ -89,6 +110,7 @@ export function buildSessionTranscriptArtifact(args: {
     source: args.source,
     text: args.text,
     completedAt,
+    ...(args.provenance ? { provenance: args.provenance } : {}),
     ...(args.chunks && args.chunks.length > 0
       ? { segments: args.chunks }
       : {}),

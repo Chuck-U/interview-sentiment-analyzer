@@ -6,7 +6,7 @@ import { DatabaseSync } from "node:sqlite";
 
 import type { App } from "electron";
 
-import { BuiltInPipelineOrchestrator } from "./application/services/pipeline-orchestrator";
+import { LangChainPipelineOrchestrator } from "./application/services/langchain-pipeline-orchestrator";
 import type {
   Clock,
   FileSystemAccess,
@@ -196,7 +196,7 @@ export function createSessionLifecycleBackend(
     idGenerator,
     storageLayoutResolver,
   });
-  const pipelineOrchestrator = new BuiltInPipelineOrchestrator({
+  const pipelineOrchestrator = new LangChainPipelineOrchestrator({
     analysisProvider,
     clock,
     eventPublisher,

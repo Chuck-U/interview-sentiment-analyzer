@@ -30,6 +30,10 @@ import { createAppConfigStore } from "../../src/backend/infrastructure/config/ap
 import { registerConfiguredGlobalShortcuts } from "../../src/backend/infrastructure/shortcuts/globalShortcuts.shortcuts";
 import { APP_CONTROL_CHANNELS } from "../../src/shared/app-controls";
 import {
+  ANSWER_RELEVANCE_EVENT_CHANNELS,
+  type AnswerRelevanceAssessmentPayload,
+} from "../../src/shared/answer-relevance";
+import {
   CAPTURE_OPTIONS_CHANNELS,
   CAPTURE_OPTIONS_EVENT_CHANNELS,
   normalizeCaptureOptionsConfig,
@@ -85,11 +89,13 @@ import {
 } from "../../src/shared/transcription";
 import { QUESTION_DETECTION_EVENT_CHANNELS } from "../../src/shared/question-detection";
 import * as modelLifecycle from "../../src/backend/infrastructure/ml/model-lifecycle-service";
-import { LiveQuestionMemory } from "../../src/backend/application/services/live-question-memory";
+import { createEmbeddingAnswerRelevanceScorer } from "../../src/backend/infrastructure/ml/embedding-answer-relevance-scorer";
+import { LiveTranscriptionStateGraph } from "../../src/backend/application/services/live-transcription-state-graph";
 import {
   createTranscribeAudioIpcHandler,
-  createLiveQuestionDetectionHook,
 } from "../../src/backend/interfaces/controllers/transcription-controller";
+import { createDetectLiveQuestionUseCase } from "../../src/backend/application/use-cases/detect-live-question";
+import { createDetectLiveAnswerRelevanceUseCase } from "../../src/backend/application/use-cases/detect-live-answer-relevance";
 import { cleanupStaleArtifacts } from "./cleanup-stale-artifacts";
 import { isNonEmptyObject, isNonEmptyString } from "@/backend/guards/checks";
 
@@ -1087,29 +1093,50 @@ async function initializeApp() {
       log.ger({ type: "warn", message: "[cleanup] startup cleanup failed", data: err }),
     );
 
-    const questionMemory = new LiveQuestionMemory();
+    const detectLiveQuestion = createDetectLiveQuestionUseCase({
+      getPipeline: modelLifecycle.getPipeline,
+    });
+    const detectLiveAnswerRelevance = createDetectLiveAnswerRelevanceUseCase({
+      scoreAnswerRelevance: createEmbeddingAnswerRelevanceScorer({
+        getPipeline: modelLifecycle.getPipeline,
+      }),
+    });
+    const liveTranscriptionGraph = new LiveTranscriptionStateGraph({
+      detectLiveQuestion,
+      detectLiveAnswerRelevance,
+      async appendTranscriptLog(input) {
+        await appendSessionTranscriptLog({
+          storageLayoutResolver,
+          sessionId: input.sessionId,
+          source: input.source,
+          provenance: input.provenance,
+          text: input.text,
+          timestamp: input.timestamp,
+        });
+      },
+      publishQuestionDetected(payload) {
+        publishToAllWindows(
+          QUESTION_DETECTION_EVENT_CHANNELS.questionDetected,
+          payload,
+        );
+      },
+      publishAnswerRelevance(payload: AnswerRelevanceAssessmentPayload) {
+        publishToAllWindows(ANSWER_RELEVANCE_EVENT_CHANNELS.assessed, payload);
+      },
+    });
 
     const transcribeAudioHandler = createTranscribeAudioIpcHandler({
       getPipeline: modelLifecycle.getPipeline,
       postTranscriptionHooks: [
-        createLiveQuestionDetectionHook({
-          getPipeline: modelLifecycle.getPipeline,
-          questionMemory,
-          async appendTranscriptLog(input) {
-            await appendSessionTranscriptLog({
-              storageLayoutResolver,
-              sessionId: input.sessionId,
-              source: input.source,
-              text: input.text,
-            });
-          },
-          publishQuestionDetected(payload) {
-            publishToAllWindows(
-              QUESTION_DETECTION_EVENT_CHANNELS.questionDetected,
-              payload,
-            );
-          },
-        }),
+        async (ctx) => {
+          await liveTranscriptionGraph.process({
+            sessionId: ctx.sessionId,
+            chunkId: ctx.chunkId,
+            source: ctx.source,
+            provenance: ctx.provenance,
+            transcription: ctx.transcription,
+          });
+        },
       ],
     });
 
@@ -1383,7 +1410,9 @@ async function initializeApp() {
             SESSION_LIFECYCLE_EVENT_CHANNELS.sessionFinalized,
             session,
           );
-          questionMemory.clearSession(session.id);
+          void liveTranscriptionGraph
+            .flushSession(session.id)
+            .finally(() => liveTranscriptionGraph.clearSession(session.id));
         },
       },
     );

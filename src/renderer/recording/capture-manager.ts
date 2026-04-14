@@ -91,6 +91,9 @@ export class CaptureManager {
   private screenshotCapture: ScreenshotCapture | null = null;
   private displayStream: MediaStream | null = null;
   private audioMixSession: AudioMixSession | null = null;
+  private desktopCaptureHasMixedMicrophone = false;
+  /** Mic stream acquired for the dedicated recorder; reused for desktop mix via cloned tracks. */
+  private sharedMicrophoneStream: MediaStream | null = null;
   private exportStatus: RecordingExportStatus = "idle";
   private exportFilePath?: string;
   private exportErrorMessage?: string;
@@ -109,6 +112,15 @@ export class CaptureManager {
     this.exportStatus = "idle";
     this.exportFilePath = undefined;
     this.exportErrorMessage = undefined;
+    this.sharedMicrophoneStream = null;
+    this.desktopCaptureHasMixedMicrophone = false;
+
+    const unifiedDesktopWithMic =
+      sources.includes("desktop-capture") && sources.includes("microphone");
+
+    if (unifiedDesktopWithMic) {
+      await this.startMicrophoneRecorder(sessionId, captureOptions);
+    }
 
     const startPromises: Promise<void>[] = [];
 
@@ -118,7 +130,7 @@ export class CaptureManager {
       );
     }
 
-    if (sources.includes("microphone")) {
+    if (sources.includes("microphone") && !unifiedDesktopWithMic) {
       startPromises.push(
         this.startMicrophoneRecorder(sessionId, captureOptions),
       );
@@ -153,6 +165,7 @@ export class CaptureManager {
     }
 
     await this.disposeAudioMixSession();
+    this.sharedMicrophoneStream = null;
 
     this.publishState();
   }
@@ -193,6 +206,10 @@ export class CaptureManager {
       exportFilePath: this.exportFilePath,
       exportErrorMessage: this.exportErrorMessage,
     };
+  }
+
+  isDesktopCaptureMixed(): boolean {
+    return this.desktopCaptureHasMixedMicrophone;
   }
 
   setExportStatus(
@@ -299,6 +316,10 @@ export class CaptureManager {
       return;
     }
 
+    if (source === "microphone") {
+      this.sharedMicrophoneStream = stream;
+    }
+
     const activeDeviceId =
       source === "microphone"
         ? stream.getAudioTracks()[0]?.getSettings().deviceId
@@ -384,6 +405,7 @@ export class CaptureManager {
         );
       } else {
         const microphoneEnabled = sources.includes("microphone");
+        this.desktopCaptureHasMixedMicrophone = microphoneEnabled;
         const desktopStream = new MediaStream([
           videoTrack.clone(),
           ...(await this.buildMixedDesktopAudioTracks({
@@ -391,6 +413,7 @@ export class CaptureManager {
             captureOptions,
             desktopAudioTracks: audioTracks,
             includeMicrophone: microphoneEnabled,
+            sharedMicrophoneStream: this.sharedMicrophoneStream,
           })),
         ]);
 
@@ -469,8 +492,15 @@ export class CaptureManager {
     readonly captureOptions: CaptureOptionsConfig;
     readonly desktopAudioTracks: readonly MediaStreamTrack[];
     readonly includeMicrophone: boolean;
+    readonly sharedMicrophoneStream?: MediaStream | null;
   }): Promise<readonly MediaStreamTrack[]> {
-    const { sessionId, captureOptions, desktopAudioTracks, includeMicrophone } = args;
+    const {
+      sessionId,
+      captureOptions,
+      desktopAudioTracks,
+      includeMicrophone,
+      sharedMicrophoneStream,
+    } = args;
     const desktopAudioStream = new MediaStream(
       desktopAudioTracks.map((track) => track.clone()),
     );
@@ -482,14 +512,19 @@ export class CaptureManager {
     let microphoneStream: MediaStream | null = null;
 
     try {
-      microphoneStream = await navigator.mediaDevices.getUserMedia({
-        audio: captureOptions.microphone.deviceId
-          ? {
+      const sharedTracks = sharedMicrophoneStream?.getAudioTracks() ?? [];
+      if (sharedTracks.length > 0 && sharedTracks.every((t) => t.readyState === "live")) {
+        microphoneStream = new MediaStream(sharedTracks.map((track) => track.clone()));
+      } else {
+        microphoneStream = await navigator.mediaDevices.getUserMedia({
+          audio: captureOptions.microphone.deviceId
+            ? {
               deviceId: { exact: captureOptions.microphone.deviceId },
             }
-          : true,
-        video: false,
-      });
+            : true,
+          video: false,
+        });
+      }
 
       this.audioMixSession = await this.createStereoAudioMixSession([
         desktopAudioStream,

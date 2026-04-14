@@ -3,6 +3,8 @@ import type {
   PipelineEventEnvelope,
   PipelineEventType,
   PipelineExecutableStageName,
+  PipelineProviderRoute,
+  PipelineSessionGraphState,
 } from "../../../shared";
 
 export type PipelineStageExecutionRequest<
@@ -12,6 +14,8 @@ export type PipelineStageExecutionRequest<
   readonly stageName: TStageName;
   readonly event: PipelineEventEnvelope<TStageName>;
   readonly inputArtifacts: readonly PipelineArtifactRef[];
+  readonly graphState: PipelineSessionGraphState;
+  readonly providerRoute: PipelineProviderRoute;
 };
 
 export type PipelineStageExecutionResult<
@@ -19,6 +23,8 @@ export type PipelineStageExecutionResult<
 > = {
   readonly outputArtifacts: readonly PipelineArtifactRef[];
   readonly emittedEvents: readonly PipelineEventEnvelope<TEventType>[];
+  readonly graphState?: PipelineSessionGraphState;
+  readonly providerRoute?: PipelineProviderRoute;
 };
 
 export type AnalysisProvider = {

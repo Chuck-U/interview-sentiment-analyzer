@@ -16,16 +16,16 @@ todos:
     status: completed
   - id: wire-controller
     content: Update transcription controller to use extracted evaluator, threshold gate, and LiveQuestionMemory
-    status: pending
+    status: completed
   - id: wire-main
     content: Instantiate LiveQuestionMemory in electron/main/index.ts and inject into handler + session cleanup
-    status: pending
+    status: completed
   - id: update-tests
     content: Update detect-live-question tests for new evaluator function and payload shape
-    status: pending
+    status: completed
   - id: transcript-repetition-separate
     content: Execute transcript_repetition_plan on a separate agent (seam dedupe, ASR windows, idempotency)
-    status: pending
+    status: completed
 isProject: false
 ---
 
