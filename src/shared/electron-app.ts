@@ -4,6 +4,7 @@ import type { AiProviderBridge } from "./ai-provider";
 import type { CaptureOptionsBridge } from "./capture-options";
 import type { ModelInitBridge } from "./model-init";
 import type { OpenRouterKeyBridge } from "./openrouter-key";
+import type { OpenRouterRelevanceBridge } from "./openrouter-relevance";
 import type { QuestionDetectionEventsBridge } from "./question-detection";
 import type { RecordingBridge, RecordingEventsBridge } from "./recording";
 import type {
@@ -23,6 +24,7 @@ export type ElectronAppBridge = {
   readonly recordingEvents: RecordingEventsBridge;
   readonly aiProvider: AiProviderBridge;
   readonly openRouterKey: OpenRouterKeyBridge;
+  readonly openRouterRelevance: OpenRouterRelevanceBridge;
   readonly captureOptions: CaptureOptionsBridge;
   readonly appControls: AppControlsBridge;
   readonly windowControls: WindowControlsBridge;

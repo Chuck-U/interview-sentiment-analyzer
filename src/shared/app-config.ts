@@ -22,6 +22,11 @@ import {
   windowPreferencesConfigSchema,
   type WindowPreferencesConfig,
 } from "./window-preferences";
+import {
+  DEFAULT_OPEN_ROUTER_RELEVANCE_CONFIG,
+  openRouterRelevanceConfigSchema,
+  type OpenRouterRelevanceConfig,
+} from "./openrouter-relevance";
 
 export const APP_CONFIG_SCHEMA_VERSION = 1 as const;
 
@@ -30,6 +35,8 @@ export type AppConfig = {
   readonly shortcuts: Record<string, ShortcutConfigEntry>;
   readonly captureOptions: CaptureOptionsConfig;
   readonly aiProvider: AiProviderConfig;
+  /** Live answer relevance scoring (OpenRouter), separate from chat `aiProvider`. */
+  readonly openRouterRelevance: OpenRouterRelevanceConfig;
   readonly windowPreferences: WindowPreferencesConfig;
 };
 
@@ -51,6 +58,9 @@ export const appConfigSchema = z.object({
   shortcuts: z.record(z.string(), shortcutConfigEntrySchema),
   captureOptions: captureOptionsConfigSchema,
   aiProvider: aiProviderConfigSchema.default(DEFAULT_AI_PROVIDER_CONFIG),
+  openRouterRelevance: openRouterRelevanceConfigSchema.default(
+    DEFAULT_OPEN_ROUTER_RELEVANCE_CONFIG,
+  ),
   windowPreferences: windowPreferencesConfigSchema,
 });
 
@@ -70,6 +80,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   },
   captureOptions: DEFAULT_CAPTURE_OPTIONS_CONFIG,
   aiProvider: DEFAULT_AI_PROVIDER_CONFIG,
+  openRouterRelevance: DEFAULT_OPEN_ROUTER_RELEVANCE_CONFIG,
   windowPreferences: DEFAULT_WINDOW_PREFERENCES_CONFIG,
 };
 

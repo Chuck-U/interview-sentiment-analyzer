@@ -8,6 +8,10 @@ import {
   safeParseAppConfig,
   type AppConfig,
 } from "../../../shared/app-config";
+import {
+  normalizeOpenRouterRelevanceConfig,
+  type OpenRouterRelevanceConfig,
+} from "../../../shared/openrouter-relevance";
 import type { CaptureOptionsConfig } from "../../../shared/capture-options";
 import {
   SHORTCUTS_CONFIG_SCHEMA_VERSION,
@@ -103,6 +107,10 @@ export type AppConfigStore = {
   ): Promise<void>;
   saveCaptureOptionsConfig(config: CaptureOptionsConfig): Promise<CaptureOptionsConfig>;
   saveAiProviderConfig(config: AppConfig["aiProvider"]): Promise<AppConfig["aiProvider"]>;
+  loadOpenRouterRelevanceConfig(): Promise<OpenRouterRelevanceConfig>;
+  saveOpenRouterRelevanceConfig(
+    config: OpenRouterRelevanceConfig,
+  ): Promise<OpenRouterRelevanceConfig>;
   loadWindowPreferences(): Promise<WindowPreferencesConfig>;
   updateCardWindowPreferences(
     role: CardWindowRole,
@@ -264,6 +272,19 @@ export function createAppConfigStore(
 
       await saveConfig(updated);
       return updated.aiProvider;
+    },
+    async loadOpenRouterRelevanceConfig() {
+      const config = await loadConfig();
+      return config.openRouterRelevance;
+    },
+    async saveOpenRouterRelevanceConfig(next) {
+      const current = await loadConfig();
+      const updated: AppConfig = {
+        ...current,
+        openRouterRelevance: normalizeOpenRouterRelevanceConfig(next),
+      };
+      await saveConfig(updated);
+      return updated.openRouterRelevance;
     },
     async loadWindowPreferences() {
       const config = await loadConfig();
